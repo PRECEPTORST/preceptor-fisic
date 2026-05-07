@@ -237,11 +237,10 @@
 					<div class="onb-dot" class:on={i === onboardingStep}></div>
 				{/each}
 			</div>
-			{@const step = onboardingSteps[onboardingStep]}
-			{#if step}
-				<div class="onb-icon">{step.icon}</div>
-				<h2 class="onb-title">{step.title}</h2>
-				<p class="onb-body">{step.body}</p>
+			{#if onboardingSteps[onboardingStep]}
+				<div class="onb-icon">{onboardingSteps[onboardingStep].icon}</div>
+				<h2 class="onb-title">{onboardingSteps[onboardingStep].title}</h2>
+				<p class="onb-body">{onboardingSteps[onboardingStep].body}</p>
 			{/if}
 			<div class="onb-actions">
 				<button type="button" class="onb-skip" onclick={dismissOnboarding}>Pular</button>
