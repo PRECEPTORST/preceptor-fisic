@@ -522,62 +522,69 @@
 	}
 	.hero-video {
 		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
+		/* sangra 2% além do container — blur(2px) cria borda translúcida nas
+		   margens, oversize esconde isso */
+		top: -2%;
+		left: -2%;
+		width: 104%;
+		height: 104%;
 		object-fit: cover;
 		opacity: 0;
 		transition: opacity 800ms var(--ease);
 		z-index: 0;
-		/* Hardware accel — força decodificação na GPU, evita banding */
+		/* Hardware accel — força decodificação na GPU */
 		will-change: transform, opacity;
 		transform: translateZ(0);
 		backface-visibility: hidden;
-		/* Compensa o upscale de 720p pra full-HD: aviva cores e contraste */
-		filter: saturate(1.18) contrast(1.06) brightness(1.02);
+		/* Blur leve disfarça artefatos de compressão e qualquer upscale residual.
+		   Look "depth of field" cinematográfico — Stripe/Linear/Vercel usam.
+		   + saturate pra avivar cores + brightness reduzida pra ficar mais cinematic. */
+		filter: blur(2px) saturate(1.22) contrast(1.04) brightness(0.85);
 		image-rendering: high-quality;
 		-webkit-transform: translateZ(0);
 	}
 	.hero-video.on {
 		opacity: 1;
 	}
-	/* Overlay 1: vinheta sutil — escurece SÓ os cantos extremos, preserva o video no meio */
+	/* Overlay 1: véu escuro generoso — tipo gel ND no cinema.
+	   Centro escurece +30%, bordas +70%. Esconde imperfeições e
+	   garante hierarquia visual (texto > video). */
 	.hero-veil {
 		position: absolute;
 		inset: 0;
-		background: radial-gradient(
-			ellipse 80% 70% at 50% 45%,
-			transparent 0%,
-			rgba(5, 5, 5, 0.15) 60%,
-			rgba(5, 5, 5, 0.55) 100%
-		);
+		background:
+			radial-gradient(
+				ellipse 100% 85% at 50% 45%,
+				rgba(5, 5, 5, 0.28) 0%,
+				rgba(5, 5, 5, 0.55) 55%,
+				rgba(5, 5, 5, 0.78) 100%
+			),
+			linear-gradient(180deg, rgba(5, 5, 5, 0.25) 0%, transparent 25%, transparent 65%, rgba(5, 5, 5, 0.35) 100%);
 		z-index: 1;
 		pointer-events: none;
 	}
-	/* Overlay 2: fade pra preto na base — emenda com a próxima section */
+	/* Overlay 2: fade pra preto na base */
 	.hero-fade-bottom {
 		position: absolute;
 		bottom: 0;
 		left: 0;
 		right: 0;
-		height: 200px;
-		background: linear-gradient(180deg, transparent 0%, rgba(5, 5, 5, 0.4) 50%, var(--bg-0) 95%);
+		height: 220px;
+		background: linear-gradient(180deg, transparent 0%, rgba(5, 5, 5, 0.5) 50%, var(--bg-0) 95%);
 		z-index: 2;
 		pointer-events: none;
 	}
-	/* Overlay 3: vinheta atrás do texto SOMENTE — não cobre o vídeo todo.
-	   Posicionada à esquerda, com elipse suave, dá peso pra leitura sem
-	   sacrificar 50% do vídeo como antes. */
+	/* Overlay 3: vinheta atrás do texto — agora mais forte pra reforçar leitura */
 	.hero-fade-left {
 		position: absolute;
-		top: 10%;
-		bottom: 10%;
+		top: 8%;
+		bottom: 8%;
 		left: 0;
-		width: 65%;
+		width: 70%;
 		background: radial-gradient(
-			ellipse 70% 60% at 30% 50%,
-			rgba(5, 5, 5, 0.45) 0%,
-			rgba(5, 5, 5, 0.18) 60%,
+			ellipse 72% 65% at 28% 50%,
+			rgba(5, 5, 5, 0.55) 0%,
+			rgba(5, 5, 5, 0.25) 60%,
 			transparent 100%
 		);
 		z-index: 1;
