@@ -14,5 +14,6 @@ playwright-report
 coverage
 *.tsbuildinfo
 .claude
+bagui
 
 .vercel
