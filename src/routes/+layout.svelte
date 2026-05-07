@@ -3,7 +3,12 @@
 	import { onNavigate } from '$app/navigation';
 	import { ToastContainer } from '$lib/components/ui';
 	import { env } from '$env/dynamic/public';
+	import { injectSpeedInsights } from '@vercel/speed-insights/sveltekit';
 	import type { Snippet } from 'svelte';
+
+	// Vercel Speed Insights — Web Vitals (LCP, FID, CLS, INP, FCP, TTFB).
+	// Só ativa em produção via Vercel; em dev/local é no-op.
+	injectSpeedInsights();
 
 	// Preload das duas fontes mais críticas (500 sans + 500 mono).
 	// `?url` faz Vite resolver pra URL hasheada do build.

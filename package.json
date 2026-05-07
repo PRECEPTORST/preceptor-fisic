@@ -19,7 +19,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:post-migrate": "tsx scripts/apply-post-migration.ts",
     "db:studio": "drizzle-kit studio",
-    "migrate:v2": "tsx scripts/migrate-from-v2.ts"
+    "migrate:v2": "tsx scripts/migrate-from-v2.ts",
+    "backup": "tsx scripts/backup.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.67",
@@ -29,6 +30,7 @@
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.47.10",
     "@vercel/functions": "^3.5.0",
+    "@vercel/speed-insights": "^2.0.0",
     "ai": "^6.0.175",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",

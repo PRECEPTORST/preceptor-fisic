@@ -7,6 +7,8 @@
  */
 import { fail } from '@sveltejs/kit';
 import { env } from '$env/dynamic/public';
+import { checkAndAudit } from '$lib/server/rate-limit';
+import { audit, clientFingerprint } from '$lib/server/audit';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
@@ -16,7 +18,13 @@ export const load: PageServerLoad = async () => {
 };
 
 export const actions: Actions = {
-	default: async ({ request, locals, url }) => {
+	default: async ({ request, locals, url, getClientAddress }) => {
+		// Rate limit: 3 tentativas / 10 min por IP (anti email-bomb)
+		const rl = await checkAndAudit({ key: 'password_reset', request, getClientAddress });
+		if (!rl.allowed) {
+			return fail(429, { email: '', error: rl.message ?? 'Muitas tentativas.' });
+		}
+
 		if (!locals.supabase) {
 			return fail(500, { error: 'Auth não configurado.' });
 		}
@@ -27,12 +35,18 @@ export const actions: Actions = {
 		}
 
 		const redirectTo = `${url.origin}/recuperar/redefinir`;
-		const { error } = await locals.supabase.auth.resetPasswordForEmail(email, { redirectTo });
-		if (error) {
-			// Não revela se o email existe (segurança) — mostra success mesmo
-			// pra erros tipo "user not found"
-			return { success: true, email };
-		}
+		await locals.supabase.auth.resetPasswordForEmail(email, { redirectTo });
+
+		// Audita o request (não revela se email existe ou não — sempre 'success')
+		const fp = clientFingerprint(request, getClientAddress);
+		audit({
+			action: 'auth.password_reset_request',
+			entityType: 'auth',
+			payload: { email: email.slice(0, 80) },
+			...fp
+		});
+
+		// Sempre retorna success (não revela existência da conta)
 		return { success: true, email };
 	}
 };

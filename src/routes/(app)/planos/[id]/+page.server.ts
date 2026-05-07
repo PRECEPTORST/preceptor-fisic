@@ -1,5 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
+import { audit, clientFingerprint } from '$lib/server/audit';
 import {
 	getPlanDetail,
 	getProfessionalByAuthId,
@@ -46,7 +47,7 @@ function deriveTagsFromDiagnoses(labels: string[]): string[] {
 }
 
 export const actions: Actions = {
-	publish: async ({ params, locals }) => {
+	publish: async ({ params, locals, request, getClientAddress }) => {
 		if (!locals.user) return fail(401, { error: 'não autenticado' });
 		const professional = await getProfessionalByAuthId(locals.user.id);
 		if (!professional) return fail(401, { error: 'professional não encontrado' });
@@ -54,14 +55,33 @@ export const actions: Actions = {
 		const result = await publishPlan(params.id!, professional.id);
 		if (!result.ok) return fail(400, { error: result.reason });
 
+		const fp = clientFingerprint(request, getClientAddress);
+		audit({
+			action: 'plan.publish',
+			professionalId: professional.id,
+			entityType: 'training_plan',
+			entityId: params.id,
+			...fp
+		});
+
 		return { success: true, action: 'publish' };
 	},
-	archive: async ({ params, locals }) => {
+	archive: async ({ params, locals, request, getClientAddress }) => {
 		if (!locals.user) return fail(401, { error: 'não autenticado' });
 		const professional = await getProfessionalByAuthId(locals.user.id);
 		if (!professional) return fail(401, { error: 'professional não encontrado' });
 
 		await archivePlan(params.id!, professional.id);
+
+		const fp = clientFingerprint(request, getClientAddress);
+		audit({
+			action: 'plan.archive',
+			professionalId: professional.id,
+			entityType: 'training_plan',
+			entityId: params.id,
+			...fp
+		});
+
 		return { success: true, action: 'archive' };
 	},
 	revalidate: async ({ params, locals }) => {

@@ -1481,14 +1481,14 @@ export async function getDashboardStats(professionalId: string): Promise<Dashboa
 			SELECT
 				a.id,
 				a.starts_at,
-				a.title,
+				a.label AS title,
 				s.name AS student_name
 			FROM appointments a
 			LEFT JOIN students s ON s.id = a.student_id
 			WHERE a.professional_id = ${professionalId}
 			  AND a.starts_at >= now()
 			  AND a.starts_at < now() + interval '7 days'
-			  AND a.status NOT IN ('cancelled')
+			  AND a.status <> 'cancelled'
 			ORDER BY a.starts_at ASC
 			LIMIT 8
 		`)

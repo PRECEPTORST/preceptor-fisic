@@ -1,8 +1,16 @@
 import { fail, redirect } from '@sveltejs/kit';
+import { checkAndAudit } from '$lib/server/rate-limit';
+import { audit, clientFingerprint } from '$lib/server/audit';
 import type { Actions } from './$types';
 
 export const actions: Actions = {
-	login: async ({ request, locals }) => {
+	login: async ({ request, locals, getClientAddress }) => {
+		// Rate limit: 5 tentativas / minuto por IP
+		const rl = await checkAndAudit({ key: 'login', request, getClientAddress });
+		if (!rl.allowed) {
+			return fail(429, { email: '', error: rl.message ?? 'Muitas tentativas.' });
+		}
+
 		const data = await request.formData();
 		const email = String(data.get('email') ?? '');
 		const password = String(data.get('password') ?? '');
@@ -14,13 +22,39 @@ export const actions: Actions = {
 			return fail(400, { email, error: 'Preencha email e senha.' });
 		}
 
-		const { error } = await locals.supabase.auth.signInWithPassword({ email, password });
-		if (error) return fail(401, { email, error: error.message });
+		const { data: authData, error } = await locals.supabase.auth.signInWithPassword({
+			email,
+			password
+		});
+		const fp = clientFingerprint(request, getClientAddress);
+		if (error) {
+			audit({
+				action: 'auth.login',
+				entityType: 'auth',
+				payload: { ok: false, email: email.slice(0, 80), reason: error.message },
+				...fp
+			});
+			return fail(401, { email, error: error.message });
+		}
+
+		audit({
+			action: 'auth.login',
+			entityType: 'auth',
+			entityId: authData.user?.id ?? null,
+			payload: { ok: true, email: email.slice(0, 80) },
+			...fp
+		});
 
 		redirect(303, '/dashboard');
 	},
 
-	signup: async ({ request, locals }) => {
+	signup: async ({ request, locals, getClientAddress }) => {
+		// Rate limit signup mais agressivo: 3 / 10 min por IP
+		const rl = await checkAndAudit({ key: 'signup', request, getClientAddress });
+		if (!rl.allowed) {
+			return fail(429, { email: '', error: rl.message ?? 'Muitas tentativas.' });
+		}
+
 		const data = await request.formData();
 		const email = String(data.get('email') ?? '');
 		const password = String(data.get('password') ?? '');
@@ -33,13 +67,33 @@ export const actions: Actions = {
 		if (!email || !password || !name) {
 			return fail(400, { email, error: 'Preencha nome, email e senha.' });
 		}
+		if (password.length < 8) {
+			return fail(400, { email, error: 'Senha precisa ter pelo menos 8 caracteres.' });
+		}
 
-		const { error } = await locals.supabase.auth.signUp({
+		const { data: authData, error } = await locals.supabase.auth.signUp({
 			email,
 			password,
 			options: { data: { name, cref } }
 		});
-		if (error) return fail(400, { email, error: error.message });
+		const fp = clientFingerprint(request, getClientAddress);
+		if (error) {
+			audit({
+				action: 'auth.signup',
+				entityType: 'auth',
+				payload: { ok: false, email: email.slice(0, 80), reason: error.message },
+				...fp
+			});
+			return fail(400, { email, error: error.message });
+		}
+
+		audit({
+			action: 'auth.signup',
+			entityType: 'auth',
+			entityId: authData.user?.id ?? null,
+			payload: { ok: true, email: email.slice(0, 80), hasName: !!name, hasCref: !!cref },
+			...fp
+		});
 
 		redirect(303, '/dashboard');
 	}
