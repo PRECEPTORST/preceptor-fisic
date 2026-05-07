@@ -6,6 +6,11 @@
 	let { form }: { form: ActionData } = $props();
 	let email = $state('');
 	let submitting = $state(false);
+
+	// Persiste email digitado mesmo após failure (action retorna { email })
+	$effect(() => {
+		if (form && 'email' in form && form.email && !email) email = form.email as string;
+	});
 </script>
 
 <div class="rec-shell">
@@ -62,7 +67,6 @@
 					type="email"
 					name="email"
 					bind:value={email}
-					value={form?.email ?? email}
 					placeholder="seu@email.com"
 					required
 					autocomplete="email"
