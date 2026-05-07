@@ -18,18 +18,18 @@
 	);
 </script>
 
-<div style="overflow-y:auto;padding:32px 40px 64px">
-	<header style="margin-bottom:28px;display:flex;align-items:flex-end;justify-content:space-between">
-		<div>
+<div class="planos-main">
+	<header class="planos-header">
+		<div style="flex:1;min-width:0">
 			<Eyebrow>{plans.length} planos · {plans.filter((p) => p.isActive).length} ativos</Eyebrow>
-			<h1 style="font:var(--display-md);margin:8px 0 0;letter-spacing:-0.025em">Planos</h1>
-			<p style="font:var(--body-lg);color:var(--ink-2);margin:6px 0 0">
-				Histórico completo de planos prescritos. Cada um foi gerado com base no perfil clínico do aluno.
+			<h1 class="planos-h1">Planos</h1>
+			<p class="planos-sub">
+				Histórico de planos prescritos. Cada um foi gerado com base no perfil clínico do aluno.
 			</p>
 		</div>
-		<div style="display:flex;gap:8px">
+		<div class="planos-actions">
 			<Button variant="secondary">Exportar</Button>
-			<Button>+ Novo plano</Button>
+			<Button>+ Novo</Button>
 		</div>
 	</header>
 
@@ -149,3 +149,56 @@
 		{/if}
 	{/if}
 </div>
+
+<style>
+	.planos-main {
+		overflow-y: auto;
+		padding: 32px 40px 64px;
+	}
+	.planos-header {
+		margin-bottom: 28px;
+		display: flex;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 14px;
+	}
+	.planos-h1 {
+		font: 600 28px var(--font-sans);
+		margin: 8px 0 0;
+		letter-spacing: -0.025em;
+	}
+	.planos-sub {
+		font: 400 15px var(--font-sans);
+		color: var(--ink-2);
+		margin: 6px 0 0;
+		max-width: 560px;
+	}
+	.planos-actions {
+		display: flex;
+		gap: 8px;
+		flex-shrink: 0;
+	}
+	@media (max-width: 1023px) {
+		.planos-main {
+			padding: 16px 18px 32px;
+		}
+		.planos-header {
+			flex-direction: column;
+			align-items: stretch;
+			gap: 12px;
+		}
+		.planos-h1 {
+			font-size: 22px;
+		}
+		.planos-sub {
+			font-size: 13px;
+		}
+		.planos-actions {
+			gap: 6px;
+		}
+		.planos-actions :global(.pf-btn) {
+			flex: 1;
+			justify-content: center;
+		}
+	}
+</style>

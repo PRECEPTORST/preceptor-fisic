@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { getPlanDetail } from '$lib/server/queries';
+import { getPlanDetail, getRecentSessionLogs } from '$lib/server/queries';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, parent }) => {
@@ -13,5 +13,8 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 	const session = plan.planData.weekly_sessions?.[idx];
 	if (!session) error(404, 'sessão não encontrada');
 
-	return { plan, session, idx };
+	const sessionLabel = session.label ?? `Sessão ${idx + 1}`;
+	const recentLogs = await getRecentSessionLogs(params.id, sessionLabel, 5);
+
+	return { plan, session, idx, recentLogs };
 };

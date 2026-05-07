@@ -21,7 +21,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 };
 
 export const actions: Actions = {
-	complete: async ({ request, params }) => {
+	complete: async ({ request, params, url }) => {
 		const data = await getAlunoAppData(params.id);
 		if (!data || !data.plan) return fail(404, { error: 'plano não encontrado' });
 		const idx = Number(params.idx);

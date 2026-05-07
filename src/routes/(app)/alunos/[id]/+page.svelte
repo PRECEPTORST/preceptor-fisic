@@ -415,6 +415,58 @@
 						<Button onclick={() => goto(`/alunos/${student.id}/avaliacao`)}>+ Nova avaliação</Button>
 					</div>
 				{:else}
+					<!-- Progresso com sparklines — 5 métricas -->
+					{@const progress = detail.progress}
+					{@const metrics = [
+						{ key: 'weight', label: 'Peso', unit: 'kg', metric: progress.weight, color: 'var(--accent)' },
+						{ key: 'bmi', label: 'IMC', unit: '', metric: progress.bmi, color: 'var(--info)' },
+						{ key: 'bodyFat', label: 'Gordura', unit: '%', metric: progress.bodyFat, color: 'var(--warn)' },
+						{ key: 'restingHr', label: 'FC repouso', unit: 'bpm', metric: progress.restingHr, color: 'var(--danger)' },
+						{ key: 'bpSystolic', label: 'PA sistólica', unit: 'mmHg', metric: progress.bpSystolic, color: 'var(--accent-2)' }
+					].filter(m => m.metric.values.length > 0)}
+
+					{#if metrics.length > 0}
+						<div class="card" style="padding:24px;margin-bottom:16px">
+							<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+								<div>
+									<Eyebrow>◆ Evolução clínica</Eyebrow>
+									<div style="font:500 16px var(--font-sans);color:var(--ink-0);margin-top:4px">
+										Últimas {metrics[0]?.metric.values.length} avaliações
+									</div>
+								</div>
+							</div>
+							<div class="progress-grid">
+								{#each metrics as m (m.key)}
+									{@const delta = m.metric.deltaPct}
+									{@const positive = delta != null && delta >= 0}
+									{@const goodDirection =
+										m.key === 'weight' || m.key === 'bmi' || m.key === 'bodyFat' || m.key === 'bpSystolic' || m.key === 'restingHr'
+											? !positive
+											: positive}
+									<div class="progress-card">
+										<div class="progress-card__head">
+											<span style="font:var(--label-mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:0.08em">{m.label}</span>
+											{#if delta != null && Math.abs(delta) > 0.5}
+												<span class="progress-delta" style="color:{goodDirection ? 'var(--success)' : 'var(--danger)'};background:{goodDirection ? 'var(--success-dim)' : 'var(--danger-dim)'}">
+													{positive ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}%
+												</span>
+											{/if}
+										</div>
+										<div style="display:flex;align-items:baseline;gap:4px;margin-top:8px">
+											<span class="num" style="font:600 24px var(--font-mono);color:var(--ink-0)">{m.metric.current?.toFixed(1)}</span>
+											{#if m.unit}<span style="font:500 12px var(--font-mono);color:var(--ink-3)">{m.unit}</span>{/if}
+										</div>
+										{#if m.metric.values.length > 1}
+											<div style="margin-top:10px">
+												<Sparkline data={m.metric.values} width={180} height={28} color={m.color} />
+											</div>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
 					<div class="card" style="padding:24px">
 						<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
 							<div style="font:500 16px var(--font-sans);color:var(--ink-0)">Avaliações recentes</div>
@@ -440,3 +492,33 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	.progress-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		gap: 14px;
+	}
+	.progress-card {
+		padding: 14px 16px;
+		background: var(--bg-2);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-2);
+	}
+	.progress-card__head {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 8px;
+	}
+	.progress-delta {
+		font: 500 10px var(--font-mono);
+		padding: 2px 6px;
+		border-radius: var(--r-pill);
+	}
+	@media (max-width: 768px) {
+		.progress-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+</style>

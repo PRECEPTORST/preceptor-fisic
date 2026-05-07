@@ -204,6 +204,13 @@ export async function getStudentsByProfessional(professionalId: string): Promise
 	});
 }
 
+export type ProgressMetric = {
+	values: number[];
+	current: number | null;
+	first: number | null;
+	deltaPct: number | null;
+};
+
 export type StudentDetail = {
 	student: Student;
 	healthProfile: HealthProfile | null;
@@ -211,7 +218,26 @@ export type StudentDetail = {
 	plans: { id: string; title: string; isActive: boolean; createdAt: Date; sessionsTotal: number }[];
 	assessments: typeof physicalAssessments.$inferSelect[];
 	lastWeights: number[];
+	/** Séries de progresso pra sparklines — últimas 8 medidas, ordem cronológica */
+	progress: {
+		weight: ProgressMetric;
+		bmi: ProgressMetric;
+		bodyFat: ProgressMetric;
+		restingHr: ProgressMetric;
+		bpSystolic: ProgressMetric;
+	};
 };
+
+function buildMetric(values: number[]): ProgressMetric {
+	if (values.length === 0) return { values: [], current: null, first: null, deltaPct: null };
+	const current = values[values.length - 1] ?? null;
+	const first = values[0] ?? null;
+	const deltaPct =
+		current !== null && first !== null && first !== 0
+			? ((current - first) / first) * 100
+			: null;
+	return { values, current, first, deltaPct };
+}
 
 export async function getStudentDetail(
 	studentId: string,
@@ -261,16 +287,48 @@ export async function getStudentDetail(
 		.orderBy(desc(physicalAssessments.assessedAt))
 		.limit(10);
 
-	// Histórico de peso recente — últimas 8 medidas via progress_records, fallback pra peso atual
+	// Séries de progresso pras sparklines — extrai cada métrica das
+	// últimas 8 avaliações em ordem cronológica (mais antiga → mais nova)
+	const recent8 = assessments.slice(0, 8).slice().reverse();
+	const seriesBmi = recent8.map((a) => a.bmi).filter((v): v is number => v !== null);
+	const seriesBodyFat = recent8
+		.map((a) => a.bodyFatPct)
+		.filter((v): v is number => v !== null);
+	const seriesRestingHr = recent8
+		.map((a) => a.restingHr)
+		.filter((v): v is number => v !== null);
+	const seriesBpSys = recent8
+		.map((a) => a.bloodPressureSystolic)
+		.filter((v): v is number => v !== null);
+
+	// Peso vem de progress_records (é registrado a cada avaliação automaticamente)
 	const weightRows = await db
 		.select({ value: progressRecords.value })
 		.from(progressRecords)
 		.where(and(eq(progressRecords.studentId, studentId), eq(progressRecords.metricType, 'weight')))
 		.orderBy(desc(progressRecords.recordedAt))
 		.limit(8);
-	const lastWeights = weightRows.length ? weightRows.map((r) => r.value).reverse() : student.weightKg ? Array(8).fill(student.weightKg) : [];
+	const lastWeights = weightRows.length
+		? weightRows.map((r) => r.value).reverse()
+		: student.weightKg
+			? Array(8).fill(student.weightKg)
+			: [];
 
-	return { student, healthProfile: hp ?? null, preferences: prefs ?? null, plans, assessments, lastWeights };
+	return {
+		student,
+		healthProfile: hp ?? null,
+		preferences: prefs ?? null,
+		plans,
+		assessments,
+		lastWeights,
+		progress: {
+			weight: buildMetric(lastWeights),
+			bmi: buildMetric(seriesBmi),
+			bodyFat: buildMetric(seriesBodyFat),
+			restingHr: buildMetric(seriesRestingHr),
+			bpSystolic: buildMetric(seriesBpSys)
+		}
+	};
 }
 
 /* ────────── PLANS ────────── */
@@ -1303,6 +1361,55 @@ export async function countPlansGeneratedRecent(
 	const list = (result as unknown as { rows?: typeof result }).rows ?? result;
 	const row = (list as Array<{ count: number }>)[0];
 	return Number(row?.count ?? 0);
+}
+
+/* ────────── SESSION LOGS ────────── */
+
+/**
+ * Histórico das últimas execuções de uma sessão (label específico) de um plano.
+ * Usado pra mostrar progressão de cargas pro profissional na visão da sessão.
+ */
+export type SessionLogEntry = {
+	id: string;
+	sessionDate: Date;
+	sessionLabel: string | null;
+	perceivedEffort: number | null;
+	exercisesDone: Array<{
+		name?: string;
+		sets_done?: number;
+		reps_done?: string;
+		load_used?: string;
+		completed?: boolean;
+	}>;
+};
+
+export async function getRecentSessionLogs(
+	planId: string,
+	sessionLabel: string,
+	limit = 5
+): Promise<SessionLogEntry[]> {
+	const rows = await db
+		.select({
+			id: trainingSessions.id,
+			sessionDate: trainingSessions.sessionDate,
+			sessionLabel: trainingSessions.sessionLabel,
+			perceivedEffort: trainingSessions.perceivedEffort,
+			exercisesDone: trainingSessions.exercisesDone
+		})
+		.from(trainingSessions)
+		.where(
+			and(eq(trainingSessions.planId, planId), eq(trainingSessions.sessionLabel, sessionLabel))
+		)
+		.orderBy(desc(trainingSessions.sessionDate))
+		.limit(limit);
+
+	return rows.map((r) => ({
+		id: r.id,
+		sessionDate: r.sessionDate,
+		sessionLabel: r.sessionLabel,
+		perceivedEffort: r.perceivedEffort,
+		exercisesDone: (r.exercisesDone as SessionLogEntry['exercisesDone']) ?? []
+	}));
 }
 
 /* ────────── DASHBOARD STATS ────────── */

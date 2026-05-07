@@ -41,14 +41,31 @@
 	}
 
 	let activeEx = $state(0);
-	const setLog: Record<number, number[]> = {
-		1: [60, 60, 62, 62],
-		2: [22, 22, 24],
-		3: [14, 14, 14]
-	};
+	const recentLogs = $derived(data.recentLogs ?? []);
+
+	// Extrai cargas usadas pelo aluno na execução do exercício ativo,
+	// na ÚLTIMA sessão registrada. Em vez de hardcoded.
+	const log = $derived.by(() => {
+		const exName = exercises[activeEx]?.name;
+		if (!exName || recentLogs.length === 0) return [] as number[];
+		// Última execução desse exercício
+		for (const sessionLog of recentLogs) {
+			const found = sessionLog.exercisesDone.find((e) => e.name === exName);
+			if (found?.load_used) {
+				// Extrai número da string "60kg" → 60
+				const match = String(found.load_used).match(/(\d+(?:[.,]\d+)?)/);
+				if (match && match[1]) {
+					const n = Number(match[1].replace(',', '.'));
+					if (Number.isFinite(n) && found.sets_done) {
+						return Array(found.sets_done).fill(n);
+					}
+				}
+			}
+		}
+		return [];
+	});
 
 	const ex = $derived(exercises[activeEx]);
-	const log = $derived(setLog[activeEx + 1] ?? []);
 
 	function intensityColorFromRPE(load: string | undefined) {
 		if (!load) return 'var(--ink-2)';

@@ -1,6 +1,15 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
-import { getProfessionalByAuthId, getStudentsByProfessional, createAppointment } from '$lib/server/queries';
+import { eq } from 'drizzle-orm';
+import {
+	getProfessionalByAuthId,
+	getStudentsByProfessional,
+	createAppointment
+} from '$lib/server/queries';
+import { db } from '$lib/server/db';
+import { students } from '$lib/server/db/schema';
+import { sendAppointmentNotification } from '$lib/server/email';
+import { logger } from '$lib/server/logger';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent }) => {
@@ -44,6 +53,39 @@ export const actions: Actions = {
 			label,
 			notes
 		});
+
+		// Notifica aluno por email se ele tem email cadastrado
+		if (studentId) {
+			try {
+				const [student] = await db
+					.select({ name: students.name, email: students.email })
+					.from(students)
+					.where(eq(students.id, studentId))
+					.limit(1);
+				if (student?.email) {
+					sendAppointmentNotification({
+						to: student.email,
+						studentName: student.name,
+						professionalName: professional.name,
+						startsAt,
+						durationMinutes: duration,
+						type: type.data,
+						label,
+						studentId
+					}).catch((err) =>
+						logger.error(
+							{ err: String(err).slice(0, 200) },
+							'appointment.notify.send_failed'
+						)
+					);
+				}
+			} catch (err) {
+				logger.error(
+					{ err: String(err).slice(0, 200) },
+					'appointment.notify.lookup_failed'
+				);
+			}
+		}
 
 		redirect(303, '/agenda');
 	}

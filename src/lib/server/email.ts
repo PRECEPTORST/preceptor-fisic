@@ -148,6 +148,60 @@ export async function sendProfessionalWelcome(opts: {
 }
 
 /**
+ * Notifica aluno sobre novo agendamento.
+ */
+export async function sendAppointmentNotification(opts: {
+	to: string;
+	studentName: string;
+	professionalName: string;
+	startsAt: Date;
+	durationMinutes: number;
+	type: string;
+	label?: string | null;
+	studentId: string;
+}): Promise<EmailResult> {
+	const firstName = opts.studentName.split(' ')[0] || 'aluno';
+	const dateStr = opts.startsAt.toLocaleDateString('pt-BR', {
+		weekday: 'long',
+		day: '2-digit',
+		month: 'long'
+	});
+	const timeStr = opts.startsAt.toLocaleTimeString('pt-BR', {
+		hour: '2-digit',
+		minute: '2-digit'
+	});
+	const typeLabel: Record<string, string> = {
+		treino: 'Sessão de treino',
+		avaliacao: 'Avaliação física',
+		reabilitacao: 'Reabilitação',
+		consulta: 'Consulta'
+	};
+	const sessionLabel = opts.label ?? typeLabel[opts.type] ?? 'Sessão';
+	const subject = `${sessionLabel} agendada · ${dateStr.split(',')[0]} ${timeStr}`;
+	const body = `
+<p style="margin:0 0 14px;">Olá <strong style="color:#fafafa;">${firstName}</strong>,</p>
+<p style="margin:0 0 14px;"><strong style="color:#fafafa;">${opts.professionalName}</strong> agendou uma sessão pra você.</p>
+<div style="margin:18px 0;padding:14px 18px;background:#0a0a0a;border:1px solid #2a2a2a;border-radius:8px;">
+  <div style="font:500 11px monospace;color:#7a7a7a;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">${sessionLabel}</div>
+  <div style="font:500 16px sans-serif;color:#fafafa;margin-bottom:4px;">${dateStr} · ${timeStr}</div>
+  <div style="font:400 13px sans-serif;color:#b8b8b8;">${opts.durationMinutes} minutos</div>
+</div>
+<p style="margin:0;">Confira seu treino completo no app.</p>
+`;
+	return send({
+		to: opts.to,
+		subject,
+		html: baseTemplate(
+			'Sessão agendada.',
+			body,
+			`${APP_URL}/a/${opts.studentId}`,
+			'Abrir meu app →'
+		),
+		tag: 'appointment.notification'
+	});
+}
+
+/**
  * Notifica profissional que o plano gerado pra um aluno está pronto.
  */
 export async function sendPlanReady(opts: {
