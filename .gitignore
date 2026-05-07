@@ -1,0 +1,16 @@
+node_modules
+.svelte-kit
+build
+.vercel
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+.tmp-design
+.tmp-*.json
+test-results
+playwright-report
+coverage
+*.tsbuildinfo
+.claude

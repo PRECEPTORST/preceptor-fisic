@@ -1,0 +1,28 @@
+{
+	"$schema": "https://openapi.vercel.sh/vercel.json",
+	"regions": ["gru1"],
+	"framework": "sveltekit",
+	"buildCommand": "npm run build",
+	"installCommand": "npm install",
+	"outputDirectory": ".vercel/output",
+	"headers": [
+		{
+			"source": "/sw.js",
+			"headers": [
+				{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+				{ "key": "Service-Worker-Allowed", "value": "/" }
+			]
+		},
+		{
+			"source": "/manifest.webmanifest",
+			"headers": [
+				{ "key": "Cache-Control", "value": "public, max-age=3600" },
+				{ "key": "Content-Type", "value": "application/manifest+json" }
+			]
+		},
+		{
+			"source": "/icon-(.*)",
+			"headers": [{ "key": "Cache-Control", "value": "public, max-age=86400, immutable" }]
+		}
+	]
+}

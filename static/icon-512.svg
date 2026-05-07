@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+	<rect width="512" height="512" rx="120" fill="url(#grad)"/>
+	<text x="50%" y="55%" text-anchor="middle" dominant-baseline="middle" font-family="Geist, system-ui, -apple-system, sans-serif" font-size="290" font-weight="700" fill="#0a0a0a">P</text>
+	<defs>
+		<linearGradient id="grad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+			<stop stop-color="#A78BFA"/>
+			<stop offset="1" stop-color="#6D5FA3"/>
+		</linearGradient>
+	</defs>
+</svg>

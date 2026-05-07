@@ -1,0 +1,151 @@
+<script lang="ts">
+	import { Button, Chip, Eyebrow } from '$lib/components/ui';
+	import { goto } from '$app/navigation';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
+	const plans = $derived(data.plans);
+
+	let view = $state<'grid' | 'list'>('grid');
+	let filter = $state<'all' | 'active' | 'archived'>('all');
+
+	const filtered = $derived(
+		plans.filter((p) => {
+			if (filter === 'all') return true;
+			if (filter === 'active') return p.isActive;
+			return !p.isActive;
+		})
+	);
+</script>
+
+<div style="overflow-y:auto;padding:32px 40px 64px">
+	<header style="margin-bottom:28px;display:flex;align-items:flex-end;justify-content:space-between">
+		<div>
+			<Eyebrow>{plans.length} planos · {plans.filter((p) => p.isActive).length} ativos</Eyebrow>
+			<h1 style="font:var(--display-md);margin:8px 0 0;letter-spacing:-0.025em">Planos</h1>
+			<p style="font:var(--body-lg);color:var(--ink-2);margin:6px 0 0">
+				Histórico completo de planos prescritos. Cada um foi gerado com base no perfil clínico do aluno.
+			</p>
+		</div>
+		<div style="display:flex;gap:8px">
+			<Button variant="secondary">Exportar</Button>
+			<Button>+ Novo plano</Button>
+		</div>
+	</header>
+
+	{#if plans.length === 0}
+		<div class="card" style="padding:48px;text-align:center">
+			<div style="font:500 18px var(--font-sans);color:var(--ink-0);margin-bottom:6px">Nenhum plano gerado ainda</div>
+			<div style="font:var(--body);color:var(--ink-2);max-width:420px;margin:0 auto 20px">
+				Vá para a ficha de um aluno e clique em "Gerar plano" pra criar o primeiro.
+			</div>
+			<Button onclick={() => goto('/dashboard')}>Ver alunos</Button>
+		</div>
+	{:else}
+		<div
+			style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:var(--bg-2);border:1px solid var(--ink-line);border-radius:var(--r-2);margin-bottom:20px"
+		>
+			<div style="display:flex;gap:6px;flex-wrap:wrap;flex:1">
+				{#each [['all', 'Todos'], ['active', 'Ativos'], ['archived', 'Encerrados']] as [k, l] (k)}
+					<Chip active={filter === k} onclick={() => (filter = k as typeof filter)}>{l}</Chip>
+				{/each}
+			</div>
+			<div
+				style="display:flex;gap:4px;padding:4px;background:var(--bg-1);border-radius:var(--r-2);border:1px solid var(--ink-line)"
+			>
+				{#each ['grid', 'list'] as v (v)}
+					<button
+						onclick={() => (view = v as typeof view)}
+						style="padding:6px 10px;font:var(--label-mono);color:{view === v
+							? 'var(--ink-0)'
+							: 'var(--ink-3)'};background:{view === v
+							? 'var(--bg-3)'
+							: 'transparent'};border:0;border-radius:6px;cursor:pointer;text-transform:uppercase"
+					>{v === 'grid' ? '▦' : '☰'} {v}</button>
+				{/each}
+			</div>
+		</div>
+
+		{#if view === 'grid'}
+			<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px">
+				{#each filtered as p (p.id)}
+					<button
+						type="button"
+						onclick={() => goto(`/planos/${p.id}`)}
+						class="card"
+						style="all:unset;cursor:pointer;display:block;padding:0;overflow:hidden;background:var(--bg-2);border:1px solid {p.isActive
+							? 'var(--accent-dim)'
+							: 'var(--ink-line)'};border-radius:var(--r-3)"
+					>
+						<div
+							style="padding:14px 18px;border-bottom:1px solid var(--ink-line);display:flex;justify-content:space-between;align-items:center;background:var(--bg-3)"
+						>
+							<span style="font:var(--label-mono);color:{p.isActive ? 'var(--accent)' : 'var(--ink-2)'}"
+								>{p.isActive ? '● ATIVO' : '○ ENCERRADO'}</span
+							>
+							<span style="font:var(--label-mono);color:var(--ink-3)"
+								>{new Date(p.createdAt).toLocaleDateString('pt-BR')}</span
+							>
+						</div>
+
+						<div style="padding:20px">
+							<div style="font:var(--label-mono);color:var(--ink-3);margin-bottom:6px">{p.studentName}</div>
+							<h3 style="font:600 15px var(--font-sans);letter-spacing:-0.005em;margin:0 0 16px;color:var(--ink-0);line-height:1.4">
+								{p.title}
+							</h3>
+
+							<div style="display:flex;gap:24px;padding:12px 0;border-top:1px solid var(--ink-line);border-bottom:1px solid var(--ink-line)">
+								<div>
+									<div class="num" style="font:var(--num-md);color:var(--ink-0);line-height:1">{p.sessionsTotal}</div>
+									<div style="font:var(--label-mono);color:var(--ink-3);margin-top:4px">SESSÕES</div>
+								</div>
+								<div>
+									<div style="font:500 16px var(--font-sans);color:var(--ink-0);line-height:1.2;text-transform:capitalize">
+										{p.status}
+									</div>
+									<div style="font:var(--label-mono);color:var(--ink-3);margin-top:4px">STATUS</div>
+								</div>
+							</div>
+
+							<div
+								style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;font:var(--label-mono);color:var(--ink-3)"
+							>
+								<span>VER DETALHES</span>
+								<span style="color:var(--accent)">→</span>
+							</div>
+						</div>
+					</button>
+				{/each}
+			</div>
+		{:else}
+			<div class="card" style="padding:0">
+				<div
+					style="display:grid;grid-template-columns:1.5fr 2fr 100px 100px 120px 60px;gap:16px;padding:12px 20px;border-bottom:1px solid var(--ink-line-2);background:var(--bg-3)"
+				>
+					{#each ['Aluno', 'Plano', 'Sessões', 'Status', 'Criado', ''] as h (h)}
+						<div class="eyebrow">{h}</div>
+					{/each}
+				</div>
+				{#each filtered as p, i (p.id)}
+					<button
+						type="button"
+						onclick={() => goto(`/planos/${p.id}`)}
+						style="all:unset;cursor:pointer;display:grid;grid-template-columns:1.5fr 2fr 100px 100px 120px 60px;gap:16px;padding:14px 20px;align-items:center;{i <
+						filtered.length - 1
+							? 'border-bottom:1px solid var(--ink-line)'
+							: ''};width:100%;box-sizing:border-box"
+					>
+						<div style="font:500 14px var(--font-sans);color:var(--ink-0)">{p.studentName}</div>
+						<div style="font:var(--body-sm);color:var(--ink-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+							{p.title}
+						</div>
+						<div class="num" style="font:500 14px var(--font-mono);color:var(--ink-0)">{p.sessionsTotal}</div>
+						<Chip variant={p.isActive ? 'active' : 'default'}>{p.status}</Chip>
+						<div class="num" style="font:var(--label-mono);color:var(--ink-2)">{new Date(p.createdAt).toLocaleDateString('pt-BR')}</div>
+						<span style="color:var(--accent);text-align:right">→</span>
+					</button>
+				{/each}
+			</div>
+		{/if}
+	{/if}
+</div>

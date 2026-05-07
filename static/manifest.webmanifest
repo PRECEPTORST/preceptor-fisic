@@ -1,0 +1,54 @@
+{
+	"name": "Preceptor Fisic",
+	"short_name": "Preceptor",
+	"description": "Prescrição clínica para profissionais CREF/CREFITO — populações especiais com diretrizes auditáveis.",
+	"start_url": "/dashboard",
+	"scope": "/",
+	"display": "standalone",
+	"orientation": "portrait",
+	"background_color": "#050505",
+	"theme_color": "#A78BFA",
+	"lang": "pt-BR",
+	"dir": "ltr",
+	"categories": ["health", "fitness", "medical", "lifestyle"],
+	"icons": [
+		{
+			"src": "/icon-192.svg",
+			"sizes": "192x192",
+			"type": "image/svg+xml",
+			"purpose": "any"
+		},
+		{
+			"src": "/icon-512.svg",
+			"sizes": "512x512",
+			"type": "image/svg+xml",
+			"purpose": "any"
+		},
+		{
+			"src": "/icon-maskable.svg",
+			"sizes": "512x512",
+			"type": "image/svg+xml",
+			"purpose": "maskable"
+		}
+	],
+	"shortcuts": [
+		{
+			"name": "Visão geral",
+			"short_name": "Dashboard",
+			"description": "Lista de alunos + métricas",
+			"url": "/dashboard"
+		},
+		{
+			"name": "Agenda",
+			"short_name": "Agenda",
+			"description": "Sessões da semana",
+			"url": "/agenda"
+		},
+		{
+			"name": "Mensagens",
+			"short_name": "Inbox",
+			"description": "Conversas com alunos",
+			"url": "/mensagens"
+		}
+	]
+}

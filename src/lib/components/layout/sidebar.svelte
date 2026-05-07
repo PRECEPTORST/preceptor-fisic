@@ -1,0 +1,337 @@
+<script lang="ts">
+	import { page } from '$app/state';
+	import Avatar from '../ui/avatar.svelte';
+	import NavIcon from './nav-icon.svelte';
+
+	type NavItem = {
+		id: string;
+		label: string;
+		icon: 'home' | 'alunos' | 'planos' | 'exer' | 'msgs' | 'agenda' | 'aluno' | 'config' | 'logout';
+		href: string;
+		count?: number;
+		badge?: number;
+	};
+
+	type Props = {
+		showUser?: boolean;
+		showSearch?: boolean;
+		showBadges?: boolean;
+		dense?: boolean;
+		accentLogo?: boolean;
+		userName?: string;
+		userCref?: string;
+	};
+
+	let {
+		showUser = true,
+		showSearch = true,
+		showBadges = true,
+		dense = false,
+		accentLogo = true,
+		userName = 'Matheus Castro',
+		userCref = 'CREF 123456-G'
+	}: Props = $props();
+
+	const NAV_PRO: NavItem[] = [
+		{ id: 'home', label: 'Visão geral', icon: 'home', href: '/dashboard' },
+		{ id: 'alunos', label: 'Alunos', icon: 'alunos', href: '/alunos', count: 12 },
+		{ id: 'planos', label: 'Planos', icon: 'planos', href: '/planos' },
+		{ id: 'exer', label: 'Exercícios', icon: 'exer', href: '/exercicios' },
+		{ id: 'msgs', label: 'Mensagens', icon: 'msgs', href: '/mensagens', badge: 3 },
+		{ id: 'agenda', label: 'Agenda', icon: 'agenda', href: '/agenda' }
+	];
+	const NAV_FOOTER: NavItem[] = [
+		{ id: 'aluno', label: 'Visão do aluno', icon: 'aluno', href: '/aluno-preview' },
+		{ id: 'config', label: 'Configurações', icon: 'config', href: '/configuracoes' },
+		{ id: 'logout', label: 'Sair', icon: 'logout', href: '/logout' }
+	];
+
+	const isActive = (href: string) => {
+		const path = page.url.pathname;
+		if (href === '/dashboard') return path === '/dashboard' || path === '/';
+		return path.startsWith(href);
+	};
+</script>
+
+<aside class="pf-sidebar" class:dense>
+	{#if accentLogo}
+		<div class="pf-sidebar__glow"></div>
+	{/if}
+
+	<a class="pf-sidebar__brand" href="/dashboard">
+		<div
+			class="pf-sidebar__logo"
+			class:accent={accentLogo}
+		>P</div>
+		<div style="min-width:0">
+			<div style="font:600 14px var(--font-sans);letter-spacing:-0.015em;color:var(--ink-0)">Preceptor Fisic</div>
+			<div style="font:500 9.5px var(--font-mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:0.1em;margin-top:2px">
+				PRO · v3.2
+			</div>
+		</div>
+	</a>
+
+	{#if showSearch}
+		<div style="position:relative;margin-bottom:14px;padding:0 4px">
+			<div class="pf-search">
+				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="11" cy="11" r="7" />
+					<path d="M21 21l-4.5-4.5" />
+				</svg>
+				<input placeholder="Buscar aluno, plano…" />
+				<span class="pf-search__kbd">⌘K</span>
+			</div>
+		</div>
+	{/if}
+
+	<div class="pf-sidebar__section">Workspace</div>
+	<nav class="pf-sidebar__nav">
+		{#each NAV_PRO as it (it.id)}
+			{@const on = isActive(it.href)}
+			<a class="pf-navitem" class:on href={it.href} data-sveltekit-preload-data="hover">
+				<span class="pf-navitem__indicator" class:on></span>
+				<span class="pf-navitem__icon" class:on>
+					<NavIcon name={it.icon} size={18} />
+				</span>
+				<span style="flex:1">{it.label}</span>
+				{#if showBadges && it.count != null && !it.badge}
+					<span class="pf-navitem__count">{it.count}</span>
+				{/if}
+				{#if showBadges && it.badge}
+					<span class="pf-navitem__badge">{it.badge}</span>
+				{/if}
+			</a>
+		{/each}
+	</nav>
+
+	<div class="pf-sidebar__section pf-sidebar__section--footer">Conta</div>
+	<nav class="pf-sidebar__nav">
+		{#each NAV_FOOTER as it (it.id)}
+			{@const on = isActive(it.href)}
+			<a class="pf-navitem" class:on href={it.href}>
+				<span class="pf-navitem__indicator" class:on></span>
+				<span class="pf-navitem__icon" class:on>
+					<NavIcon name={it.icon} size={18} />
+				</span>
+				<span style="flex:1">{it.label}</span>
+			</a>
+		{/each}
+	</nav>
+
+	{#if showUser}
+		<div class="pf-userpill">
+			<div style="position:relative">
+				<Avatar name={userName} size={32} />
+				<span class="pf-userpill__online"></span>
+			</div>
+			<div style="flex:1;min-width:0">
+				<div style="font:500 12.5px var(--font-sans);color:var(--ink-0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{userName}</div>
+				<div style="font:500 10px var(--font-mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em;margin-top:1px">{userCref}</div>
+			</div>
+			<button class="pf-userpill__menu" aria-label="Menu">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="12" cy="6" r="1" />
+					<circle cx="12" cy="12" r="1" />
+					<circle cx="12" cy="18" r="1" />
+				</svg>
+			</button>
+		</div>
+	{/if}
+</aside>
+
+<style>
+	.pf-sidebar {
+		width: 240px;
+		flex-shrink: 0;
+		background: var(--bg-1);
+		border-right: 1px solid var(--ink-line);
+		display: flex;
+		flex-direction: column;
+		height: 100vh;
+		padding: 18px 12px 14px;
+		position: relative;
+		overflow: hidden;
+	}
+	.pf-sidebar__glow {
+		position: absolute;
+		top: -80px;
+		left: -40px;
+		width: 220px;
+		height: 220px;
+		background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+		opacity: 0.6;
+		pointer-events: none;
+	}
+	.pf-sidebar__brand {
+		display: flex;
+		align-items: center;
+		gap: 11px;
+		padding: 4px 8px 22px;
+		position: relative;
+		text-decoration: none;
+	}
+	.pf-sidebar__logo {
+		width: 30px;
+		height: 30px;
+		border-radius: 9px;
+		background: var(--bg-3);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font: 700 15px var(--font-sans);
+		color: var(--ink-0);
+		box-shadow: inset 0 0 0 1px var(--ink-line);
+	}
+	.pf-sidebar__logo.accent {
+		background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
+		color: #0a0a0a;
+		box-shadow:
+			0 0 0 1px rgba(167, 139, 250, 0.25),
+			var(--glow-accent);
+	}
+	.pf-search {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		height: 32px;
+		padding: 0 10px;
+		background: var(--bg-2);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-2);
+	}
+	.pf-search input {
+		flex: 1;
+		background: transparent;
+		border: 0;
+		outline: none;
+		font: 400 12.5px var(--font-sans);
+		color: var(--ink-1);
+	}
+	.pf-search input::placeholder {
+		color: var(--ink-3);
+	}
+	.pf-search__kbd {
+		font: 500 9.5px var(--font-mono);
+		color: var(--ink-3);
+		padding: 2px 5px;
+		border: 1px solid var(--ink-line);
+		border-radius: 4px;
+	}
+	.pf-sidebar__section {
+		font: 500 9.5px var(--font-mono);
+		color: var(--ink-3);
+		text-transform: uppercase;
+		letter-spacing: 0.12em;
+		padding: 6px 12px 8px;
+	}
+	.pf-sidebar__section--footer {
+		padding: 12px 12px 8px;
+		border-top: 1px solid var(--ink-line);
+		margin-top: 8px;
+	}
+	.pf-sidebar__nav {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+	.pf-sidebar__nav:first-of-type {
+		flex: 1;
+	}
+	.pf-navitem {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 10px 12px;
+		background: transparent;
+		border: 0;
+		cursor: pointer;
+		border-radius: var(--r-2);
+		color: var(--ink-1);
+		font: 400 13.5px var(--font-sans);
+		letter-spacing: -0.005em;
+		text-align: left;
+		position: relative;
+		transition:
+			background 140ms var(--ease),
+			color 140ms var(--ease);
+		text-decoration: none;
+	}
+	.pf-sidebar.dense .pf-navitem {
+		padding: 8px 12px;
+	}
+	.pf-navitem:hover {
+		background: var(--bg-2);
+		color: var(--ink-0);
+	}
+	.pf-navitem.on {
+		background: var(--bg-3);
+		color: var(--ink-0);
+		font-weight: 500;
+	}
+	.pf-navitem__indicator {
+		position: absolute;
+		left: -12px;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 3px;
+		height: 0;
+		background: var(--accent);
+		border-radius: 0 2px 2px 0;
+		transition: height 200ms var(--ease);
+	}
+	.pf-navitem__indicator.on {
+		height: 18px;
+	}
+	.pf-navitem__icon {
+		color: var(--ink-2);
+		display: flex;
+	}
+	.pf-navitem__icon.on {
+		color: var(--accent);
+	}
+	.pf-navitem__count {
+		font: 500 11px var(--font-mono);
+		color: var(--ink-3);
+		font-variant-numeric: tabular-nums;
+	}
+	.pf-navitem__badge {
+		font-size: 10px;
+		font-weight: 600;
+		color: var(--accent-2);
+		background: var(--accent-wash);
+		padding: 2px 7px;
+		border-radius: var(--r-pill);
+		font-variant-numeric: tabular-nums;
+		box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.18);
+	}
+	.pf-userpill {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 10px 8px;
+		margin-top: 10px;
+		background: var(--bg-2);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-2);
+	}
+	.pf-userpill__online {
+		position: absolute;
+		bottom: -1px;
+		right: -1px;
+		width: 9px;
+		height: 9px;
+		border-radius: 50%;
+		background: var(--success);
+		border: 2px solid var(--bg-2);
+	}
+	.pf-userpill__menu {
+		background: transparent;
+		border: 0;
+		cursor: pointer;
+		color: var(--ink-2);
+		padding: 4px;
+	}
+	.pf-userpill__menu:hover {
+		color: var(--ink-0);
+	}
+</style>
