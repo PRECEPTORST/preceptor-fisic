@@ -38,33 +38,26 @@
 </script>
 
 <div class="page-body">
-	<header
-		style="display:flex;align-items:center;justify-content:space-between;padding:20px 32px;border-bottom:1px solid var(--ink-line);background:var(--bg-1);position:sticky;top:0;z-index:10"
-	>
+	<header class="al-header">
 		<div>
 			<Eyebrow>{students.length} alunos · {students.filter((s) => s.status === 'active').length} ativos</Eyebrow>
-			<h1 style="margin:6px 0 0;font:600 22px var(--font-sans);letter-spacing:-0.015em">Alunos</h1>
+			<h1 class="al-h1">Alunos</h1>
 		</div>
-		<div style="display:flex;align-items:center;gap:12px">
-			<div
-				style="display:flex;align-items:center;gap:8px;padding:0 14px;height:38px;background:var(--bg-2);border:1px solid {inputFocused
-					? 'var(--accent)'
-					: 'var(--ink-line)'};border-radius:var(--r-2);font:var(--body-sm);color:var(--ink-2);min-width:280px;transition:all 140ms var(--ease)"
-			>
+		<div class="al-actions">
+			<div class="al-search" class:focused={inputFocused}>
 				<span>⌕</span>
 				<input
 					bind:value={q}
 					onfocus={() => (inputFocused = true)}
 					onblur={() => (inputFocused = false)}
-					placeholder="Buscar aluno por nome…"
-					style="flex:1;background:transparent;border:0;outline:none;color:var(--ink-0);font:var(--body-sm) var(--font-sans)"
+					placeholder="Buscar por nome…"
 				/>
 			</div>
-			<Button onclick={() => goto('/alunos/novo')}>+ Novo aluno</Button>
+			<Button onclick={() => goto('/alunos/novo')}>+ Novo</Button>
 		</div>
 	</header>
 
-	<div style="padding:24px 32px 64px;display:flex;flex-direction:column;gap:20px;overflow-y:auto;flex:1">
+	<div class="al-main">
 		<!-- Filters -->
 		<div
 			style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:14px 16px;background:var(--bg-2);border:1px solid var(--ink-line);border-radius:var(--r-2)"
@@ -92,10 +85,9 @@
 				<Button onclick={() => goto('/alunos/novo')}>+ Adicionar primeiro aluno</Button>
 			</div>
 		{:else}
-			<div class="card" style="padding:0;overflow:hidden">
-				<div
-					style="display:grid;grid-template-columns:40px 2fr 1fr 1fr 100px 80px 60px 40px;gap:18px;align-items:center;padding:12px 18px;font:var(--label-mono);color:var(--ink-2);text-transform:uppercase;letter-spacing:0.08em;background:var(--bg-1)"
-				>
+			<!-- Tabela em desktop -->
+			<div class="card students-table">
+				<div class="students-thead">
 					<span></span><span>Aluno</span><span>Plano</span><span>Aderência</span><span>7d sessões</span><span>Última</span><span>Streak</span><span></span>
 				</div>
 				{#each filtered as s (s.id)}
@@ -104,9 +96,8 @@
 						onmouseenter={() => (hover = s.id)}
 						onmouseleave={() => (hover = null)}
 						onclick={() => openStudent(s)}
-						style="all:unset;cursor:pointer;display:grid;grid-template-columns:40px 2fr 1fr 1fr 100px 80px 60px 40px;gap:18px;align-items:center;padding:14px 18px;border-top:1px solid var(--ink-line);background:{hover === s.id
-							? 'var(--bg-2)'
-							: 'transparent'};transition:background 140ms var(--ease)"
+						class="students-row"
+						class:hot={hover === s.id}
 					>
 						<Avatar name={s.name} size={36} />
 						<div>
@@ -137,15 +128,62 @@
 							<span style="color:var(--accent)">♦</span>
 							<span class="num" style="font:500 13px var(--font-mono);color:var(--ink-0)">{s.streak}</span>
 						</div>
-						<span
-							style="color:var(--ink-2);font-size:16px;transition:all 140ms;transform:{hover === s.id
-								? 'translateX(4px)'
-								: 'none'};opacity:{hover === s.id ? 1 : 0.4}"
-						>→</span>
+						<span class="students-arrow" class:on={hover === s.id}>→</span>
 					</button>
 				{/each}
 				{#if filtered.length === 0}
 					<div style="padding:32px;text-align:center;font:var(--body-sm);color:var(--ink-2);border-top:1px solid var(--ink-line)">
+						Nenhum aluno com esses filtros.
+					</div>
+				{/if}
+			</div>
+
+			<!-- Cards em mobile -->
+			<div class="students-cards">
+				{#each filtered as s (s.id)}
+					<button type="button" onclick={() => openStudent(s)} class="student-card">
+						<div class="student-card__head">
+							<Avatar name={s.name} size={42} />
+							<div style="flex:1;min-width:0">
+								<div style="display:flex;align-items:center;gap:6px">
+									<span style="font:500 15px var(--font-sans);color:var(--ink-0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+										{s.name}
+									</span>
+									<StatusDot variant={s.status === 'active' ? 'success' : 'muted'} />
+								</div>
+								<div class="student-card__sub">
+									{s.age ? s.age + ' anos · ' : ''}{s.goal ?? 'sem objetivo'}
+								</div>
+							</div>
+							<span style="color:var(--ink-3)">→</span>
+						</div>
+						{#if s.planTitle}
+							<div class="student-card__plan">{s.planTitle}</div>
+						{/if}
+						<div class="student-card__metrics">
+							<div>
+								<div class="num student-card__num" style="color:{adherenceColor(s.adherence)}">{s.adherence}%</div>
+								<div class="student-card__lbl">aderência</div>
+							</div>
+							<div>
+								<div class="num student-card__num">{s.sessions7}</div>
+								<div class="student-card__lbl">sessões / 7d</div>
+							</div>
+							<div>
+								<div class="num student-card__num">
+									<span style="color:var(--accent);margin-right:3px">♦</span>{s.streak}
+								</div>
+								<div class="student-card__lbl">streak</div>
+							</div>
+							<div>
+								<div class="num student-card__num" style="color:var(--ink-1)">{s.last ?? '—'}</div>
+								<div class="student-card__lbl">última</div>
+							</div>
+						</div>
+					</button>
+				{/each}
+				{#if filtered.length === 0}
+					<div style="padding:24px;text-align:center;font:var(--body-sm);color:var(--ink-2);background:var(--bg-1);border:1px solid var(--ink-line);border-radius:var(--r-2)">
 						Nenhum aluno com esses filtros.
 					</div>
 				{/if}
@@ -160,5 +198,198 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 100vh;
+	}
+	.al-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 20px 32px;
+		border-bottom: 1px solid var(--ink-line);
+		background: var(--bg-1);
+		position: sticky;
+		top: 0;
+		z-index: 10;
+		gap: 14px;
+	}
+	.al-h1 {
+		margin: 6px 0 0;
+		font: 600 22px var(--font-sans);
+		letter-spacing: -0.015em;
+	}
+	.al-actions {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	.al-search {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 0 14px;
+		height: 38px;
+		background: var(--bg-2);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-2);
+		font: var(--body-sm);
+		color: var(--ink-2);
+		min-width: 280px;
+		transition: all 140ms var(--ease);
+	}
+	.al-search.focused {
+		border-color: var(--accent);
+	}
+	.al-search input {
+		flex: 1;
+		background: transparent;
+		border: 0;
+		outline: none;
+		color: var(--ink-0);
+		font: 400 14px var(--font-sans);
+		min-width: 0;
+	}
+	.al-main {
+		padding: 24px 32px 64px;
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
+		overflow-y: auto;
+		flex: 1;
+	}
+
+	/* Cards visível só em mobile */
+	.students-cards {
+		display: none;
+	}
+	.students-thead,
+	.students-row {
+		display: grid;
+		grid-template-columns: 40px 2fr 1fr 1fr 100px 80px 60px 40px;
+		gap: 18px;
+		align-items: center;
+		padding: 12px 18px;
+	}
+	.students-thead {
+		font: var(--label-mono);
+		color: var(--ink-2);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		background: var(--bg-1);
+	}
+	.students-row {
+		all: unset;
+		cursor: pointer;
+		display: grid;
+		grid-template-columns: 40px 2fr 1fr 1fr 100px 80px 60px 40px;
+		padding: 14px 18px;
+		border-top: 1px solid var(--ink-line);
+		transition: background 140ms var(--ease);
+	}
+	.students-row.hot {
+		background: var(--bg-2);
+	}
+	.students-arrow {
+		color: var(--ink-2);
+		font-size: 16px;
+		transition: all 140ms;
+		opacity: 0.4;
+	}
+	.students-arrow.on {
+		transform: translateX(4px);
+		opacity: 1;
+	}
+	.students-table {
+		padding: 0;
+		overflow: hidden;
+	}
+
+	@media (max-width: 1023px) {
+		.al-header {
+			padding: 14px 18px;
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 10px;
+		}
+		.al-h1 {
+			font: 600 20px var(--font-sans);
+		}
+		.al-actions {
+			width: 100%;
+			gap: 8px;
+		}
+		.al-search {
+			min-width: 0;
+			flex: 1;
+			height: 40px;
+		}
+		.al-main {
+			padding: 14px 14px 32px;
+			gap: 14px;
+		}
+		.students-table {
+			display: none;
+		}
+		.students-cards {
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+		}
+	}
+
+	.student-card {
+		all: unset;
+		cursor: pointer;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 14px;
+		background: var(--bg-1);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-2);
+		transition: border-color 140ms var(--ease), background 140ms var(--ease);
+	}
+	.student-card:active {
+		background: var(--bg-2);
+		border-color: var(--ink-line-2);
+	}
+	.student-card__head {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	.student-card__sub {
+		font: var(--label-mono);
+		color: var(--ink-2);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		margin-top: 2px;
+	}
+	.student-card__plan {
+		font: var(--body-sm);
+		color: var(--ink-1);
+		padding: 8px 10px;
+		background: var(--bg-2);
+		border-radius: var(--r-1);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.student-card__metrics {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 8px;
+		padding-top: 8px;
+		border-top: 1px solid var(--ink-line);
+	}
+	.student-card__num {
+		font: 500 14px var(--font-mono);
+		color: var(--ink-0);
+		font-variant-numeric: tabular-nums;
+	}
+	.student-card__lbl {
+		font: 500 9px var(--font-mono);
+		color: var(--ink-3);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		margin-top: 2px;
 	}
 </style>

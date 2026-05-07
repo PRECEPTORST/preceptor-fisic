@@ -92,30 +92,26 @@
 	const dateStr = today.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
 </script>
 
-<header
-	style="display:flex;align-items:center;justify-content:space-between;padding:20px 32px;border-bottom:1px solid var(--ink-line);background:var(--bg-1);position:sticky;top:0;z-index:10"
->
+<header class="dash-header">
 	<div>
-		<h1 style="margin:0;font:600 22px var(--font-sans);letter-spacing:-0.015em">Visão geral</h1>
-		<div style="font:var(--body-sm);color:var(--ink-2);margin-top:2px">
+		<h1 class="dash-h1">Visão geral</h1>
+		<div class="dash-sub">
 			{weekday} · {dateStr} · {stats?.activeStudents ?? 0} alunos ativos
 		</div>
 	</div>
-	<div style="display:flex;align-items:center;gap:12px">
-		<div
-			style="display:flex;align-items:center;gap:8px;padding:0 14px;height:38px;background:var(--bg-2);border:1px solid var(--ink-line);border-radius:var(--r-2);font:var(--body-sm);color:var(--ink-2);min-width:240px"
-		>
+	<div class="dash-actions">
+		<div class="dash-search">
 			<span>⌕</span>
 			<span>Buscar aluno, exercício, plano…</span>
-			<span class="num" style="margin-left:auto;font:var(--label-mono);padding:2px 6px;background:var(--bg-3);border-radius:4px;border:1px solid var(--ink-line-2)">⌘K</span>
+			<span class="num dash-kbd">⌘K</span>
 		</div>
 		<Button onclick={() => goto('/alunos/novo')}>+ Novo aluno</Button>
 	</div>
 </header>
 
-<div style="padding:32px;display:flex;flex-direction:column;gap:28px;overflow-y:auto">
+<div class="dash-main">
 	<!-- Stat grid -->
-	<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+	<div class="dash-stats">
 		{#each statCards as s (s.label)}
 			<div class="card" style="padding:20px;position:relative">
 				<div style="display:flex;align-items:flex-start;justify-content:space-between">
@@ -142,8 +138,8 @@
 	</div>
 
 	<!-- Heatmap + lembretes -->
-	<div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
-		<div class="card">
+	<div class="dash-mid">
+		<div class="card dash-heatmap-card">
 			<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
 				<div>
 					<Eyebrow>Atividade da turma · 26 sem</Eyebrow>
@@ -226,10 +222,9 @@
 				<Button onclick={() => goto('/alunos/novo')}>+ Adicionar primeiro aluno</Button>
 			</div>
 		{:else}
-			<div class="card" style="padding:0;overflow:hidden">
-				<div
-					style="display:grid;grid-template-columns:40px 2fr 1fr 1fr 100px 80px 60px 40px;gap:18px;align-items:center;padding:12px 18px;font:var(--label-mono);color:var(--ink-2);text-transform:uppercase;letter-spacing:0.08em;background:var(--bg-1)"
-				>
+			<!-- Tabela em desktop, cards em mobile -->
+			<div class="card students-table">
+				<div class="students-thead">
 					<span></span><span>Aluno</span><span>Plano</span><span>Aderência</span><span>7d sessões</span><span>Última</span><span>Streak</span><span></span>
 				</div>
 				{#each filtered as s (s.id)}
@@ -238,9 +233,8 @@
 						onmouseenter={() => (hover = s.id)}
 						onmouseleave={() => (hover = null)}
 						onclick={() => openStudent(s)}
-						style="all:unset;cursor:pointer;display:grid;grid-template-columns:40px 2fr 1fr 1fr 100px 80px 60px 40px;gap:18px;align-items:center;padding:14px 18px;border-top:1px solid var(--ink-line);background:{hover === s.id
-							? 'var(--bg-2)'
-							: 'transparent'};transition:background 140ms var(--ease)"
+						class="students-row"
+						class:hot={hover === s.id}
 					>
 						<Avatar name={s.name} size={36} />
 						<div>
@@ -272,13 +266,292 @@
 							<span class="num" style="font:500 13px var(--font-mono);color:var(--ink-0)">{s.streak}</span>
 						</div>
 						<span
-							style="color:var(--ink-2);font-size:16px;transition:all 140ms;transform:{hover === s.id
-								? 'translateX(4px)'
-								: 'none'};opacity:{hover === s.id ? 1 : 0.4}"
+							class="students-arrow"
+							class:on={hover === s.id}
 						>→</span>
+					</button>
+				{/each}
+			</div>
+
+			<!-- Cards (visível só em mobile via @media) -->
+			<div class="students-cards">
+				{#each filtered as s (s.id)}
+					<button
+						type="button"
+						onclick={() => openStudent(s)}
+						class="student-card"
+					>
+						<div class="student-card__head">
+							<Avatar name={s.name} size={42} />
+							<div style="flex:1;min-width:0">
+								<div style="display:flex;align-items:center;gap:6px">
+									<span style="font:500 15px var(--font-sans);color:var(--ink-0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+										{s.name}
+									</span>
+									<StatusDot variant={s.status === 'active' ? 'success' : 'muted'} />
+								</div>
+								<div class="student-card__sub">
+									{s.age ? s.age + ' anos · ' : ''}{s.goal ?? 'sem objetivo'}
+								</div>
+							</div>
+							<span style="color:var(--ink-3)">→</span>
+						</div>
+						{#if s.planTitle}
+							<div class="student-card__plan">{s.planTitle}</div>
+						{/if}
+						<div class="student-card__metrics">
+							<div>
+								<div class="num student-card__num" style="color:{adherenceColor(s.adherence)}">
+									{s.adherence}%
+								</div>
+								<div class="student-card__lbl">aderência</div>
+							</div>
+							<div>
+								<div class="num student-card__num">{s.sessions7}</div>
+								<div class="student-card__lbl">sessões / 7d</div>
+							</div>
+							<div>
+								<div class="num student-card__num">
+									<span style="color:var(--accent);margin-right:3px">♦</span>{s.streak}
+								</div>
+								<div class="student-card__lbl">streak</div>
+							</div>
+							<div>
+								<div class="num student-card__num" style="color:var(--ink-1)">
+									{s.last ?? '—'}
+								</div>
+								<div class="student-card__lbl">última</div>
+							</div>
+						</div>
 					</button>
 				{/each}
 			</div>
 		{/if}
 	</div>
 </div>
+
+<style>
+	.dash-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 20px 32px;
+		border-bottom: 1px solid var(--ink-line);
+		background: var(--bg-1);
+		position: sticky;
+		top: 0;
+		z-index: 10;
+		gap: 14px;
+	}
+	.dash-h1 {
+		margin: 0;
+		font: 600 22px var(--font-sans);
+		letter-spacing: -0.015em;
+	}
+	.dash-sub {
+		font: var(--body-sm);
+		color: var(--ink-2);
+		margin-top: 2px;
+	}
+	.dash-actions {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	.dash-search {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 0 14px;
+		height: 38px;
+		background: var(--bg-2);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-2);
+		font: var(--body-sm);
+		color: var(--ink-2);
+		min-width: 240px;
+	}
+	.dash-kbd {
+		margin-left: auto;
+		font: var(--label-mono);
+		padding: 2px 6px;
+		background: var(--bg-3);
+		border-radius: 4px;
+		border: 1px solid var(--ink-line-2);
+	}
+
+	.dash-main {
+		padding: 32px;
+		display: flex;
+		flex-direction: column;
+		gap: 28px;
+		overflow-y: auto;
+	}
+	.dash-stats {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 16px;
+	}
+	.dash-mid {
+		display: grid;
+		grid-template-columns: 2fr 1fr;
+		gap: 16px;
+	}
+
+	/* Tabela visível só em desktop, cards visíveis só em mobile */
+	.students-cards {
+		display: none;
+	}
+	.students-thead,
+	.students-row {
+		display: grid;
+		grid-template-columns: 40px 2fr 1fr 1fr 100px 80px 60px 40px;
+		gap: 18px;
+		align-items: center;
+		padding: 12px 18px;
+	}
+	.students-thead {
+		font: var(--label-mono);
+		color: var(--ink-2);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		background: var(--bg-1);
+	}
+	.students-row {
+		all: unset;
+		cursor: pointer;
+		display: grid;
+		grid-template-columns: 40px 2fr 1fr 1fr 100px 80px 60px 40px;
+		padding: 14px 18px;
+		border-top: 1px solid var(--ink-line);
+		transition: background 140ms var(--ease);
+	}
+	.students-row.hot {
+		background: var(--bg-2);
+	}
+	.students-arrow {
+		color: var(--ink-2);
+		font-size: 16px;
+		transition: all 140ms;
+		opacity: 0.4;
+	}
+	.students-arrow.on {
+		transform: translateX(4px);
+		opacity: 1;
+	}
+	.students-table {
+		padding: 0;
+		overflow: hidden;
+	}
+
+	/* ─────── MOBILE ─────── */
+	@media (max-width: 1023px) {
+		.dash-header {
+			padding: 14px 18px;
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 12px;
+		}
+		.dash-h1 {
+			font: 600 20px var(--font-sans);
+		}
+		.dash-actions {
+			width: 100%;
+			gap: 8px;
+		}
+		.dash-search {
+			display: none; /* removido em mobile — usa search dedicado depois */
+		}
+		.dash-actions :global(.pf-btn) {
+			flex: 1;
+			justify-content: center;
+		}
+
+		.dash-main {
+			padding: 18px;
+			gap: 22px;
+		}
+		.dash-stats {
+			grid-template-columns: repeat(2, 1fr);
+			gap: 10px;
+		}
+		.dash-stats :global(.card) {
+			padding: 14px;
+		}
+
+		.dash-mid {
+			grid-template-columns: 1fr;
+			gap: 12px;
+		}
+		.dash-heatmap-card {
+			display: none; /* heatmap pesado — escondido em mobile */
+		}
+
+		.students-table {
+			display: none;
+		}
+		.students-cards {
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+		}
+	}
+
+	.student-card {
+		all: unset;
+		cursor: pointer;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 14px;
+		background: var(--bg-1);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-2);
+		transition: border-color 140ms var(--ease), background 140ms var(--ease);
+	}
+	.student-card:active {
+		background: var(--bg-2);
+		border-color: var(--ink-line-2);
+	}
+	.student-card__head {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	.student-card__sub {
+		font: var(--label-mono);
+		color: var(--ink-2);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		margin-top: 2px;
+	}
+	.student-card__plan {
+		font: var(--body-sm);
+		color: var(--ink-1);
+		padding: 8px 10px;
+		background: var(--bg-2);
+		border-radius: var(--r-1);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.student-card__metrics {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 8px;
+		padding-top: 8px;
+		border-top: 1px solid var(--ink-line);
+	}
+	.student-card__num {
+		font: 500 14px var(--font-mono);
+		color: var(--ink-0);
+		font-variant-numeric: tabular-nums;
+	}
+	.student-card__lbl {
+		font: 500 9px var(--font-mono);
+		color: var(--ink-3);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		margin-top: 2px;
+	}
+</style>
