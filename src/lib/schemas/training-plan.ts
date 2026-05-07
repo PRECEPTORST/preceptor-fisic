@@ -6,14 +6,30 @@
  */
 import { z } from 'zod';
 
-export const sourceRefSchema = z.object({
-	type: z.enum(['guideline', 'rag_chunk', 'rule', 'inference']),
-	chunk_id: z.string().uuid().optional(),
-	source_id: z.string().uuid().optional(),
-	rule_code: z.string().optional(),
-	page_number: z.number().int().optional(),
-	note: z.string().optional()
-});
+export const sourceRefSchema = z
+	.object({
+		type: z.enum(['guideline', 'rag_chunk', 'rule', 'inference']),
+		chunk_id: z.string().uuid().optional(),
+		source_id: z.string().uuid().optional(),
+		rule_code: z.string().optional(),
+		page_number: z.number().int().optional(),
+		note: z.string().optional()
+	})
+	.refine(
+		(v) => {
+			// Quando declarar rag_chunk, OBRIGATÓRIO ter chunk_id (UUID exato).
+			if (v.type === 'rag_chunk') return Boolean(v.chunk_id);
+			// Inference precisa de note explicativo.
+			if (v.type === 'inference') return Boolean(v.note && v.note.length >= 10);
+			// Rule precisa de rule_code.
+			if (v.type === 'rule') return Boolean(v.rule_code);
+			return true;
+		},
+		{
+			message:
+				'rag_chunk requer chunk_id (UUID), inference requer note (>=10 chars), rule requer rule_code'
+		}
+	);
 
 export const exerciseSchema = z.object({
 	name: z.string().min(2).max(400),

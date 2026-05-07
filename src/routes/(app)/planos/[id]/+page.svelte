@@ -11,6 +11,41 @@
 	const sessions = $derived(planData.weekly_sessions ?? []);
 	const restrictions = $derived(planData.restrictions ?? []);
 	const dbRestrictions = $derived((data.plan as any).dbRestrictions ?? []);
+	const sourceMap = $derived(plan.sourceMap ?? {});
+
+	type SrcRef = {
+		type?: string;
+		chunk_id?: string;
+		source_id?: string;
+		rule_code?: string;
+		note?: string;
+	};
+
+	function citationLabel(ref: SrcRef | null | undefined): string {
+		if (!ref) return '';
+		if (ref.type === 'rule' && ref.rule_code) return `Regra ${ref.rule_code}`;
+		const key = ref.chunk_id ?? ref.source_id;
+		if (key && sourceMap[key]) {
+			const s = sourceMap[key];
+			const org = s.organization.toUpperCase();
+			const yr = s.year ? `, ${s.year}` : '';
+			const pg = s.pageNumber ? ` · p.${s.pageNumber}` : '';
+			return `${org}${yr}${pg} — ${s.title.length > 60 ? s.title.slice(0, 60) + '…' : s.title}`;
+		}
+		if (ref.note) return ref.note;
+		if (ref.type === 'rag_chunk') return 'Diretriz clínica';
+		if (ref.type === 'inference') return 'Inferência clínica';
+		return '';
+	}
+
+	function citationBadge(ref: SrcRef | null | undefined): string {
+		if (!ref) return '·';
+		if (ref.type === 'rule') return '▢ regra';
+		const key = ref.chunk_id ?? ref.source_id;
+		if (key && sourceMap[key]) return '★';
+		if (ref.type === 'inference') return '○';
+		return '·';
+	}
 
 	const isGenerating = $derived(plan.status === 'pending' || plan.status === 'generating');
 	const hasFailed = $derived(plan.status === 'failed');
@@ -23,6 +58,18 @@
 
 	let publishing = $state(false);
 
+	type PartialPlan = {
+		summary?: string;
+		weekly_sessions?: Array<{
+			label?: string;
+			focus?: string;
+			duration_minutes?: number;
+			main?: Array<{ name?: string; reps?: string; sets?: number; load_guidance?: string }>;
+		}>;
+		restrictions?: Array<{ level?: string; title?: string; description?: string }>;
+		monitoring_parameters?: Array<{ parameter?: string; frequency?: string }>;
+	};
+
 	type StatusResp = {
 		id: string;
 		status: string;
@@ -31,10 +78,12 @@
 		error: string | null;
 		generated: boolean;
 		failed: boolean;
+		partial: PartialPlan | null;
 	};
 
 	let livePhase = $state(plan.status === 'pending' ? 'enfileirado' : 'iniciando…');
 	let liveProgress = $state(5);
+	let livePartial = $state<PartialPlan | null>(null);
 	let pollInterval: ReturnType<typeof setInterval> | null = null;
 
 	$effect(() => {
@@ -49,6 +98,7 @@
 				const s = (await r.json()) as StatusResp;
 				livePhase = s.phase ?? livePhase;
 				liveProgress = s.progress;
+				livePartial = s.partial;
 				if (s.generated || s.failed) {
 					if (pollInterval) clearInterval(pollInterval);
 					await invalidateAll();
@@ -58,7 +108,7 @@
 			}
 		};
 		tick();
-		pollInterval = setInterval(tick, 1500);
+		pollInterval = setInterval(tick, 1200);
 	});
 
 	onDestroy(() => {
@@ -77,34 +127,328 @@
 </script>
 
 {#if isGenerating}
-	<div style="flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg-0);min-height:80vh">
-		<div style="display:flex;flex-direction:column;align-items:center;gap:24px;max-width:480px;text-align:center">
-			<div style="position:relative;width:80px;height:80px">
-				<div class="spinner-gen"></div>
-			</div>
-			<div>
-				<div class="eyebrow" style="margin-bottom:6px">{plan.studentName}</div>
-				<h1 style="font:500 22px var(--font-sans);margin:0 0 8px">Gerando plano com IA</h1>
-				<div style="font:var(--body-sm);color:var(--accent);min-height:20px">{livePhase}</div>
-			</div>
-			<div style="width:100%;max-width:320px">
-				<div style="height:6px;border-radius:3px;background:var(--bg-3);overflow:hidden">
-					<div
-						style="height:100%;background:var(--accent);box-shadow:0 0 12px var(--accent-glow);width:{liveProgress}%;transition:width 600ms var(--ease)"
-					></div>
+	<div class="gen-shell">
+		<div class="gen-frame">
+			<!-- Header com progresso -->
+			<div class="gen-header">
+				<div style="display:flex;align-items:center;gap:14px">
+					<div style="position:relative;width:36px;height:36px">
+						<div class="spinner-gen"></div>
+					</div>
+					<div>
+						<div class="eyebrow" style="margin-bottom:2px">{plan.studentName}</div>
+						<div style="font:500 16px var(--font-sans);color:var(--ink-0)">
+							Gerando plano com IA
+						</div>
+					</div>
 				</div>
-				<div style="display:flex;justify-content:space-between;margin-top:8px;font:var(--label-mono);color:var(--ink-3)">
-					<span>{liveProgress}%</span>
-					<span>Gemini 2.5 Flash · ACSM ★</span>
+				<div style="text-align:right">
+					<div class="num" style="font:600 24px var(--font-mono);color:var(--accent);line-height:1">
+						{liveProgress}%
+					</div>
+					<div style="font:var(--label-mono);color:var(--ink-3);margin-top:4px">
+						Gemini 2.5 Flash · ACSM ★
+					</div>
 				</div>
 			</div>
-			<div style="font:var(--label-mono);color:var(--ink-3);margin-top:8px">
-				Pode levar 15-30s. A página atualiza automaticamente.
+
+			<!-- Progress bar -->
+			<div class="gen-progress-wrap">
+				<div class="gen-progress-bar" style="width:{liveProgress}%"></div>
+			</div>
+
+			<div class="gen-phase">
+				<span class="gen-phase-dot"></span>
+				{livePhase}
+			</div>
+
+			<!-- Plano materializando ao vivo -->
+			{#if livePartial}
+				<div class="gen-live">
+					{#if livePartial.summary}
+						<div class="gen-block gen-fade">
+							<div class="eyebrow" style="margin-bottom:8px">◆ Resumo clínico</div>
+							<p class="gen-summary">{livePartial.summary}</p>
+						</div>
+					{/if}
+
+					{#if livePartial.restrictions && livePartial.restrictions.length > 0}
+						<div class="gen-block gen-fade">
+							<div class="eyebrow" style="margin-bottom:10px">
+								⚠ Restrições · {livePartial.restrictions.length}
+							</div>
+							<div style="display:flex;flex-direction:column;gap:6px">
+								{#each livePartial.restrictions as r, i (i)}
+									{#if r.title}
+										<div
+											class="gen-restriction"
+											style="border-left-color:{levelColor((r.level as 'red' | 'yellow' | 'green') ?? 'green')}"
+										>
+											<span
+												style="font:var(--label-mono);color:{levelColor((r.level as 'red' | 'yellow' | 'green') ?? 'green')};text-transform:uppercase"
+												>{levelLabel((r.level as 'red' | 'yellow' | 'green') ?? 'green')}</span
+											>
+											<span style="font:500 13px var(--font-sans);color:var(--ink-0)"
+												>{r.title}</span
+											>
+										</div>
+									{/if}
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					{#if livePartial.weekly_sessions && livePartial.weekly_sessions.length > 0}
+						<div class="gen-block gen-fade">
+							<div class="eyebrow" style="margin-bottom:10px">
+								◐ Sessões · {livePartial.weekly_sessions.length}
+							</div>
+							<div style="display:flex;flex-direction:column;gap:8px">
+								{#each livePartial.weekly_sessions as s, si (si)}
+									{#if s.label}
+										<div class="gen-session">
+											<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+												<div style="font:500 14px var(--font-sans);color:var(--ink-0)">
+													{s.label}
+												</div>
+												{#if s.duration_minutes}
+													<div class="num" style="font:var(--label-mono);color:var(--ink-3)">
+														{s.duration_minutes} min
+													</div>
+												{/if}
+											</div>
+											{#if s.focus}
+												<div style="font:var(--body-sm);color:var(--ink-2);margin-bottom:8px">
+													{s.focus}
+												</div>
+											{/if}
+											{#if s.main && s.main.length > 0}
+												<div style="display:flex;flex-direction:column;gap:4px">
+													{#each s.main as ex, ei (ei)}
+														{#if ex.name}
+															<div class="gen-ex">
+																<span style="color:var(--accent)">·</span>
+																<span style="flex:1;font:400 13px var(--font-sans);color:var(--ink-1)"
+																	>{ex.name}</span
+																>
+																{#if ex.sets && ex.reps}
+																	<span class="num" style="font:var(--label-mono);color:var(--ink-3)">
+																		{ex.sets}×{ex.reps}
+																	</span>
+																{/if}
+															</div>
+														{/if}
+													{/each}
+												</div>
+											{/if}
+										</div>
+									{/if}
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					{#if livePartial.monitoring_parameters && livePartial.monitoring_parameters.length > 0}
+						<div class="gen-block gen-fade">
+							<div class="eyebrow" style="margin-bottom:10px">
+								◈ Monitoramento · {livePartial.monitoring_parameters.length}
+							</div>
+							<div style="display:flex;flex-direction:column;gap:6px">
+								{#each livePartial.monitoring_parameters as m, i (i)}
+									{#if m.parameter}
+										<div class="gen-monit">
+											<span style="font:500 13px var(--font-sans);color:var(--ink-0)"
+												>{m.parameter}</span
+											>
+											{#if m.frequency}
+												<span style="font:var(--body-sm);color:var(--ink-2)">{m.frequency}</span>
+											{/if}
+										</div>
+									{/if}
+								{/each}
+							</div>
+						</div>
+					{/if}
+				</div>
+			{:else}
+				<!-- Estado inicial: ainda nada chegou -->
+				<div class="gen-skel">
+					<div class="gen-skel-line" style="width:60%"></div>
+					<div class="gen-skel-line" style="width:85%"></div>
+					<div class="gen-skel-line" style="width:45%"></div>
+				</div>
+			{/if}
+
+			<div class="gen-footnote">
+				<span style="color:var(--accent)">★</span>
+				Pode levar 15-30s · Plano completa automaticamente
 			</div>
 		</div>
 	</div>
 
 	<style>
+		.gen-shell {
+			flex: 1;
+			background: var(--bg-0);
+			display: flex;
+			justify-content: center;
+			padding: 32px 20px 80px;
+		}
+		.gen-frame {
+			width: 100%;
+			max-width: 760px;
+			display: flex;
+			flex-direction: column;
+		}
+		.gen-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			padding-bottom: 16px;
+			border-bottom: 1px solid var(--ink-line);
+			margin-bottom: 14px;
+		}
+		.gen-progress-wrap {
+			height: 4px;
+			border-radius: 2px;
+			background: var(--ink-line);
+			overflow: hidden;
+		}
+		.gen-progress-bar {
+			height: 100%;
+			background: linear-gradient(90deg, var(--accent), var(--accent-2));
+			box-shadow: 0 0 12px var(--accent-glow);
+			transition: width 600ms var(--ease);
+		}
+		.gen-phase {
+			margin-top: 12px;
+			font: var(--label-mono);
+			color: var(--accent-2);
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			min-height: 14px;
+		}
+		.gen-phase-dot {
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background: var(--accent);
+			box-shadow: 0 0 6px var(--accent);
+			animation: gen-pulse 1.4s ease-in-out infinite;
+		}
+		@keyframes gen-pulse {
+			0%, 100% {
+				opacity: 0.4;
+			}
+			50% {
+				opacity: 1;
+			}
+		}
+		.gen-live {
+			display: flex;
+			flex-direction: column;
+			gap: 18px;
+			margin-top: 28px;
+		}
+		.gen-block {
+			background: var(--bg-1);
+			border: 1px solid var(--ink-line);
+			border-radius: var(--r-2);
+			padding: 18px 20px;
+		}
+		.gen-fade {
+			animation: gen-in 240ms var(--ease) backwards;
+		}
+		@keyframes gen-in {
+			from {
+				opacity: 0;
+				transform: translateY(4px);
+			}
+			to {
+				opacity: 1;
+				transform: translateY(0);
+			}
+		}
+		.gen-summary {
+			font: 400 14px/1.55 var(--font-sans);
+			color: var(--ink-1);
+			margin: 0;
+		}
+		.gen-restriction {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			padding: 10px 12px;
+			background: var(--bg-2);
+			border-left: 3px solid var(--ink-line);
+			border-radius: var(--r-2);
+		}
+		.gen-session {
+			padding: 14px;
+			background: var(--bg-2);
+			border: 1px solid var(--ink-line);
+			border-radius: var(--r-2);
+			animation: gen-in 280ms var(--ease) backwards;
+		}
+		.gen-ex {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 4px 0;
+		}
+		.gen-monit {
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+			padding: 8px 12px;
+			background: var(--bg-2);
+			border-radius: var(--r-2);
+		}
+		.gen-skel {
+			margin-top: 28px;
+			padding: 24px;
+			background: var(--bg-1);
+			border: 1px solid var(--ink-line);
+			border-radius: var(--r-2);
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+		}
+		.gen-skel-line {
+			height: 10px;
+			border-radius: 5px;
+			background: linear-gradient(
+				90deg,
+				var(--ink-line) 0%,
+				var(--ink-line-2) 50%,
+				var(--ink-line) 100%
+			);
+			background-size: 200% 100%;
+			animation: gen-shimmer 1.4s ease-in-out infinite;
+		}
+		@keyframes gen-shimmer {
+			0% {
+				background-position: -100% 0;
+			}
+			100% {
+				background-position: 200% 0;
+			}
+		}
+		.gen-footnote {
+			margin-top: 28px;
+			text-align: center;
+			font: var(--label-mono);
+			color: var(--ink-3);
+			padding-top: 18px;
+			border-top: 1px solid var(--ink-line);
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			gap: 8px;
+		}
 		.spinner-gen {
 			position: absolute;
 			inset: 0;
@@ -288,10 +632,10 @@
 								style="font:var(--label-mono);color:{levelColor(r.level)};text-transform:uppercase;letter-spacing:0.08em;padding:2px 8px;background:rgba(0,0,0,0.25);border-radius:var(--r-pill)"
 								>{levelLabel(r.level)}</span
 							>
-							{#if r.source?.type === 'rule' && r.source.rule_code}
-								<span style="font:var(--label-mono);color:var(--ink-3)">▢ {r.source.rule_code}</span>
-							{:else if r.source?.type === 'rag_chunk'}
-								<span style="font:var(--label-mono);color:var(--ink-3)">▢ FONTE RAG</span>
+							{#if citationLabel(r.source as SrcRef)}
+								<span style="font:var(--label-mono);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px"
+									>{citationBadge(r.source as SrcRef)} {citationLabel(r.source as SrcRef)}</span
+								>
 							{/if}
 						</div>
 						<div style="font:600 14px var(--font-sans);color:var(--ink-0);margin-bottom:6px">{r.title}</div>
@@ -305,6 +649,19 @@
 									>
 								{/each}
 							</div>
+						{/if}
+						{#if r.source && (r.source.chunk_id || r.source.source_id) && sourceMap[r.source.chunk_id ?? r.source.source_id ?? '']}
+							{@const src = sourceMap[r.source.chunk_id ?? r.source.source_id ?? '']}
+							<details style="margin-top:12px">
+								<summary
+									style="cursor:pointer;font:var(--label-mono);color:var(--ink-2);user-select:none"
+									>Ver trecho da diretriz</summary
+								>
+								<blockquote
+									style="margin:8px 0 0;padding:10px 14px;border-left:2px solid {levelColor(r.level)};font:var(--body-sm);color:var(--ink-1);font-style:italic;line-height:1.5;background:rgba(0,0,0,0.2)"
+									>"{src.excerpt}{src.excerpt.length >= 280 ? '…' : ''}"</blockquote
+								>
+							</details>
 						{/if}
 					</div>
 				{/each}

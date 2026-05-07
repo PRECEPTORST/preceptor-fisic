@@ -307,7 +307,7 @@ export type PlanRestriction = {
 	title: string;
 	description: string;
 	affected_exercises: string[];
-	source?: { type: string; rule_code?: string; chunk_id?: string };
+	source?: { type: string; rule_code?: string; chunk_id?: string; source_id?: string; note?: string };
 };
 
 export type PlanExercise = {
@@ -319,8 +319,29 @@ export type PlanExercise = {
 	muscle_groups?: string[];
 	execution_notes?: string;
 	contraindications?: string[];
-	source_refs?: { type: string; note?: string; chunk_id?: string }[];
+	source_refs?: {
+		type: string;
+		note?: string;
+		chunk_id?: string;
+		source_id?: string;
+		page_number?: number;
+	}[];
 };
+
+/**
+ * Mapa de chunk_id → metadata da fonte (título, org, ano, página).
+ * Usado pra renderizar citações reais no UI ao invés de "FONTE RAG" genérico.
+ */
+export type SourceCitation = {
+	chunkId: string;
+	sourceId: string;
+	title: string;
+	organization: string;
+	year: number | null;
+	pageNumber: number | null;
+	excerpt: string;
+};
+export type SourceMap = Record<string, SourceCitation>;
 
 export type PlanSessionData = {
 	label?: string;
@@ -349,7 +370,109 @@ export type PlanDetail = {
 	createdAt: Date;
 	publishedAt: Date | null;
 	planData: PlanData;
+	sourceMap: SourceMap;
 };
+
+/**
+ * Coleta todos os chunk_id e source_id citados em planData e enriquece com
+ * metadata da fonte (título, org, ano, página, trecho). Single query — sem N+1.
+ */
+async function collectAndEnrichSources(planData: PlanData): Promise<SourceMap> {
+	const chunkIds = new Set<string>();
+	const sourceIds = new Set<string>();
+
+	const collectFromRef = (ref: unknown) => {
+		if (!ref || typeof ref !== 'object') return;
+		const r = ref as { chunk_id?: string; source_id?: string };
+		if (r.chunk_id) chunkIds.add(r.chunk_id);
+		if (r.source_id) sourceIds.add(r.source_id);
+	};
+
+	for (const r of planData.restrictions ?? []) collectFromRef(r.source);
+	for (const m of (planData.monitoring_parameters as Array<{ source_refs?: unknown[] }>) ?? []) {
+		for (const ref of m.source_refs ?? []) collectFromRef(ref);
+	}
+	for (const a of (planData.assessment_protocols as Array<{ source_refs?: unknown[] }>) ?? []) {
+		for (const ref of a.source_refs ?? []) collectFromRef(ref);
+	}
+	for (const s of planData.weekly_sessions ?? []) {
+		for (const block of [s.warmup ?? [], s.main ?? [], s.cooldown ?? []]) {
+			for (const ex of block) {
+				for (const ref of ex.source_refs ?? []) collectFromRef(ref);
+			}
+		}
+	}
+
+	if (chunkIds.size === 0 && sourceIds.size === 0) return {};
+
+	// Single query — busca chunks + sources em uma só ida
+	const rows = (await db.execute<{
+		chunk_id: string | null;
+		source_id: string;
+		title: string;
+		organization: string;
+		year: number | null;
+		page_number: number | null;
+		excerpt: string;
+	}>(sql`
+		SELECT
+			kc.id::text AS chunk_id,
+			ks.id::text AS source_id,
+			ks.title,
+			ks.organization::text AS organization,
+			ks.year,
+			kc.page_number,
+			LEFT(kc.content, 280) AS excerpt
+		FROM knowledge_chunks kc
+		JOIN knowledge_sources ks ON ks.id = kc.source_id
+		WHERE kc.id::text = ANY(${Array.from(chunkIds)}::text[])
+		   OR ks.id::text = ANY(${Array.from(sourceIds)}::text[])
+	`)) as unknown as Array<{
+		chunk_id: string | null;
+		source_id: string;
+		title: string;
+		organization: string;
+		year: number | null;
+		page_number: number | null;
+		excerpt: string;
+	}>;
+
+	const list = (rows as unknown as { rows?: typeof rows }).rows ?? rows;
+	const map: SourceMap = {};
+	for (const r of list as Array<{
+		chunk_id: string | null;
+		source_id: string;
+		title: string;
+		organization: string;
+		year: number | null;
+		page_number: number | null;
+		excerpt: string;
+	}>) {
+		// Indexa por chunk_id (quando vem do join completo) e também por source_id
+		if (r.chunk_id) {
+			map[r.chunk_id] = {
+				chunkId: r.chunk_id,
+				sourceId: r.source_id,
+				title: r.title,
+				organization: r.organization,
+				year: r.year,
+				pageNumber: r.page_number,
+				excerpt: r.excerpt
+			};
+		}
+		// Source-level fallback (quando AI cita só source_id)
+		map[r.source_id] = {
+			chunkId: r.chunk_id ?? r.source_id,
+			sourceId: r.source_id,
+			title: r.title,
+			organization: r.organization,
+			year: r.year,
+			pageNumber: r.page_number,
+			excerpt: r.excerpt
+		};
+	}
+	return map;
+}
 
 export async function getPlanDetail(
 	planId: string,
@@ -371,6 +494,8 @@ export async function getPlanDetail(
 		.limit(1);
 	const r = rows[0];
 	if (!r) return null;
+	const planData = (r.planData as PlanData) ?? {};
+	const sourceMap = await collectAndEnrichSources(planData);
 	return {
 		id: r.id,
 		studentName: r.studentName ?? '—',
@@ -379,7 +504,8 @@ export async function getPlanDetail(
 		isActive: r.status === 'published' || r.status === 'generated',
 		createdAt: r.createdAt,
 		publishedAt: r.publishedAt,
-		planData: (r.planData as PlanData) ?? {}
+		planData,
+		sourceMap
 	};
 }
 

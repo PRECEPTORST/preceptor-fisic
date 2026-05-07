@@ -8,6 +8,37 @@
 	const planId = $derived(data.plan.id);
 	const studentName = $derived(data.plan.studentName);
 	const exercises = $derived(session.main ?? []);
+	const sourceMap = $derived(data.plan.sourceMap ?? {});
+
+	type SrcRef = {
+		type?: string;
+		chunk_id?: string;
+		source_id?: string;
+		rule_code?: string;
+		note?: string;
+		page_number?: number;
+	};
+
+	function citationOf(ref: SrcRef): { badge: string; label: string; excerpt?: string } {
+		if (!ref) return { badge: '·', label: '' };
+		if (ref.type === 'rule' && ref.rule_code) return { badge: '▢', label: `Regra ${ref.rule_code}` };
+		const key = ref.chunk_id ?? ref.source_id;
+		if (key && sourceMap[key]) {
+			const s = sourceMap[key];
+			const org = s.organization.toUpperCase();
+			const yr = s.year ? `, ${s.year}` : '';
+			const pg = s.pageNumber ? ` · p.${s.pageNumber}` : ref.page_number ? ` · p.${ref.page_number}` : '';
+			return {
+				badge: '★',
+				label: `${org}${yr}${pg} — ${s.title.length > 70 ? s.title.slice(0, 70) + '…' : s.title}`,
+				excerpt: s.excerpt
+			};
+		}
+		if (ref.note) return { badge: '○', label: ref.note };
+		if (ref.type === 'inference') return { badge: '○', label: 'Inferência clínica' };
+		if (ref.type === 'rag_chunk') return { badge: '○', label: 'Diretriz clínica' };
+		return { badge: '·', label: '' };
+	}
 
 	let activeEx = $state(0);
 	const setLog: Record<number, number[]> = {
@@ -178,13 +209,37 @@
 
 						{#if ex.source_refs && ex.source_refs.length > 0}
 							<div class="card" style="padding:18px;margin-bottom:24px">
-								<div class="eyebrow" style="margin-bottom:8px">Evidência clínica</div>
-								<div style="display:flex;flex-direction:column;gap:8px">
+								<div class="eyebrow" style="margin-bottom:10px">Evidência clínica</div>
+								<div style="display:flex;flex-direction:column;gap:12px">
 									{#each ex.source_refs as r, i (i)}
-										<div style="font:var(--body-sm);color:var(--ink-1);line-height:1.5">
-											<span style="font:var(--label-mono);color:var(--accent);text-transform:uppercase">▢ {r.type}</span>
-											{#if r.note} · {r.note}{/if}
-										</div>
+										{@const cit = citationOf(r as SrcRef)}
+										{#if cit.label}
+											<div>
+												<div style="display:flex;gap:8px;align-items:flex-start">
+													<span
+														style="font:var(--label-mono);color:var(--accent);min-width:14px"
+														>{cit.badge}</span
+													>
+													<div style="flex:1;min-width:0">
+														<div style="font:500 12.5px var(--font-sans);color:var(--ink-0);line-height:1.45">
+															{cit.label}
+														</div>
+														{#if cit.excerpt}
+															<details style="margin-top:6px">
+																<summary
+																	style="cursor:pointer;font:var(--label-mono);color:var(--ink-3);user-select:none"
+																	>Ver trecho</summary
+																>
+																<blockquote
+																	style="margin:6px 0 0;padding:8px 12px;border-left:2px solid var(--accent);font:var(--body-sm);color:var(--ink-1);font-style:italic;line-height:1.5;background:rgba(0,0,0,0.18)"
+																	>"{cit.excerpt}{cit.excerpt.length >= 280 ? '…' : ''}"</blockquote
+																>
+															</details>
+														{/if}
+													</div>
+												</div>
+											</div>
+										{/if}
 									{/each}
 								</div>
 							</div>

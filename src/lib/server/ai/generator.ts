@@ -9,7 +9,7 @@
  *   5. Persiste em training_plans + ai_runs com auditoria completa
  */
 import { eq } from 'drizzle-orm';
-import { generateObject } from 'ai';
+import { generateObject, streamObject } from 'ai';
 import { randomUUID } from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
 import { google } from './provider';
@@ -270,7 +270,7 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 		await db
 			.update(trainingPlans)
 			.set({
-				progressPct: 60,
+				progressPct: 55,
 				progressPhase: `gerando plano com ${PRIMARY_MODEL.replace(/^gemini-/, 'Gemini ')}`
 			})
 			.where(eq(trainingPlans.id, planId));
@@ -278,11 +278,17 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 		const userPrompt = buildUserPrompt(ctx, ragContext, opts.notes);
 		const genStartMs = Date.now();
 
-		// Tenta Pro primeiro; se quota estourar, faz fallback automático pra Flash.
-		let generation: Awaited<ReturnType<typeof generateObject<typeof trainingPlanSchema>>>;
-		try {
-			generation = await generateObject({
-				model: google(PRIMARY_MODEL),
+		// streamObject = AI gera incrementalmente. Persistimos partial no DB
+		// throttled (a cada 700ms) pra UI mostrar o plano materializando em tempo real.
+		// Se Flash der quota, fallback pra Pro com generateObject (não-streaming).
+		let plan: TrainingPlanOutput;
+		let usage: { inputTokens?: number; outputTokens?: number } | undefined;
+
+		const streamPlan = async (model: string) => {
+			let lastWriteAt = 0;
+			let lastSessionsCount = 0;
+			const result = streamObject({
+				model: google(model),
 				schema: trainingPlanSchema,
 				schemaName: 'TrainingPlan',
 				schemaDescription:
@@ -291,6 +297,54 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 				prompt: userPrompt,
 				maxRetries: 1
 			});
+
+			for await (const partial of result.partialObjectStream) {
+				const now = Date.now();
+				const sessions = (partial as { weekly_sessions?: unknown[] }).weekly_sessions ?? [];
+				const sessionsCount = Array.isArray(sessions) ? sessions.length : 0;
+
+				// Throttle: escreve no DB a cada 700ms OU quando uma nova sessão completa aparece.
+				if (now - lastWriteAt < 700 && sessionsCount === lastSessionsCount) continue;
+				lastWriteAt = now;
+				lastSessionsCount = sessionsCount;
+
+				// Progresso simulado: 55 → 90 baseado em fração de output esperada
+				// Usa contagem de sessões (esperado 2-4) + presença de monitoring
+				const targetSessions = 3;
+				const sessionsFrac = Math.min(1, sessionsCount / targetSessions);
+				const hasMonitoring =
+					Array.isArray((partial as { monitoring_parameters?: unknown[] }).monitoring_parameters) &&
+					((partial as { monitoring_parameters?: unknown[] }).monitoring_parameters?.length ?? 0) >
+						0;
+				const monitFrac = hasMonitoring ? 0.15 : 0;
+				const pct = Math.min(90, 55 + Math.round((sessionsFrac * 0.7 + monitFrac) * 35));
+
+				const phase =
+					sessionsCount === 0
+						? 'estruturando plano clínico'
+						: sessionsCount < targetSessions
+							? `bloco ${sessionsCount} de ${targetSessions}: compondo exercícios`
+							: 'finalizando monitoramento e restrições';
+
+				await db
+					.update(trainingPlans)
+					.set({
+						progressPct: pct,
+						progressPhase: phase,
+						planData: partial as TrainingPlanOutput,
+						updatedAt: new Date()
+					})
+					.where(eq(trainingPlans.id, planId))
+					.catch(() => {}); // ignora write conflicts entre throttle ticks
+			}
+
+			return { object: await result.object, usage: await result.usage };
+		};
+
+		try {
+			const r = await streamPlan(PRIMARY_MODEL);
+			plan = r.object;
+			usage = r.usage;
 		} catch (primaryErr) {
 			if (!isQuotaError(primaryErr)) throw primaryErr;
 			log.warn(
@@ -303,7 +357,8 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					progressPhase: `${PRIMARY_MODEL.replace(/^gemini-/, '')} com quota cheia → tentando ${FALLBACK_MODEL.replace(/^gemini-/, '')}`
 				})
 				.where(eq(trainingPlans.id, planId));
-			generation = await generateObject({
+			// Fallback NÃO streaming pra simplicidade — Pro raramente é tocado
+			const fallbackGen = await generateObject({
 				model: google(FALLBACK_MODEL),
 				schema: trainingPlanSchema,
 				schemaName: 'TrainingPlan',
@@ -313,10 +368,11 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 				prompt: userPrompt,
 				maxRetries: 2
 			});
+			plan = fallbackGen.object;
+			usage = fallbackGen.usage;
 			modelUsed = FALLBACK_MODEL;
 		}
 		const genElapsed = Date.now() - genStartMs;
-		const plan: TrainingPlanOutput = generation.object;
 
 		await db
 			.update(trainingPlans)
@@ -392,8 +448,8 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					notes: opts.notes ?? null
 				},
 				output: plan,
-				tokensInput: generation.usage?.inputTokens ?? null,
-				tokensOutput: generation.usage?.outputTokens ?? null,
+				tokensInput: usage?.inputTokens ?? null,
+				tokensOutput: usage?.outputTokens ?? null,
 				latencyMs: genElapsed,
 				status: 'success',
 				correlationId
@@ -430,8 +486,8 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 				monitoring: monitoringNotes.length,
 				gen_ms: genElapsed,
 				total_ms: totalElapsed,
-				input_tokens: generation.usage?.inputTokens,
-				output_tokens: generation.usage?.outputTokens
+				input_tokens: usage?.inputTokens,
+				output_tokens: usage?.outputTokens
 			},
 			'plan.generate.success'
 		);

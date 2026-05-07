@@ -1,9 +1,12 @@
 /**
  * Polling endpoint pra UI acompanhar geração de plano em background.
- * Frontend chama a cada ~1.5s enquanto status != 'generated'/'failed'.
+ * Frontend chama a cada ~1.2s enquanto status != 'generated'/'failed'.
+ *
+ * Retorna planData PARCIAL durante o streaming pro UI renderizar
+ * sessões que vão aparecendo em tempo real.
  */
 import { json, error } from '@sveltejs/kit';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { trainingPlans } from '$lib/server/db/schema';
 import type { RequestHandler } from './$types';
@@ -18,7 +21,8 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			progressPct: trainingPlans.progressPct,
 			progressPhase: trainingPlans.progressPhase,
 			errorMessage: trainingPlans.errorMessage,
-			generatedAt: trainingPlans.generatedAt
+			generatedAt: trainingPlans.generatedAt,
+			planData: trainingPlans.planData
 		})
 		.from(trainingPlans)
 		.where(eq(trainingPlans.id, params.id!))
@@ -33,6 +37,8 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		phase: row.progressPhase,
 		error: row.errorMessage,
 		generated: row.status === 'generated' || row.status === 'published',
-		failed: row.status === 'failed'
+		failed: row.status === 'failed',
+		// Partial planData durante streaming — o UI renderiza sessões/restrições à medida que chegam
+		partial: row.planData ?? null
 	});
 };
