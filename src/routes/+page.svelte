@@ -1,9 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	let videoEl: HTMLVideoElement | undefined = $state();
-	let videoReady = $state(false);
+	// Dual video crossfade — elimina a travadinha do loop nativo.
+	// Quando A está nos últimos 500ms, B inicia do zero e crossfade visual
+	// suave (opacity transition). Quando B aproxima do fim, A reinicia
+	// e crossfade reverso. Loop infinito sem rebuffer/jump.
+	let videoA: HTMLVideoElement | undefined = $state();
+	let videoB: HTMLVideoElement | undefined = $state();
+	let activeVideo = $state<'A' | 'B'>('A');
 	let scrolled = $state(false);
+
+	const FADE_LEAD_S = 0.5; // crossfade começa este nº de segundos antes do fim
 
 	onMount(() => {
 		const onScroll = () => {
@@ -11,22 +18,64 @@
 		};
 		window.addEventListener('scroll', onScroll, { passive: true });
 
-		// Força play após mount — em alguns Chromes o autoplay só inicia
-		// após chamar .play() explicitamente, mesmo com muted+playsinline.
-		// Sem isso, video fica em readyState 0 indefinidamente.
-		if (videoEl) {
-			videoEl.play().catch(() => {
-				// se rejeitar (autoplay policy), tenta de novo no primeiro
-				// touch/click do user (gesture unlock)
+		const a = videoA;
+		const b = videoB;
+		if (!a || !b) return;
+
+		// Inicia A. B fica pausado até precisar fazer crossfade.
+		const tryPlay = (v: HTMLVideoElement) =>
+			v.play().catch(() => {
 				const unlock = () => {
-					videoEl?.play().catch(() => {});
+					v.play().catch(() => {});
 					document.removeEventListener('pointerdown', unlock);
 				};
 				document.addEventListener('pointerdown', unlock, { once: true });
 			});
-		}
+		tryPlay(a);
 
-		return () => window.removeEventListener('scroll', onScroll);
+		// Lógica do crossfade: monitora timeupdate em ambos os videos.
+		// Quando o ativo passa do limite, aciona o outro.
+		const onTimeUpdate = (event: Event) => {
+			const target = event.currentTarget as HTMLVideoElement;
+			if (!target.duration || isNaN(target.duration)) return;
+			const isA = target === a;
+			const other = isA ? b : a;
+			const remaining = target.duration - target.currentTime;
+
+			// Está perto do fim?
+			if (remaining <= FADE_LEAD_S && remaining > 0) {
+				// O outro ainda tá pausado? Inicia ele.
+				if (other.paused) {
+					other.currentTime = 0;
+					tryPlay(other);
+					activeVideo = isA ? 'B' : 'A'; // CSS faz o fade
+				}
+			}
+			// Acabou? Pausa pra ele esperar a próxima vez.
+			if (target.ended || remaining < 0.05) {
+				target.pause();
+				target.currentTime = 0;
+			}
+		};
+
+		a.addEventListener('timeupdate', onTimeUpdate);
+		b.addEventListener('timeupdate', onTimeUpdate);
+		// `ended` também dispara fim caso timeupdate perca o frame
+		const onEnded = (event: Event) => {
+			const t = event.currentTarget as HTMLVideoElement;
+			t.pause();
+			t.currentTime = 0;
+		};
+		a.addEventListener('ended', onEnded);
+		b.addEventListener('ended', onEnded);
+
+		return () => {
+			window.removeEventListener('scroll', onScroll);
+			a.removeEventListener('timeupdate', onTimeUpdate);
+			b.removeEventListener('timeupdate', onTimeUpdate);
+			a.removeEventListener('ended', onEnded);
+			b.removeEventListener('ended', onEnded);
+		};
 	});
 
 	const FEATURES = [
@@ -119,21 +168,29 @@
 
 	<!-- HERO -->
 	<section class="hero">
-		<!-- Video bg local: WebM VP9 1080p primário (Chrome/FF/Edge),
-			MP4 H.264 1080p fallback (Safari/iOS) -->
+		<!-- Dual video crossfade — elimina travadinha do loop nativo.
+		     A e B são idênticos, defasados, alternam via opacity.
+		     Quando A está nos últimos 500ms, B começa do zero + fade.
+		     Loop infinito sem rebuffer visível. -->
 		<video
-			bind:this={videoEl}
+			bind:this={videoA}
 			class="hero-video"
-			class:on={videoReady}
-			autoplay
-			loop
+			class:on={activeVideo === 'A'}
 			muted
 			playsinline
 			preload="auto"
 			poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='9'%3E%3Crect width='16' height='9' fill='%23050505'/%3E%3C/svg%3E"
-			oncanplay={() => (videoReady = true)}
-			onloadeddata={() => (videoReady = true)}
-			onplaying={() => (videoReady = true)}
+		>
+			<source src="/hero.webm" type="video/webm" />
+			<source src="/hero-1080.mp4" type="video/mp4" />
+		</video>
+		<video
+			bind:this={videoB}
+			class="hero-video"
+			class:on={activeVideo === 'B'}
+			muted
+			playsinline
+			preload="auto"
 		>
 			<source src="/hero.webm" type="video/webm" />
 			<source src="/hero-1080.mp4" type="video/mp4" />
@@ -550,9 +607,11 @@
 		height: 100%;
 		object-fit: cover;
 		opacity: 0;
-		transition: opacity 800ms var(--ease);
+		/* Crossfade suave de 700ms cobre os 500ms de overlap entre A e B
+		   com folga — nenhum frame fica preto */
+		transition: opacity 700ms ease-in-out;
 		z-index: 0;
-		will-change: transform, opacity;
+		will-change: opacity;
 		transform: translateZ(0);
 		backface-visibility: hidden;
 		filter: saturate(1.1) contrast(1.04);
