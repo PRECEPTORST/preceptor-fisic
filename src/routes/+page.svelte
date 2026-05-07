@@ -1,53 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Hls from 'hls.js';
 
 	let videoEl: HTMLVideoElement | undefined = $state();
 	let videoReady = $state(false);
 	let scrolled = $state(false);
-
-	const HLS_URL =
-		'https://stream.mux.com/tLkHO1qZoaaQOUeVWo8hEBeGQfySP02EPS02BmnNFyXys.m3u8';
 
 	onMount(() => {
 		const onScroll = () => {
 			scrolled = window.scrollY > 8;
 		};
 		window.addEventListener('scroll', onScroll, { passive: true });
-
-		// HLS attach: hls.js primeiro (Chrome/FF/Edge — 95% do tráfego),
-		// native só como fallback (Safari/iOS reais).
-		// Import estático no topo — dynamic import com bare specifier
-		// não resolve no client bundle do SvelteKit/Vite.
-		let cleanupHls: (() => void) | undefined;
-		if (videoEl) {
-			if (Hls.isSupported()) {
-				const hls = new Hls({ enableWorker: false, lowLatencyMode: false });
-				hls.loadSource(HLS_URL);
-				hls.attachMedia(videoEl);
-				hls.on(Hls.Events.MANIFEST_PARSED, () => {
-					videoEl?.play().catch(() => {
-						// autoplay bloqueado em algum browser — ignora
-					});
-				});
-				hls.on(Hls.Events.ERROR, (_evt, data) => {
-					if (!data.fatal) return;
-					if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
-					else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-					else hls.destroy();
-				});
-				cleanupHls = () => hls.destroy();
-			} else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
-				// Safari/iOS: HLS native
-				videoEl.src = HLS_URL;
-				videoEl.play().catch(() => {});
-			}
-		}
-
-		return () => {
-			window.removeEventListener('scroll', onScroll);
-			cleanupHls?.();
-		};
+		return () => window.removeEventListener('scroll', onScroll);
 	});
 
 	const FEATURES = [
@@ -140,7 +103,8 @@
 
 	<!-- HERO -->
 	<section class="hero">
-		<!-- Video bg via HLS (Mux). Safari nativo, demais via hls.js -->
+		<!-- Video bg local: WebM VP9 1080p primário (Chrome/FF/Edge),
+			MP4 H.264 1080p fallback (Safari/iOS) -->
 		<video
 			bind:this={videoEl}
 			class="hero-video"
@@ -154,7 +118,10 @@
 			oncanplay={() => (videoReady = true)}
 			onloadeddata={() => (videoReady = true)}
 			onplaying={() => (videoReady = true)}
-		></video>
+		>
+			<source src="/hero.webm" type="video/webm" />
+			<source src="/hero-1080.mp4" type="video/mp4" />
+		</video>
 
 		<!-- Tint violeta da marca (#A78BFA) sobre o vídeo via mix-blend -->
 		<div class="hero-tint"></div>
@@ -572,55 +539,65 @@
 		will-change: transform, opacity;
 		transform: translateZ(0);
 		backface-visibility: hidden;
-		/* HLS Mux entrega 1080p direto, sem blur necessário. Mantém
-		   só leve saturate/contrast pra punch + brightness baixa pra
-		   o violeta dominar visualmente. */
-		filter: saturate(1.1) contrast(1.05) brightness(0.85);
+		filter: saturate(1.1) contrast(1.04);
 		image-rendering: high-quality;
 		-webkit-transform: translateZ(0);
 	}
 	.hero-video.on {
 		opacity: 1;
 	}
-	/* Tint violeta da marca — #A78BFA com blend mode multiply
-	   recolore o vídeo todo pra paleta lavanda, mantendo
-	   luminância (movimento continua visível) */
+	/* Tint violeta DUPLO pra dominar com a cor da marca:
+	   1) hue → recolore o vídeo pra paleta lavanda (preserva detalhe)
+	   2) overlay leve violeta → reforça a cor mesmo em áreas escuras */
 	.hero-tint {
 		position: absolute;
 		inset: 0;
-		background: var(--accent);
-		mix-blend-mode: multiply;
-		opacity: 0.55;
+		background:
+			linear-gradient(135deg, rgba(167, 139, 250, 0.55), rgba(196, 181, 253, 0.4));
+		mix-blend-mode: hue;
 		z-index: 1;
 		pointer-events: none;
 	}
-	/* Overlay 1: véu escuro radial — sobre o tint pra escurecer o conjunto */
+	.hero-tint::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background:
+			radial-gradient(
+				ellipse 90% 80% at 70% 50%,
+				rgba(167, 139, 250, 0.28) 0%,
+				rgba(167, 139, 250, 0.18) 50%,
+				transparent 100%
+			);
+		mix-blend-mode: screen;
+	}
+	/* Overlay 1: véu sutil violeta pra dar profundidade sem matar a cor.
+	   Não usa preto — usa o próprio violeta escuro pra preservar identidade */
 	.hero-veil {
 		position: absolute;
 		inset: 0;
 		background:
 			radial-gradient(
 				ellipse 100% 85% at 50% 45%,
-				rgba(5, 5, 5, 0.22) 0%,
-				rgba(5, 5, 5, 0.5) 55%,
-				rgba(5, 5, 5, 0.75) 100%
-			),
-			linear-gradient(180deg, rgba(5, 5, 5, 0.2) 0%, transparent 25%, transparent 65%, rgba(5, 5, 5, 0.3) 100%);
+				transparent 0%,
+				rgba(20, 12, 40, 0.25) 60%,
+				rgba(15, 8, 30, 0.55) 100%
+			);
 		z-index: 2;
 		pointer-events: none;
 	}
-	/* Overlay 2: fade pra preto na base */
+	/* Overlay 2: fade pra bg-0 na base — emenda com a próxima section */
 	.hero-fade-bottom {
 		position: absolute;
 		bottom: 0;
 		left: 0;
 		right: 0;
 		height: 220px;
-		background: linear-gradient(180deg, transparent 0%, rgba(5, 5, 5, 0.5) 50%, var(--bg-0) 95%);
+		background: linear-gradient(180deg, transparent 0%, rgba(15, 8, 30, 0.5) 50%, var(--bg-0) 95%);
 		z-index: 3;
 		pointer-events: none;
 	}
-	/* Overlay 3: vinheta atrás do texto */
+	/* Overlay 3: vinheta sutil atrás do texto (violeta escuro, não preto) */
 	.hero-fade-left {
 		position: absolute;
 		top: 8%;
@@ -629,8 +606,8 @@
 		width: 70%;
 		background: radial-gradient(
 			ellipse 72% 65% at 28% 50%,
-			rgba(5, 5, 5, 0.5) 0%,
-			rgba(5, 5, 5, 0.2) 60%,
+			rgba(15, 8, 30, 0.45) 0%,
+			rgba(15, 8, 30, 0.18) 60%,
 			transparent 100%
 		);
 		z-index: 2;
@@ -644,18 +621,29 @@
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
-		/* Halo escuro grudado nos glifos — preserva o vídeo de fundo
-		   intacto E garante contraste local de cada caractere */
-		filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.85))
-			drop-shadow(0 2px 18px rgba(0, 0, 0, 0.6));
+		/* SEM filter:drop-shadow no parent — quando aplicado em texto com
+		   background-clip:text+color:transparent (caso do gradient), a
+		   sombra renderiza nos pixels transparentes e vaza pelo gradient,
+		   criando efeito "preto contornado". text-shadow individual abaixo
+		   funciona corretamente porque preserva o gradient. */
 	}
-	.hero-content :global(h1),
-	.hero-content :global(p),
-	.hero-content :global(.hero-eyebrow),
-	.hero-content :global(.hero-trust-item) {
-		/* Reforço extra de text-shadow pra browsers que renderizam
-		   drop-shadow com perda de qualidade em filtros aninhados */
-		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 2px 12px rgba(0, 0, 0, 0.5);
+	/* Shadow individual em cada elemento — funciona com gradient text */
+	.hero-h1 {
+		text-shadow:
+			0 2px 8px rgba(15, 8, 30, 0.7),
+			0 4px 24px rgba(15, 8, 30, 0.45);
+	}
+	.hero-sub {
+		text-shadow: 0 1px 6px rgba(15, 8, 30, 0.7);
+	}
+	.hero-eyebrow,
+	.hero-trust-item {
+		text-shadow: 0 1px 4px rgba(15, 8, 30, 0.6);
+	}
+	/* O gradient text precisa de tratamento especial — aplicamos
+	   text-shadow no SPAN parent, não no texto transparente em si */
+	.hero-h1 .hero-accent {
+		filter: drop-shadow(0 2px 12px rgba(167, 139, 250, 0.5));
 	}
 	.hero-eyebrow {
 		display: inline-flex;
