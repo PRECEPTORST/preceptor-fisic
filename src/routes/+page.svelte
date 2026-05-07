@@ -10,6 +10,22 @@
 			scrolled = window.scrollY > 8;
 		};
 		window.addEventListener('scroll', onScroll, { passive: true });
+
+		// Força play após mount — em alguns Chromes o autoplay só inicia
+		// após chamar .play() explicitamente, mesmo com muted+playsinline.
+		// Sem isso, video fica em readyState 0 indefinidamente.
+		if (videoEl) {
+			videoEl.play().catch(() => {
+				// se rejeitar (autoplay policy), tenta de novo no primeiro
+				// touch/click do user (gesture unlock)
+				const unlock = () => {
+					videoEl?.play().catch(() => {});
+					document.removeEventListener('pointerdown', unlock);
+				};
+				document.addEventListener('pointerdown', unlock, { once: true });
+			});
+		}
+
 		return () => window.removeEventListener('scroll', onScroll);
 	});
 
