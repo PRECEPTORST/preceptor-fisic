@@ -23,7 +23,7 @@
 		style="display:flex;align-items:center;gap:16px;padding:20px 32px;border-bottom:1px solid var(--ink-line);background:var(--bg-1);position:sticky;top:0;z-index:10"
 	>
 		<button
-			onclick={() => goto('/exercicios')}
+			onclick={() => goto('/exercicios/meus')}
 			style="background:var(--bg-3);border:1px solid var(--ink-line-2);cursor:pointer;width:36px;height:36px;border-radius:var(--r-1);color:var(--ink-1);font-size:18px"
 		>←</button>
 		<div style="flex:1">
@@ -152,7 +152,7 @@
 		<div
 			style="display:flex;justify-content:space-between;gap:8px;padding-top:16px;border-top:1px solid var(--ink-line)"
 		>
-			<Button variant="secondary" onclick={() => goto('/exercicios')}>Cancelar</Button>
+			<Button variant="secondary" onclick={() => goto('/exercicios/meus')}>Cancelar</Button>
 			<Button type="submit" disabled={submitting} size="lg">
 				{submitting ? 'Salvando…' : '+ Adicionar exercício'}
 			</Button>

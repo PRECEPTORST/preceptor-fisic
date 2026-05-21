@@ -46,13 +46,13 @@ export const actions: Actions = {
 			contraindications
 		});
 
-		redirect(303, '/exercicios');
+		redirect(303, '/exercicios/meus');
 	},
 	delete: async ({ params, locals }) => {
 		if (!locals.user) return fail(401, { error: 'não autenticado' });
 		const professional = await getProfessionalByAuthId(locals.user.id);
 		if (!professional) return fail(401, { error: 'professional não encontrado' });
 		await deleteExercise(params.id!, professional.id);
-		redirect(303, '/exercicios');
+		redirect(303, '/exercicios/meus');
 	}
 };

@@ -36,6 +36,6 @@ export const actions: Actions = {
 			contraindications
 		});
 
-		redirect(303, '/exercicios');
+		redirect(303, '/exercicios/meus');
 	}
 };
