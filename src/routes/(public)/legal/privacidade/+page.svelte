@@ -54,7 +54,7 @@
 	cadastrado, registrado em <code>students.consent_accepted_at</code>.
 </p>
 
-<h3>2.3. Geração por IA</h3>
+<h3>2.3. Geração por PreceptorFISIC</h3>
 <p>
 	Para gerar planos personalizados, o resumo dos dados clínicos do aluno é enviado ao Google
 	Gemini (modelo 2.5 Flash/Pro). O Google trata esses dados como <strong>processador</strong>
@@ -75,7 +75,7 @@
 	<li><strong>Banco principal</strong>: Supabase (Postgres) — região <code>sa-east-1</code> (São Paulo, BR)</li>
 	<li><strong>Edge / hosting</strong>: Vercel — região <code>gru1</code> (São Paulo, BR)</li>
 	<li><strong>Email transacional</strong>: Resend (servidores nos EUA, dados mínimos: nome + email)</li>
-	<li><strong>IA</strong>: Google Vertex AI (US) — apenas durante geração, sem persistência</li>
+	<li><strong>PreceptorFISIC</strong>: Google Vertex AI (US) — apenas durante geração, sem persistência</li>
 </ul>
 <p>
 	Transferências internacionais (Resend, Google) são amparadas em

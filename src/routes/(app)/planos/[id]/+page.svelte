@@ -159,7 +159,7 @@
 					<div>
 						<div class="eyebrow" style="margin-bottom:2px">{plan.studentName}</div>
 						<div style="font:500 16px var(--font-sans);color:var(--ink-0)">
-							Gerando plano com IA
+							Gerando plano com PreceptorFISIC
 						</div>
 					</div>
 				</div>
@@ -168,7 +168,7 @@
 						{liveProgress}%
 					</div>
 					<div style="font:var(--label-mono);color:var(--ink-3);margin-top:4px">
-						Gemini 2.5 Flash · ACSM ★
+						PreceptorFISIC · ACSM ★
 					</div>
 				</div>
 			</div>
@@ -189,7 +189,7 @@
 				<div class="gen-stream-block">
 					<div class="gen-stream-header">
 						<span class="gen-stream-dot"></span>
-						<span>Gemini · gerando</span>
+						<span>PreceptorFISIC · gerando</span>
 						<span class="gen-stream-meta">{liveStreamText.length.toLocaleString('pt-BR')} chars</span>
 					</div>
 					<pre class="gen-stream-text" bind:this={streamScrollEl}>{liveStreamText}<span class="gen-stream-cursor">▋</span></pre>
@@ -570,7 +570,7 @@
 			>✗</div>
 			<div>
 				<h1 style="font:500 22px var(--font-sans);margin:0 0 8px;color:var(--ink-0)">Geração falhou</h1>
-				<div style="font:var(--body-sm);color:var(--ink-2)">A IA não conseguiu produzir um plano válido. Tente novamente.</div>
+				<div style="font:var(--body-sm);color:var(--ink-2)">O PreceptorFISIC não conseguiu produzir um plano válido. Tente novamente.</div>
 			</div>
 			<Button onclick={() => goto(`/alunos/${plan.studentId}/gerar`)}>↻ Tentar de novo</Button>
 		</div>

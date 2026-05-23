@@ -74,7 +74,7 @@
 			<Eyebrow>◆ Biblioteca licenciada · vídeo em todos</Eyebrow>
 			<h1 class="cat-h1">Catálogo de exercícios</h1>
 			<p class="cat-sub">
-				Biblioteca licenciada com demonstração em vídeo. A IA usa esse catálogo ao gerar planos —
+				Biblioteca licenciada com demonstração em vídeo. O PreceptorFISIC usa esse catálogo ao gerar planos —
 				cada exercício prescrito vem com tutorial.
 			</p>
 		</div>

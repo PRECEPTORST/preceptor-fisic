@@ -136,7 +136,7 @@ export async function sendProfessionalWelcome(opts: {
 	const subject = 'Bem-vindo(a) ao Preceptor Fisic';
 	const body = `
 <p style="margin:0 0 14px;">Olá <strong style="color:#fafafa;">${firstName}</strong>,</p>
-<p style="margin:0 0 14px;">Seu perfil profissional está ativo. Agora você pode prescrever treinos com IA fundamentada em diretrizes ACSM, com validação clínica automática.</p>
+<p style="margin:0 0 14px;">Seu perfil profissional está ativo. Agora você pode prescrever treinos com o PreceptorFISIC, fundamentado em diretrizes ACSM, com validação clínica automática.</p>
 <p style="margin:0;">Bora cadastrar o primeiro aluno?</p>
 `;
 	return send({
@@ -214,7 +214,7 @@ export async function sendPlanReady(opts: {
 	const subject = `Plano de ${opts.studentName} está pronto`;
 	const body = `
 <p style="margin:0 0 14px;">Olá <strong style="color:#fafafa;">${firstName}</strong>,</p>
-<p style="margin:0 0 14px;">A IA terminou de gerar o plano clínico de <strong style="color:#fafafa;">${opts.studentName}</strong> com fundamentação em diretrizes.</p>
+<p style="margin:0 0 14px;">O PreceptorFISIC terminou de gerar o plano clínico de <strong style="color:#fafafa;">${opts.studentName}</strong> com fundamentação em diretrizes.</p>
 <p style="margin:0;">Revise as restrições, valide a prescrição e publique pro aluno acessar pelo app.</p>
 `;
 	return send({

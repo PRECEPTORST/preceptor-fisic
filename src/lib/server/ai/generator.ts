@@ -379,7 +379,7 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 			.update(trainingPlans)
 			.set({
 				progressPct: 55,
-				progressPhase: `gerando plano com ${PRIMARY_MODEL.replace(/^gemini-/, 'Gemini ')}`
+				progressPhase: 'gerando plano com PreceptorFISIC'
 			})
 			.where(eq(trainingPlans.id, planId));
 
@@ -511,7 +511,7 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 			await db
 				.update(trainingPlans)
 				.set({
-					progressPhase: `${PRIMARY_MODEL.replace(/^gemini-/, '')} com quota cheia → tentando ${FALLBACK_MODEL.replace(/^gemini-/, '')}`
+					progressPhase: 'PreceptorFISIC saturado — tentando rota alternativa'
 				})
 				.where(eq(trainingPlans.id, planId));
 			// Fallback NÃO streaming pra simplicidade — Pro raramente é tocado.

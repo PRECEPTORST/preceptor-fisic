@@ -80,9 +80,9 @@
 
 	const FEATURES = [
 		{
-			eyebrow: '◆ IA + RAG',
+			eyebrow: '◆ PreceptorFISIC + RAG',
 			title: 'Geração com diretrizes',
-			body: 'Gemini 2.5 Flash com retrieval-augmented sobre ACSM, AHA, OMS e ESSA. Citações reais com chunk_id, página e organização — não invenção.',
+			body: 'PreceptorFISIC com retrieval-augmented sobre ACSM, AHA, OMS e ESSA. Citações reais com chunk_id, página e organização — não invenção.',
 			metric: '2.040 chunks',
 			metricLabel: 'indexados'
 		},
@@ -117,7 +117,7 @@
 		},
 		{
 			n: '02',
-			title: 'Gere com IA',
+			title: 'Gere com PreceptorFISIC',
 			body: 'Plano sai em 15-30s — você vê materializando ao vivo. ACSM tem prioridade no RAG. Validação clínica automática antes de publicar.'
 		},
 		{
@@ -136,10 +136,10 @@
 </script>
 
 <svelte:head>
-	<title>Preceptor Fisic — Prescrição clínica com IA validada</title>
+	<title>Preceptor Fisic — Prescrição clínica validada</title>
 	<meta
 		name="description"
-		content="Plataforma para profissionais CREF/CREFITO que prescrevem exercícios para populações especiais. IA com diretrizes ACSM, validação clínica automática, app mobile do aluno."
+		content="Plataforma para profissionais CREF/CREFITO que prescrevem exercícios para populações especiais. PreceptorFISIC com diretrizes ACSM, validação clínica automática, app mobile do aluno."
 	/>
 	<meta name="keywords" content="prescrição exercício, populações especiais, hipertensão, diabetes, cardiopatia, ACSM, fisioterapia, personal trainer, CREF, CREFITO" />
 	<meta name="author" content="Preceptor Fisic" />
@@ -148,10 +148,10 @@
 	<!-- Open Graph (Facebook, LinkedIn, WhatsApp) -->
 	<meta property="og:type" content="website" />
 	<meta property="og:url" content="https://preceptor-fisic.vercel.app/" />
-	<meta property="og:title" content="Preceptor Fisic — Prescrição clínica com IA validada" />
+	<meta property="og:title" content="Preceptor Fisic — Prescrição clínica validada" />
 	<meta
 		property="og:description"
-		content="IA com diretrizes ACSM · Validação clínica automática · App mobile do aluno. Plataforma para profissionais CREF/CREFITO."
+		content="PreceptorFISIC com diretrizes ACSM · Validação clínica automática · App mobile do aluno. Plataforma para profissionais CREF/CREFITO."
 	/>
 	<meta property="og:image" content="https://preceptor-fisic.vercel.app/og-image.svg" />
 	<meta property="og:image:width" content="1200" />
@@ -161,10 +161,10 @@
 
 	<!-- Twitter Card -->
 	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:title" content="Preceptor Fisic — Prescrição clínica com IA validada" />
+	<meta name="twitter:title" content="Preceptor Fisic — Prescrição clínica validada" />
 	<meta
 		name="twitter:description"
-		content="IA com diretrizes ACSM · Validação clínica automática · App mobile do aluno."
+		content="PreceptorFISIC com diretrizes ACSM · Validação clínica automática · App mobile do aluno."
 	/>
 	<meta name="twitter:image" content="https://preceptor-fisic.vercel.app/og-image.svg" />
 
@@ -176,7 +176,7 @@
 		"name": "Preceptor Fisic",
 		"applicationCategory": "HealthApplication",
 		"operatingSystem": "Web, iOS, Android",
-		"description": "Plataforma de prescrição clínica de exercícios com IA fundamentada em diretrizes ACSM.",
+		"description": "Plataforma de prescrição clínica de exercícios com PreceptorFISIC fundamentado em diretrizes ACSM.",
 		"offers": {
 			"@type": "Offer",
 			"price": "0",
@@ -264,7 +264,7 @@
 
 			<p class="hero-sub">
 				A primeira plataforma brasileira para profissionais CREF/CREFITO que prescrevem para
-				<strong>populações especiais</strong> — com IA fundamentada em diretrizes ACSM, validação
+				<strong>populações especiais</strong> — com PreceptorFISIC fundamentado em diretrizes ACSM, validação
 				clínica automática e app mobile do aluno.
 			</p>
 
@@ -291,7 +291,7 @@
 				<div class="hero-trust-divider"></div>
 				<div class="hero-trust-item">
 					<span class="trust-dot info"></span>
-					Gemini 2.5 + RAG
+					PreceptorFISIC + RAG
 				</div>
 			</div>
 		</div>

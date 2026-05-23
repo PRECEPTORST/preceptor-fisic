@@ -27,7 +27,7 @@
 	const messages = [
 		'Carregando contexto clínico…',
 		'Recuperando RAG (preferência ACSM)…',
-		'Gemini 2.5 Pro montando prescrição…',
+		'PreceptorFISIC montando prescrição…',
 		'Validando restrições clínicas…',
 		'Finalizando…'
 	];
@@ -227,7 +227,7 @@
 					<textarea
 						name="notes"
 						bind:value={notes}
-						placeholder="Adicione notas que a IA deve considerar ao gerar o treino…"
+						placeholder="Adicione notas que o PreceptorFISIC deve considerar ao gerar o treino…"
 						style="width:100%;margin-top:10px;min-height:100px;padding:14px;background:var(--bg-2);border:1px solid var(--ink-line-2);border-radius:var(--r-2);color:var(--ink-0);font:14px var(--font-sans);resize:vertical;outline:none;box-sizing:border-box"
 					></textarea>
 				</div>
@@ -235,7 +235,7 @@
 				<Button type="submit" style="width:100%;justify-content:center">⚡ Gerar plano personalizado</Button>
 
 				<div style="margin-top:14px;text-align:center;font:var(--label-mono);color:var(--ink-3)">
-					Gemini 2.5 Pro · RAG 49 fontes · Preferência ACSM ★
+					PreceptorFISIC · RAG 49 fontes · Preferência ACSM ★
 				</div>
 			</form>
 		</div>

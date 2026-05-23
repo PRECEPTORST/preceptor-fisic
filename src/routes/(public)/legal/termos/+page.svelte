@@ -20,7 +20,7 @@
 </p>
 <ul>
 	<li>Cadastro e gerenciamento de alunos com histórico clínico</li>
-	<li>Geração assistida por IA de planos de treino fundamentados em diretrizes técnicas (ACSM, ESSA, AHA, OMS)</li>
+	<li>Geração assistida por PreceptorFISIC de planos de treino fundamentados em diretrizes técnicas (ACSM, ESSA, AHA, OMS)</li>
 	<li>Validação automática contra regras clínicas pré-cadastradas</li>
 	<li>Aplicativo mobile para o aluno acompanhar treinos prescritos</li>
 </ul>
@@ -50,7 +50,7 @@
 <ul>
 	<li>Compartilhar credenciais de acesso ou cadastrar alunos sem consentimento</li>
 	<li>Inserir dados sensíveis de terceiros sem base legal (Lei 13.709/2018, art. 11)</li>
-	<li>Usar a IA para fins fora da prescrição clínica de exercício físico</li>
+	<li>Usar o PreceptorFISIC para fins fora da prescrição clínica de exercício físico</li>
 	<li>Tentar burlar limites de uso (rate limit, quotas) ou engenharia reversa do sistema</li>
 	<li>
 		Publicar planos sem revisão profissional. <strong>Toda prescrição publicada implica
@@ -58,9 +58,9 @@
 	</li>
 </ul>
 
-<h2>4. Geração por IA e responsabilidade clínica</h2>
+<h2>4. Geração por PreceptorFISIC e responsabilidade clínica</h2>
 <p>
-	Os planos gerados pela IA usam contexto de diretrizes (ACSM com prioridade) e são validados
+	Os planos gerados pelo PreceptorFISIC usam contexto de diretrizes (ACSM com prioridade) e são validados
 	contra regras clínicas automatizadas. Ainda assim:
 </p>
 <ul>

@@ -47,7 +47,7 @@
 		},
 		{
 			icon: '◇',
-			title: 'Gere planos com IA',
+			title: 'Gere planos com PreceptorFISIC',
 			desc: 'Estruturados, com base em ACSM/AHA, validados clinicamente.'
 		},
 		{
