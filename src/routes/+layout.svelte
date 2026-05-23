@@ -23,16 +23,38 @@
 
 	// View Transitions: cross-fade suave entre rotas. Só age no conteúdo
 	// marcado com `view-transition-name: page-content` (sidebar fica estável).
+	//
+	// CRÍTICO: o onNavigate DEVE sempre resolver. Se o startViewTransition
+	// abortar (estado inválido — ex: transition anterior presa), o callback
+	// não roda, resolve() não é chamado, e a navegação trava pra sempre.
+	// Por isso: failsafe de 600ms + catch nas promises da transition.
 	onNavigate((nav) => {
-		// @ts-expect-error — startViewTransition é opt-in (Chrome/Edge/Safari recente)
-		if (!document.startViewTransition) return;
+		const startVT = (
+			document as Document & { startViewTransition?: (cb: () => unknown) => unknown }
+		).startViewTransition;
+		if (typeof startVT !== 'function') return;
 
-		return new Promise((resolve) => {
-			// @ts-expect-error
-			document.startViewTransition(async () => {
-				resolve();
-				await nav.complete;
-			});
+		return new Promise<void>((resolve) => {
+			let resolved = false;
+			const done = () => {
+				if (!resolved) {
+					resolved = true;
+					resolve();
+				}
+			};
+			// Failsafe: navegação nunca pode ficar presa por um efeito visual.
+			const failsafe = setTimeout(done, 600);
+
+			try {
+				const transition = startVT.call(document, async () => {
+					done();
+					await nav.complete;
+				}) as { ready?: Promise<unknown>; finished?: Promise<unknown> };
+				transition.ready?.catch(() => done());
+				transition.finished?.catch(() => done()).finally(() => clearTimeout(failsafe));
+			} catch {
+				done();
+			}
 		});
 	});
 </script>

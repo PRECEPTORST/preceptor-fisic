@@ -23,33 +23,34 @@
 		const anon = env.PUBLIC_SUPABASE_ANON_KEY;
 		if (!url || !anon) return;
 
-		const sb = createBrowserClient(url, anon, {
-			cookies: {
-				getAll: () => document.cookie.split(';').map((c) => {
-					const [name, ...rest] = c.trim().split('=');
-					return { name, value: rest.join('=') };
-				})
-			}
-		});
-		const channel = sb
-			.channel('messages-realtime')
-			.on(
-				'postgres_changes',
-				{ event: 'INSERT', schema: 'public', table: 'messages' },
-				() => {
-					invalidateAll().catch(() => {});
-				}
-			)
-			.subscribe();
+		// No browser, createBrowserClient gerencia document.cookie sozinho.
+		// Passar { cookies } parcial quebra (exige getAll + setAll juntos).
+		// Todo o setup é envolvido em try/catch — falha de realtime jamais
+		// pode derrubar o componente (View Transitions abortariam → trava nav).
+		try {
+			const sb = createBrowserClient(url, anon);
+			const channel = sb
+				.channel('messages-realtime')
+				.on(
+					'postgres_changes',
+					{ event: 'INSERT', schema: 'public', table: 'messages' },
+					() => {
+						invalidateAll().catch(() => {});
+					}
+				)
+				.subscribe();
 
-		realtimeUnsub = () => {
-			try {
-				channel.unsubscribe();
-				sb.removeAllChannels();
-			} catch {
-				/* noop */
-			}
-		};
+			realtimeUnsub = () => {
+				try {
+					channel.unsubscribe();
+					sb.removeAllChannels();
+				} catch {
+					/* noop */
+				}
+			};
+		} catch {
+			/* realtime indisponível — página funciona normal sem live update */
+		}
 	});
 	onDestroy(() => realtimeUnsub?.());
 

@@ -486,6 +486,12 @@ async function collectAndEnrichSources(planData: PlanData): Promise<SourceMap> {
 
 	if (chunkIds.size === 0 && sourceIds.size === 0) return {};
 
+	// Array vazio em ANY(${[]}::text[]) gera SQL inválido "ANY(()::text[])".
+	// Sentinela '__none__' (não é UUID válido) garante array não-vazio
+	// sem nunca casar com nenhuma linha real.
+	const chunkArr = chunkIds.size > 0 ? Array.from(chunkIds) : ['__none__'];
+	const sourceArr = sourceIds.size > 0 ? Array.from(sourceIds) : ['__none__'];
+
 	// Single query — busca chunks + sources em uma só ida
 	const rows = (await db.execute<{
 		chunk_id: string | null;
@@ -506,8 +512,8 @@ async function collectAndEnrichSources(planData: PlanData): Promise<SourceMap> {
 			LEFT(kc.content, 280) AS excerpt
 		FROM knowledge_chunks kc
 		JOIN knowledge_sources ks ON ks.id = kc.source_id
-		WHERE kc.id::text = ANY(${Array.from(chunkIds)}::text[])
-		   OR ks.id::text = ANY(${Array.from(sourceIds)}::text[])
+		WHERE kc.id::text = ANY(${chunkArr}::text[])
+		   OR ks.id::text = ANY(${sourceArr}::text[])
 	`)) as unknown as Array<{
 		chunk_id: string | null;
 		source_id: string;

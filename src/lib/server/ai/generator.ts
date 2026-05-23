@@ -289,58 +289,66 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 		const streamPlan = async (model: string) => {
 			let lastWriteAt = 0;
 			let lastSessionsCount = 0;
-			const result = streamObject({
-				model: google(model),
-				schema: trainingPlanSchema,
-				schemaName: 'TrainingPlan',
-				schemaDescription:
-					'Plano de treino clínico com sessões semanais, monitoramento, restrições e citações',
-				system: SYSTEM_PROMPT_PT_BR,
-				prompt: userPrompt,
-				maxRetries: 1
-			});
 
-			for await (const partial of result.partialObjectStream) {
-				const now = Date.now();
-				const sessions = (partial as { weekly_sessions?: unknown[] }).weekly_sessions ?? [];
-				const sessionsCount = Array.isArray(sessions) ? sessions.length : 0;
-
-				// Throttle: escreve no DB a cada 700ms OU quando uma nova sessão completa aparece.
-				if (now - lastWriteAt < 700 && sessionsCount === lastSessionsCount) continue;
-				lastWriteAt = now;
-				lastSessionsCount = sessionsCount;
-
-				// Progresso simulado: 55 → 90 baseado em fração de output esperada
-				// Usa contagem de sessões (esperado 2-4) + presença de monitoring
-				const targetSessions = 3;
-				const sessionsFrac = Math.min(1, sessionsCount / targetSessions);
-				const hasMonitoring =
-					Array.isArray((partial as { monitoring_parameters?: unknown[] }).monitoring_parameters) &&
-					((partial as { monitoring_parameters?: unknown[] }).monitoring_parameters?.length ?? 0) >
-						0;
-				const monitFrac = hasMonitoring ? 0.15 : 0;
-				const pct = Math.min(90, 55 + Math.round((sessionsFrac * 0.7 + monitFrac) * 35));
-
-				const phase =
-					sessionsCount === 0
-						? 'estruturando plano clínico'
-						: sessionsCount < targetSessions
-							? `bloco ${sessionsCount} de ${targetSessions}: compondo exercícios`
-							: 'finalizando monitoramento e restrições';
-
-				await db
-					.update(trainingPlans)
-					.set({
-						progressPct: pct,
-						progressPhase: phase,
-						planData: partial as TrainingPlanOutput,
-						updatedAt: new Date()
-					})
+			// Timer de progresso — garante movimento visual mesmo se o
+			// partialObjectStream do Gemini não emitir incrementalmente
+			// (caso comum: o modelo entrega tudo de uma vez no fim).
+			// Sobe 55→88 gradual; o for-await cuida do planData + fase.
+			let simulatedPct = 55;
+			const progressTimer = setInterval(() => {
+				simulatedPct = Math.min(88, simulatedPct + 2);
+				db.update(trainingPlans)
+					.set({ progressPct: simulatedPct, updatedAt: new Date() })
 					.where(eq(trainingPlans.id, planId))
-					.catch(() => {}); // ignora write conflicts entre throttle ticks
-			}
+					.catch(() => {});
+			}, 2500);
 
-			return { object: await result.object, usage: await result.usage };
+			try {
+				const result = streamObject({
+					model: google(model),
+					schema: trainingPlanSchema,
+					schemaName: 'TrainingPlan',
+					schemaDescription:
+						'Plano de treino clínico com sessões semanais, monitoramento, restrições e citações',
+					system: SYSTEM_PROMPT_PT_BR,
+					prompt: userPrompt,
+					maxRetries: 1
+				});
+
+				for await (const partial of result.partialObjectStream) {
+					const now = Date.now();
+					const sessions = (partial as { weekly_sessions?: unknown[] }).weekly_sessions ?? [];
+					const sessionsCount = Array.isArray(sessions) ? sessions.length : 0;
+
+					// Throttle: escreve a cada 700ms OU quando nova sessão aparece.
+					if (now - lastWriteAt < 700 && sessionsCount === lastSessionsCount) continue;
+					lastWriteAt = now;
+					lastSessionsCount = sessionsCount;
+
+					const targetSessions = 3;
+					const phase =
+						sessionsCount === 0
+							? 'estruturando plano clínico'
+							: sessionsCount < targetSessions
+								? `bloco ${sessionsCount} de ${targetSessions}: compondo exercícios`
+								: 'finalizando monitoramento e restrições';
+
+					// progressPct é do timer; aqui só planData + fase
+					await db
+						.update(trainingPlans)
+						.set({
+							progressPhase: phase,
+							planData: partial as TrainingPlanOutput,
+							updatedAt: new Date()
+						})
+						.where(eq(trainingPlans.id, planId))
+						.catch(() => {});
+				}
+
+				return { object: await result.object, usage: await result.usage };
+			} finally {
+				clearInterval(progressTimer);
+			}
 		};
 
 		try {
@@ -378,7 +386,7 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 
 		await db
 			.update(trainingPlans)
-			.set({ progressPct: 90, progressPhase: 'validando e persistindo' })
+			.set({ progressPct: 91, progressPhase: 'validando e persistindo' })
 			.where(eq(trainingPlans.id, planId));
 
 		// Restrições da IA
@@ -400,7 +408,7 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 		// Validação clínica via clinical_rules engine
 		await db
 			.update(trainingPlans)
-			.set({ progressPct: 80, progressPhase: 'validando contra clinical_rules' })
+			.set({ progressPct: 95, progressPhase: 'validando contra clinical_rules' })
 			.where(eq(trainingPlans.id, planId));
 
 		const age = ctx.student.birthDate
