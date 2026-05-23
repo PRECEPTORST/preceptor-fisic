@@ -6,19 +6,31 @@
  */
 import { z } from 'zod';
 
+/**
+ * chunk_id/source_id ficam como string livre (não z.string().uuid()): no
+ * caminho de inference, o modelo legitimamente preenche source_id com uma
+ * referência não-UUID (ex: "ACSM 2022"). Exigir UUID fazia o schema
+ * rejeitar o plano inteiro com "No object generated: response did not match
+ * schema". Quando type=rag_chunk a gente AINDA exige chunk_id presente
+ * (regra abaixo) e o consumidor filtra UUIDs reais antes de cruzar com
+ * knowledge_chunks.id.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const sourceRefSchema = z
 	.object({
 		type: z.enum(['guideline', 'rag_chunk', 'rule', 'inference']),
-		chunk_id: z.string().uuid().optional(),
-		source_id: z.string().uuid().optional(),
+		chunk_id: z.string().optional(),
+		source_id: z.string().optional(),
 		rule_code: z.string().optional(),
 		page_number: z.number().int().optional(),
 		note: z.string().optional()
 	})
 	.refine(
 		(v) => {
-			// Quando declarar rag_chunk, OBRIGATÓRIO ter chunk_id (UUID exato).
-			if (v.type === 'rag_chunk') return Boolean(v.chunk_id);
+			// Quando declarar rag_chunk, OBRIGATÓRIO ter chunk_id e ser UUID válido —
+			// rag_chunk só faz sentido se o id for resolvível em knowledge_chunks.
+			if (v.type === 'rag_chunk') return Boolean(v.chunk_id) && UUID_RE.test(v.chunk_id!);
 			// Inference precisa de note explicativo.
 			if (v.type === 'inference') return Boolean(v.note && v.note.length >= 10);
 			// Rule precisa de rule_code.
@@ -33,6 +45,14 @@ export const sourceRefSchema = z
 
 export const exerciseSchema = z.object({
 	name: z.string().min(2).max(400),
+	/**
+	 * external_id do exercise_catalog (ExerciseDB Pro) quando o exercício
+	 * foi escolhido do catálogo. Preencher SEMPRE que o nome casar com
+	 * algum item disponibilizado no prompt — habilita exibição de vídeo +
+	 * instruções traduzidas na ficha do aluno. Pra exercícios fora do
+	 * catálogo (custom/aquecimento improvisado), deixar undefined.
+	 */
+	catalog_id: z.string().regex(/^\d{4,5}$/).optional(),
 	muscle_groups: z.array(z.string()).default([]),
 	sets: z.number().int().min(1).max(20),
 	reps: z.string().min(1).max(200),

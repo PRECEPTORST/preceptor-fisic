@@ -8,7 +8,7 @@
  *   4. generateObject (Gemini 2.5 Pro) com schema Zod
  *   5. Persiste em training_plans + ai_runs com auditoria completa
  */
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { generateObject, streamObject } from 'ai';
 import { randomUUID } from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
@@ -22,11 +22,13 @@ import {
 	trainingPreferences,
 	trainingPlans,
 	aiRuns,
+	exerciseCatalog,
 	type Student,
 	type HealthProfile,
 	type Restriction,
 	type MonitoringNote,
-	type AssessmentProtocol
+	type AssessmentProtocol,
+	type ExerciseCatalogItem
 } from '$lib/server/db/schema';
 import { env } from '$env/dynamic/private';
 import { logger } from '$lib/server/logger';
@@ -39,6 +41,11 @@ import { validatePlan, violationToRestriction, deriveStudentCtxFromHealth } from
 // Pro só é tentado se Flash falhar (pouco comum).
 const PRIMARY_MODEL = env.AI_MODEL_FAST ?? 'gemini-2.5-flash';
 const FALLBACK_MODEL = env.AI_MODEL_PRIMARY ?? 'gemini-2.5-pro';
+
+/** Teto da chamada de IA (ms). Abaixo dos 60s do maxDuration da rota
+ * pra sobrar tempo do catch persistir status=failed antes da função
+ * morrer. Override por env AI_GEN_TIMEOUT_MS. */
+const AI_GEN_TIMEOUT_MS = Number(env.AI_GEN_TIMEOUT_MS ?? '52000');
 
 function isQuotaError(err: unknown): boolean {
 	const msg = err instanceof Error ? err.message : String(err);
@@ -70,12 +77,90 @@ export async function createPlanPlaceholder(
 	return row.id;
 }
 
+/** Item compacto do catálogo passado pro prompt da IA. */
+export type CatalogPromptItem = Pick<
+	ExerciseCatalogItem,
+	'externalId' | 'name' | 'nameEn' | 'equipment' | 'bodyPart' | 'targetMuscle' | 'difficulty'
+>;
+
 type StudentContext = {
 	student: Student;
 	health: HealthProfile | null;
 	preferences: typeof trainingPreferences.$inferSelect | null;
 	conditionTags: string[];
+	/** Subset do exercise_catalog filtrado pelo equipamento do aluno. */
+	catalog: CatalogPromptItem[];
 };
+
+/** Cap de itens enviados pro prompt — mantém o contexto enxuto. */
+const CATALOG_PROMPT_CAP = 350;
+/** Defaults quando o aluno não tem equipamento registrado (cenário home). */
+const DEFAULT_EQUIPMENT_FALLBACK = ['body weight', 'dumbbell', 'band'];
+
+/**
+ * Filtra o catálogo pelo equipamento do aluno. Sempre inclui body weight
+ * (universal). Casamento por substring nos dois sentidos pra tolerar
+ * variações ("dumbbell" matchando "dumbbell (used as handles for deeper
+ * range)"). Cap em CATALOG_PROMPT_CAP — prioriza match exato de equipamento,
+ * depois bodyweight, depois o resto.
+ */
+function filterCatalogByEquipment(
+	catalog: CatalogPromptItem[],
+	studentEquipment: string[] | null | undefined
+): CatalogPromptItem[] {
+	const studentEq = (studentEquipment ?? [])
+		.map((s) => s.toLowerCase().trim())
+		.filter(Boolean);
+	const targetEq = studentEq.length > 0 ? studentEq : DEFAULT_EQUIPMENT_FALLBACK;
+
+	const exact: CatalogPromptItem[] = [];
+	const bodyweight: CatalogPromptItem[] = [];
+	for (const item of catalog) {
+		const itemEq = (item.equipment ?? '').toLowerCase();
+		if (!itemEq) continue;
+		if (itemEq === 'body weight') {
+			bodyweight.push(item);
+			continue;
+		}
+		if (targetEq.some((s) => itemEq.includes(s) || s.includes(itemEq))) {
+			exact.push(item);
+		}
+	}
+	const out = [...exact, ...bodyweight];
+	return out.length > CATALOG_PROMPT_CAP ? out.slice(0, CATALOG_PROMPT_CAP) : out;
+}
+
+async function fetchCatalogSubset(
+	studentEquipment: string[] | null | undefined
+): Promise<CatalogPromptItem[]> {
+	const all = await db
+		.select({
+			externalId: exerciseCatalog.externalId,
+			name: exerciseCatalog.name,
+			nameEn: exerciseCatalog.nameEn,
+			equipment: exerciseCatalog.equipment,
+			bodyPart: exerciseCatalog.bodyPart,
+			targetMuscle: exerciseCatalog.targetMuscle,
+			difficulty: exerciseCatalog.difficulty
+		})
+		.from(exerciseCatalog);
+	return filterCatalogByEquipment(all, studentEquipment);
+}
+
+function formatCatalogForPrompt(items: CatalogPromptItem[]): string {
+	if (items.length === 0) {
+		return '(catálogo indisponível — gerar com exercícios livres, sem catalog_id)';
+	}
+	// Formato compacto: [id] nome (equip · grupo · nível)
+	// O modelo precisa do nome PT pra raciocinar e do external_id pra
+	// preencher catalog_id. Mantém uma única linha por item.
+	return items
+		.map((c) => {
+			const meta = [c.equipment, c.bodyPart, c.difficulty].filter(Boolean).join(' · ');
+			return `${c.externalId} — ${c.name}${meta ? ` (${meta})` : ''}`;
+		})
+		.join('\n');
+}
 
 function deriveConditionTags(health: HealthProfile | null): string[] {
 	if (!health || (health.diagnoses ?? []).length === 0) return ['populacao_geral'];
@@ -133,11 +218,16 @@ async function loadStudentContext(
 		.where(eq(trainingPreferences.studentId, studentId))
 		.limit(1);
 
+	const catalog = await fetchCatalogSubset(
+		(preferences?.equipmentAvailable as string[] | null) ?? null
+	);
+
 	return {
 		student,
 		health: health ?? null,
 		preferences: preferences ?? null,
-		conditionTags: deriveConditionTags(health ?? null)
+		conditionTags: deriveConditionTags(health ?? null),
+		catalog
 	};
 }
 
@@ -312,7 +402,11 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 						'Plano de treino clínico com sessões semanais, monitoramento, restrições e citações',
 					system: SYSTEM_PROMPT_PT_BR,
 					prompt: userPrompt,
-					maxRetries: 1
+					maxRetries: 1,
+					// Aborta o stream antes do maxDuration da função pra sobrar
+					// tempo do catch persistir status=failed. Sem isso a função
+					// é morta pelo runtime e o plano fica em "generating" pra sempre.
+					abortSignal: AbortSignal.timeout(AI_GEN_TIMEOUT_MS)
 				});
 
 				for await (const partial of result.partialObjectStream) {
@@ -367,7 +461,9 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					progressPhase: `${PRIMARY_MODEL.replace(/^gemini-/, '')} com quota cheia → tentando ${FALLBACK_MODEL.replace(/^gemini-/, '')}`
 				})
 				.where(eq(trainingPlans.id, planId));
-			// Fallback NÃO streaming pra simplicidade — Pro raramente é tocado
+			// Fallback NÃO streaming pra simplicidade — Pro raramente é tocado.
+			// Timeout menor (45s) porque já gastamos tempo na tentativa primária
+			// e ainda precisamos validar+persistir dentro do maxDuration de 60s.
 			const fallbackGen = await generateObject({
 				model: google(FALLBACK_MODEL),
 				schema: trainingPlanSchema,
@@ -376,7 +472,8 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					'Plano de treino clínico com sessões semanais, monitoramento, restrições e citações',
 				system: SYSTEM_PROMPT_PT_BR,
 				prompt: userPrompt,
-				maxRetries: 2
+				maxRetries: 1,
+				abortSignal: AbortSignal.timeout(45_000)
 			});
 			plan = fallbackGen.object;
 			usage = fallbackGen.usage;
@@ -576,6 +673,56 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
  * Em local dev (não-Vercel), waitUntil é no-op e o microtask roda normal —
  * Node fica vivo segurando a Promise.
  */
+/**
+ * Janela após a qual um plano ainda em pending/generating é considerado
+ * "preso" — a função serverless morreu (timeout, deploy, OOM) antes de
+ * persistir o estado terminal. Com maxDuration=60s, qualquer plano nesse
+ * estado por mais de 3 min é defesa-em-profundidade contra spinner
+ * infinito.
+ */
+const STALE_PLAN_MS = 3 * 60 * 1000;
+
+export type StalePlanInput = {
+	id: string;
+	status: string;
+	updatedAt: Date | string | null;
+};
+
+/**
+ * Watchdog: idempotente. Se o plano está pending/generating mas parado
+ * há mais de STALE_PLAN_MS, marca como failed. O WHERE só atualiza se o
+ * status ainda for pending/generating — evita corrida com uma geração
+ * que acabou de concluir e o cliente leu cache antigo. Retorna o novo
+ * estado se reconciliou, senão null.
+ */
+export async function failIfStale(
+	plan: StalePlanInput
+): Promise<{ status: 'failed'; errorMessage: string } | null> {
+	if (plan.status !== 'pending' && plan.status !== 'generating') return null;
+	const updatedMs = plan.updatedAt ? new Date(plan.updatedAt).getTime() : 0;
+	if (Date.now() - updatedMs < STALE_PLAN_MS) return null;
+
+	const errorMessage =
+		'Geração interrompida — tempo limite excedido. Tente gerar novamente.';
+	await db
+		.update(trainingPlans)
+		.set({
+			status: 'failed',
+			progressPct: 0,
+			progressPhase: 'erro',
+			errorMessage,
+			updatedAt: new Date()
+		})
+		.where(
+			and(
+				eq(trainingPlans.id, plan.id),
+				inArray(trainingPlans.status, ['pending', 'generating'])
+			)
+		);
+	logger.warn({ planId: plan.id }, 'plan.stale.reconciled');
+	return { status: 'failed', errorMessage };
+}
+
 export function generateTrainingPlanInBackground(opts: GenerateOptions): void {
 	const promise = generateTrainingPlan(opts).catch((err) => {
 		logger.error(

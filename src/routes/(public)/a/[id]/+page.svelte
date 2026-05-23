@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Avatar, Chip, Sparkline, Eyebrow, toast } from '$lib/components/ui';
-	import { goto } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
@@ -61,7 +61,7 @@
 			toast.success('Treino registrado · 🔥 streak +1');
 			const u = new URL(page.url);
 			u.searchParams.delete('just_completed');
-			history.replaceState(null, '', u.toString());
+			replaceState(u, page.state);
 		}
 		// Primeira visita? Mostra onboarding
 		try {
