@@ -127,22 +127,13 @@
 					</div>
 				{/if}
 
-				<!-- Vídeo tutorial — do catálogo, match por nome -->
+				<!-- Animação demonstrativa (GIF) do catálogo, match por catalog_id ou nome -->
 				{#if exVideo}
-					<!-- svelte-ignore a11y_media_has_caption -->
-					<video
-						class="ex-video"
-						src={exVideo}
-						autoplay
-						loop
-						muted
-						playsinline
-						preload="metadata"
-					></video>
+					<img class="ex-video" src={exVideo} alt={ex?.name ?? 'Exercício'} loading="lazy" />
 				{:else}
 					<div class="video">
 						<div class="play-btn">▶</div>
-						<div class="eyebrow" style="margin-top:8px">Sem vídeo pra este exercício</div>
+						<div class="eyebrow" style="margin-top:8px">Sem animação pra este exercício</div>
 					</div>
 				{/if}
 

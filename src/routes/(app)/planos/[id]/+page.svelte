@@ -879,16 +879,12 @@
 							</div>
 							{#if catEntry?.videoUrl && videoOpen}
 								<div style="padding:0 20px 16px 60px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
-									<video
+									<img
 										src={catEntry.videoUrl}
-										controls
-										autoplay
-										loop
-										muted
-										playsinline
-										preload="metadata"
+										alt={ex.name}
+										loading="lazy"
 										style="width:280px;max-width:100%;border-radius:var(--r-md);background:var(--bg-0);border:1px solid var(--ink-line)"
-									><track kind="captions" /></video>
+									/>
 									{#if catEntry.instructions && catEntry.instructions.length > 0}
 										<ol style="flex:1;min-width:260px;margin:0;padding-left:20px;font:400 12px var(--font-sans);color:var(--ink-2);line-height:1.55">
 											{#each catEntry.instructions as step (step)}

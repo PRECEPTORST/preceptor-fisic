@@ -129,20 +129,7 @@
 				<button type="button" class="cat-card" onclick={() => (selected = ex)}>
 					<div class="cat-card-video">
 						{#if ex.videoUrl}
-							<!-- svelte-ignore a11y_media_has_caption -->
-							<video
-								src={ex.videoUrl}
-								muted
-								loop
-								playsinline
-								preload="metadata"
-								onmouseenter={(e) => (e.currentTarget as HTMLVideoElement).play()}
-								onmouseleave={(e) => {
-									const v = e.currentTarget as HTMLVideoElement;
-									v.pause();
-									v.currentTime = 0;
-								}}
-							></video>
+							<img src={ex.videoUrl} alt={ex.name} loading="lazy" />
 						{:else}
 							<div class="cat-card-novideo">▶</div>
 						{/if}
@@ -189,8 +176,7 @@
 	<div class="cat-modal" role="dialog" aria-modal="true" aria-label={selected.name}>
 		<button type="button" class="cat-modal-close" onclick={() => (selected = null)} aria-label="Fechar">✕</button>
 		{#if selected.videoUrl}
-			<!-- svelte-ignore a11y_media_has_caption -->
-			<video class="cat-modal-video" src={selected.videoUrl} autoplay muted loop playsinline></video>
+			<img class="cat-modal-video" src={selected.videoUrl} alt={selected.name} />
 		{/if}
 		<div class="cat-modal-body">
 			<Eyebrow>{BODY_PART_PT[selected.bodyPart] ?? selected.bodyPart}</Eyebrow>

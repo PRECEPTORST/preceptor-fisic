@@ -158,16 +158,12 @@
 						<div class="thumb-strip" aria-label="Prévia dos exercícios">
 							{#each todayThumbnails as t (t.src)}
 								<div class="thumb-card" title={t.name}>
-									<!-- svelte-ignore a11y_media_has_caption -->
-									<video
+									<img
 										src={t.src}
-										autoplay
-										loop
-										muted
-										playsinline
-										preload="metadata"
+										alt={t.name}
+										loading="lazy"
 										class="thumb-vid"
-									></video>
+									/>
 									<div class="thumb-label">{t.name}</div>
 								</div>
 							{/each}
