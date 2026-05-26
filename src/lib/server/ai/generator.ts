@@ -42,10 +42,11 @@ import { validatePlan, violationToRestriction, deriveStudentCtxFromHealth } from
 const PRIMARY_MODEL = env.AI_MODEL_FAST ?? 'gemini-2.5-flash';
 const FALLBACK_MODEL = env.AI_MODEL_PRIMARY ?? 'gemini-2.5-pro';
 
-/** Teto da chamada de IA (ms). Abaixo dos 60s do maxDuration da rota
+/** Teto da chamada de IA (ms). Abaixo dos 60s do maxDuration da função
  * pra sobrar tempo do catch persistir status=failed antes da função
- * morrer. Override por env AI_GEN_TIMEOUT_MS. */
-const AI_GEN_TIMEOUT_MS = Number(env.AI_GEN_TIMEOUT_MS ?? '52000');
+ * morrer. 56s = 60s − ~3s de RAG/contexto/persistência − 1s de margem.
+ * Override por env AI_GEN_TIMEOUT_MS. */
+const AI_GEN_TIMEOUT_MS = Number(env.AI_GEN_TIMEOUT_MS ?? '56000');
 
 function isQuotaError(err: unknown): boolean {
 	const msg = err instanceof Error ? err.message : String(err);
@@ -92,8 +93,10 @@ type StudentContext = {
 	catalog: CatalogPromptItem[];
 };
 
-/** Cap de itens enviados pro prompt — mantém o contexto enxuto. */
-const CATALOG_PROMPT_CAP = 350;
+/** Cap de itens enviados pro prompt — mantém o contexto enxuto. 150
+ * itens ≈ 12KB de prompt, ~3k tokens. Mais que isso acelera o LLM mas
+ * sobrecarrega o budget de 60s da função serverless (Hobby). */
+const CATALOG_PROMPT_CAP = 150;
 /** Defaults quando o aluno não tem equipamento registrado (cenário home). */
 const DEFAULT_EQUIPMENT_FALLBACK = ['body weight', 'dumbbell', 'band'];
 
@@ -440,9 +443,10 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 
 					if (event.type === 'text-delta') {
 						accumulatedText += (event as { textDelta?: string }).textDelta ?? '';
-						// Throttle write a cada 180ms — frontend polla a 800ms,
-						// então sempre tem texto novo em cada poll
-						if (now - lastTextWrite < 180) continue;
+						// Throttle write a cada 1500ms. Cada write é round-trip
+						// Postgres (~80ms). Em 180ms o overhead acumulado consumia
+						// >20s da função em runs longos — não cabia no maxDuration.
+						if (now - lastTextWrite < 1500) continue;
 						lastTextWrite = now;
 						// Mantém só últimos ~6KB (suficiente pra encher viewport
 						// com texto mono) — evita row gigante no DB
@@ -457,8 +461,10 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 							(event.object as { weekly_sessions?: unknown[] }).weekly_sessions ?? [];
 						const sessionsCount = Array.isArray(sessions) ? sessions.length : 0;
 
-						// Throttle 700ms OU quando nova sessão completa
-						if (now - lastWriteAt < 700 && sessionsCount === lastSessionsCount) continue;
+						// Throttle 1500ms OU quando nova sessão completa. Cada write é
+						// um round-trip Postgres (~80ms gru1↔Supabase); throttle apertado
+						// somava ~5s de overhead na função, que tem só 60s no Hobby.
+						if (now - lastWriteAt < 1500 && sessionsCount === lastSessionsCount) continue;
 						lastWriteAt = now;
 						lastSessionsCount = sessionsCount;
 
