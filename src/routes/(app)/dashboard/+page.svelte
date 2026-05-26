@@ -262,55 +262,80 @@
 				<Button onclick={() => goto('/alunos/novo')}>+ Adicionar primeiro aluno</Button>
 			</div>
 		{:else}
-			<!-- Tabela em desktop, cards em mobile -->
+			<!-- Tabela em desktop, cards em mobile.
+			     Usa <table table-layout:fixed> nativo pra alinhar colunas
+			     entre header e rows independente do conteúdo. -->
 			<div class="card students-table">
-				<div class="students-thead">
-					<span></span><span>Aluno</span><span>Plano</span><span>Aderência</span><span>7d sessões</span><span>Última</span><span>Streak</span><span></span>
-				</div>
-				{#each filtered as s (s.id)}
-					<button
-						type="button"
-						onmouseenter={() => (hover = s.id)}
-						onmouseleave={() => (hover = null)}
-						onclick={() => openStudent(s)}
-						class="students-row"
-						class:hot={hover === s.id}
-					>
-						<Avatar name={s.name} size={36} />
-						<div>
-							<div style="display:flex;align-items:center;gap:8px">
-								<span style="font:500 14px var(--font-sans);color:var(--ink-0)">{s.name}</span>
-								<StatusDot variant={s.status === 'active' ? 'success' : 'muted'} />
-							</div>
-							<div
-								style="font:var(--label-mono);color:var(--ink-2);text-transform:uppercase;letter-spacing:0.06em;margin-top:3px"
-							>{s.age ? s.age + ' anos · ' : ''}{s.goal ?? 'sem objetivo'}</div>
-						</div>
-						<div style="font:var(--body-sm);color:var(--ink-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-							{s.planTitle ?? '—'}
-						</div>
-						<div>
-							<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-								<span class="num" style="font:500 13px var(--font-mono);color:{adherenceColor(s.adherence)}">{s.adherence}%</span>
-								<span style="font:var(--label-mono);color:var(--ink-2)">aderência</span>
-							</div>
-							<ProgressBar value={s.adherence} color={adherenceColor(s.adherence)} height={3} />
-						</div>
-						<div style="display:flex;flex-direction:column">
-							<span class="num" style="font:500 13px var(--font-mono);color:var(--ink-0)">{s.sessions7}/wk</span>
-							<span style="font:var(--label-mono);color:var(--ink-2)">7d sessões</span>
-						</div>
-						<div class="num" style="font:500 13px var(--font-mono);color:var(--ink-1)">{s.last ?? '—'}</div>
-						<div style="display:flex;align-items:center;gap:4px">
-							<span style="color:var(--accent)">♦</span>
-							<span class="num" style="font:500 13px var(--font-mono);color:var(--ink-0)">{s.streak}</span>
-						</div>
-						<span
-							class="students-arrow"
-							class:on={hover === s.id}
-						>→</span>
-					</button>
-				{/each}
+				<table class="dash-table">
+					<colgroup>
+						<col class="col-aluno" />
+						<col class="col-plano" />
+						<col class="col-aderencia" />
+						<col class="col-sessoes" />
+						<col class="col-ultima" />
+						<col class="col-streak" />
+						<col class="col-arrow" />
+					</colgroup>
+					<thead>
+						<tr>
+							<th>Aluno</th>
+							<th>Plano</th>
+							<th>Aderência</th>
+							<th>7d sessões</th>
+							<th>Última</th>
+							<th>Streak</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each filtered as s (s.id)}
+							<tr
+								onmouseenter={() => (hover = s.id)}
+								onmouseleave={() => (hover = null)}
+								onclick={() => openStudent(s)}
+								class="dash-row"
+								class:hot={hover === s.id}
+							>
+								<td>
+									<div class="row-aluno">
+										<Avatar name={s.name} size={36} />
+										<div class="row-aluno-info">
+											<div style="display:flex;align-items:center;gap:8px;min-width:0">
+												<span class="dash-name">{s.name}</span>
+												<StatusDot variant={s.status === 'active' ? 'success' : 'muted'} />
+											</div>
+											<div class="dash-sub">
+												{s.age ? s.age + ' anos · ' : ''}{s.goal ?? 'sem objetivo'}
+											</div>
+										</div>
+									</div>
+								</td>
+								<td class="cell-plano">{s.planTitle ?? '—'}</td>
+								<td>
+									<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+										<span class="num" style="font:500 13px var(--font-mono);color:{adherenceColor(s.adherence)}">{s.adherence}%</span>
+										<span style="font:var(--label-mono);color:var(--ink-2)">aderência</span>
+									</div>
+									<ProgressBar value={s.adherence} color={adherenceColor(s.adherence)} height={3} />
+								</td>
+								<td>
+									<div style="display:flex;flex-direction:column">
+										<span class="num" style="font:500 13px var(--font-mono);color:var(--ink-0)">{s.sessions7}/wk</span>
+										<span style="font:var(--label-mono);color:var(--ink-2)">7d sessões</span>
+									</div>
+								</td>
+								<td class="num" style="font:500 13px var(--font-mono);color:var(--ink-1)">{s.last ?? '—'}</td>
+								<td>
+									<div style="display:flex;align-items:center;gap:4px">
+										<span style="color:var(--accent)">♦</span>
+										<span class="num" style="font:500 13px var(--font-mono);color:var(--ink-0)">{s.streak}</span>
+									</div>
+								</td>
+								<td><span class="students-arrow" class:on={hover === s.id}>→</span></td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
 			</div>
 
 			<!-- Cards (visível só em mobile via @media) -->
@@ -442,32 +467,83 @@
 	.students-cards {
 		display: none;
 	}
-	.students-thead,
-	.students-row {
-		display: grid;
-		grid-template-columns: 40px 2fr 1fr 1fr 100px 80px 60px 40px;
-		gap: 18px;
-		align-items: center;
-		padding: 12px 18px;
+	/* ═══════════════════════════════════════════════
+	   Tabela nativa pra alinhar colunas — mesma técnica
+	   usada em /alunos. table-layout:fixed obriga o
+	   browser a respeitar widths em vez de auto-fitar
+	   pelo conteúdo de cada row.
+	   ═══════════════════════════════════════════════ */
+	.dash-table {
+		width: 100%;
+		border-collapse: collapse;
+		table-layout: fixed;
 	}
-	.students-thead {
+	.dash-table thead th {
 		font: var(--label-mono);
 		color: var(--ink-2);
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
+		text-align: left;
+		padding: 12px 14px;
 		background: var(--bg-1);
+		font-weight: normal;
 	}
-	.students-row {
-		all: unset;
+	.dash-table tbody tr {
 		cursor: pointer;
-		display: grid;
-		grid-template-columns: 40px 2fr 1fr 1fr 100px 80px 60px 40px;
-		padding: 14px 18px;
 		border-top: 1px solid var(--ink-line);
 		transition: background 140ms var(--ease);
 	}
-	.students-row.hot {
+	.dash-table tbody tr.hot {
 		background: var(--bg-2);
+	}
+	.dash-table tbody td {
+		padding: 14px 14px;
+		vertical-align: middle;
+		overflow: hidden;
+	}
+	.dash-table .cell-plano,
+	.dash-table .dash-name,
+	.dash-table .dash-sub {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.dash-table .cell-plano {
+		font: var(--body-sm);
+		color: var(--ink-1);
+	}
+	.dash-table .dash-name {
+		font: 500 14px var(--font-sans);
+		color: var(--ink-0);
+		min-width: 0;
+		flex: 1;
+	}
+	.dash-table .dash-sub {
+		font: var(--label-mono);
+		color: var(--ink-2);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		margin-top: 3px;
+	}
+	/* Widths das colunas — soma 100% (32px arrow é flexível em px) */
+	.col-aluno { width: 26%; }
+	.col-plano { width: 20%; }
+	.col-aderencia { width: 22%; }
+	.col-sessoes { width: 10%; }
+	.col-ultima { width: 10%; }
+	.col-streak { width: 8%; }
+	.col-arrow { width: 32px; }
+
+	.row-aluno {
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		min-width: 0;
+	}
+	.row-aluno-info {
+		min-width: 0;
+		flex: 1;
+		overflow: hidden;
 	}
 	.students-arrow {
 		color: var(--ink-2);
