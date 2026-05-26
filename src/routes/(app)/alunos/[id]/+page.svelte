@@ -510,7 +510,179 @@
 	</div>
 </div>
 
+<!-- ────── Modal: link do aluno (copiar / abrir / whatsapp / email) ────── -->
+{#if showLinkModal}
+	<div
+		class="link-backdrop"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="link-modal-title"
+		onclick={(e) => { if (e.target === e.currentTarget) showLinkModal = false; }}
+		onkeydown={(e) => { if (e.key === 'Escape') showLinkModal = false; }}
+	>
+		<div class="link-card">
+			<div class="eyebrow" style="margin-bottom:6px">◆ Magic-link</div>
+			<h3 id="link-modal-title" class="link-title">
+				Link do app do <span class="link-title-em">{student.name.split(' ')[0]}</span>
+			</h3>
+			<p class="link-prose">
+				O aluno acessa direto pelo celular — sem login, sem app store. O link
+				é único e validado por HMAC; só funciona com o token correto.
+			</p>
+
+			<label for="link-url" class="link-url-label">URL pra compartilhar</label>
+			<input
+				id="link-url"
+				class="link-url-input"
+				value={alunoUrl}
+				readonly
+				onfocus={(e) => (e.currentTarget as HTMLInputElement).select()}
+			/>
+
+			<div class="link-actions">
+				<button type="button" class="link-action primary" onclick={copyLinkToClipboard}>
+					<span>📋</span> Copiar
+				</button>
+				<a class="link-action" href={alunoUrl} target="_blank" rel="noopener">
+					<span>↗</span> Abrir em nova aba
+				</a>
+				<a class="link-action whatsapp" href={whatsappUrl} target="_blank" rel="noopener">
+					<span>◉</span> WhatsApp{student.phone ? ` (${student.phone})` : ''}
+				</a>
+				{#if mailtoUrl}
+					<a class="link-action" href={mailtoUrl}>
+						<span>✉</span> E-mail ({student.email})
+					</a>
+				{/if}
+			</div>
+
+			<button type="button" class="link-close" onclick={() => (showLinkModal = false)}>
+				Fechar
+			</button>
+		</div>
+	</div>
+{/if}
+
 <style>
+	.link-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(8, 8, 12, 0.78);
+		backdrop-filter: blur(4px);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 20px;
+		z-index: 200;
+		animation: link-fade 180ms ease-out;
+	}
+	.link-card {
+		width: 100%;
+		max-width: 520px;
+		background: var(--bg-1);
+		border: 1px solid var(--ink-line-2);
+		border-radius: var(--r-3);
+		padding: 26px 28px;
+		box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+	}
+	.link-title {
+		margin: 6px 0 0;
+		font: 500 22px var(--font-sans);
+		letter-spacing: -0.01em;
+		color: var(--ink-0);
+	}
+	.link-title-em {
+		color: var(--accent);
+	}
+	.link-prose {
+		margin: 10px 0 18px;
+		font: 400 13px var(--font-sans);
+		line-height: 1.55;
+		color: var(--ink-2);
+	}
+	.link-url-label {
+		display: block;
+		font: var(--label-mono);
+		color: var(--ink-3);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		margin-bottom: 6px;
+	}
+	.link-url-input {
+		width: 100%;
+		padding: 11px 12px;
+		background: var(--bg-2);
+		border: 1px solid var(--ink-line-2);
+		border-radius: var(--r-2);
+		font: 400 12px var(--font-mono);
+		color: var(--ink-0);
+		box-sizing: border-box;
+		outline: none;
+	}
+	.link-url-input:focus {
+		border-color: var(--accent);
+	}
+	.link-actions {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+		margin: 16px 0 14px;
+	}
+	.link-action {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		height: 42px;
+		padding: 0 12px;
+		background: var(--bg-2);
+		border: 1px solid var(--ink-line-2);
+		border-radius: var(--r-2);
+		color: var(--ink-0);
+		font: 500 13px var(--font-sans);
+		text-decoration: none;
+		cursor: pointer;
+		transition: background 120ms;
+	}
+	.link-action:hover {
+		background: var(--bg-3);
+	}
+	.link-action.primary {
+		background: var(--accent);
+		color: #0a0a0a;
+		border-color: var(--accent);
+	}
+	.link-action.primary:hover {
+		filter: brightness(1.08);
+	}
+	.link-action.whatsapp {
+		background: rgba(37, 211, 102, 0.12);
+		border-color: rgba(37, 211, 102, 0.35);
+		color: rgb(120, 230, 160);
+	}
+	.link-action.whatsapp:hover {
+		background: rgba(37, 211, 102, 0.18);
+	}
+	.link-close {
+		display: block;
+		width: 100%;
+		margin-top: 6px;
+		padding: 10px;
+		background: transparent;
+		border: 1px solid transparent;
+		color: var(--ink-3);
+		font: 500 12px var(--font-sans);
+		cursor: pointer;
+		border-radius: var(--r-2);
+	}
+	.link-close:hover {
+		color: var(--ink-0);
+	}
+	@keyframes link-fade {
+		from { opacity: 0; transform: scale(0.97); }
+		to { opacity: 1; transform: scale(1); }
+	}
+
 	.progress-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
