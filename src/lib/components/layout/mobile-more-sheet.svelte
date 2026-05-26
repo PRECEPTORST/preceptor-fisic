@@ -23,7 +23,6 @@
 	const ITEMS: Item[] = [
 		{ id: 'exer', label: 'Exercícios', sub: 'Catálogo + cadastro', icon: 'exer', href: '/exercicios' },
 		{ id: 'msgs', label: 'Mensagens', sub: 'Conversas com alunos', icon: 'msgs', href: '/mensagens' },
-		{ id: 'aluno', label: 'Visão do aluno', sub: 'Preview do app mobile', icon: 'aluno', href: '/aluno-preview' },
 		{ id: 'config', label: 'Configurações', sub: 'Perfil e preferências', icon: 'config', href: '/configuracoes' },
 		{ id: 'logout', label: 'Sair', sub: 'Encerrar sessão', icon: 'logout', href: '/logout', danger: true }
 	];

@@ -57,7 +57,6 @@
 		{ id: 'agenda', label: 'Agenda', icon: 'agenda', href: '/agenda' }
 	]);
 	const NAV_FOOTER: NavItem[] = [
-		{ id: 'aluno', label: 'Visão do aluno', icon: 'aluno', href: '/aluno-preview' },
 		{ id: 'config', label: 'Configurações', icon: 'config', href: '/configuracoes' },
 		{ id: 'logout', label: 'Sair', icon: 'logout', href: '/logout' }
 	];

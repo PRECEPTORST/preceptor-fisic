@@ -30,13 +30,12 @@
 		if (path.match(/^\/agenda\/nova/)) return 'Novo agendamento';
 		if (path.match(/^\/agenda\/[^/]+/)) return 'Agendamento';
 		if (path === '/configuracoes') return 'Configurações';
-		if (path === '/aluno-preview') return 'Visão do aluno';
 		return 'Preceptor Fisic';
 	});
 
 	// Mostra back button em rotas detail (não em rotas top-level)
 	const showBack = $derived.by(() => {
-		const top = ['/dashboard', '/alunos', '/planos', '/exercicios', '/mensagens', '/agenda', '/configuracoes', '/aluno-preview'];
+		const top = ['/dashboard', '/alunos', '/planos', '/exercicios', '/mensagens', '/agenda', '/configuracoes'];
 		return !top.includes(page.url.pathname);
 	});
 

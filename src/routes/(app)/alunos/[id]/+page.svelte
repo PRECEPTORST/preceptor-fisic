@@ -14,14 +14,31 @@
 
 	let tab = $state<'dados' | 'plan' | 'prog'>('dados');
 
-	async function copyLink() {
+	let showLinkModal = $state(false);
+
+	async function copyLinkToClipboard() {
 		try {
 			await navigator.clipboard.writeText(alunoUrl);
-			toast.success('Link do aluno copiado · cole no WhatsApp pra enviar.');
+			toast.success('Link copiado.');
 		} catch {
-			toast.error('Não foi possível copiar. Use ⌘C: ' + alunoUrl);
+			toast.error('Não foi possível copiar — selecione o texto acima manualmente.');
 		}
 	}
+
+	// Texto sugerido pra mensagem (vai pra wa.me e mailto:)
+	const linkPitch = $derived(
+		`Olá ${student.name.split(' ')[0]}, esse é o link do seu app de treinos. Sem login — clique e já abre:\n${alunoUrl}`
+	);
+	const whatsappUrl = $derived(
+		student.phone
+			? `https://wa.me/${student.phone.replace(/\D/g, '')}?text=${encodeURIComponent(linkPitch)}`
+			: `https://wa.me/?text=${encodeURIComponent(linkPitch)}`
+	);
+	const mailtoUrl = $derived(
+		student.email
+			? `mailto:${student.email}?subject=${encodeURIComponent('Seu app de treinos — Preceptor Fisic')}&body=${encodeURIComponent(linkPitch)}`
+			: null
+	);
 
 	const HIGH_RISK_KEYS = ['cardiopatia', 'avc', 'dpoc', 'diabetes tipo 1', 'stent', 'insuficiência'];
 	function isHighRisk(c: string) {
@@ -187,7 +204,7 @@
 			</div>
 
 			<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-				<Button variant="secondary" size="md" onclick={copyLink} title={alunoUrl}>📋 Link do aluno</Button>
+				<Button variant="secondary" size="md" onclick={() => (showLinkModal = true)} title={alunoUrl}>🔗 Link do aluno</Button>
 				<Button variant="secondary" size="md" onclick={() => goto(`/alunos/${student.id}/editar`)}>Editar</Button>
 				<Button variant="secondary" size="md" onclick={() => goto('/mensagens')}>Mensagem</Button>
 				<Button size="md" onclick={() => goto(`/alunos/${student.id}/gerar`)}>+ Gerar plano</Button>
