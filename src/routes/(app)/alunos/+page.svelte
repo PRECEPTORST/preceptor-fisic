@@ -280,7 +280,7 @@
 		   bar) + 3 métricas compactas no fim. Proporção 1.4 : 1.1 : 1.3 :
 		   métricas fixas dá distribuição equilibrada em telas largas
 		   sem buraco gigante no meio. */
-		grid-template-columns: 1.4fr 1.1fr 1.3fr 96px 88px 72px 32px;
+		grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.1fr) minmax(0, 1.3fr) 96px 88px 72px 32px;
 		gap: 18px;
 		align-items: center;
 		padding: 12px 18px;
@@ -301,7 +301,7 @@
 		all: unset;
 		cursor: pointer;
 		display: grid;
-		grid-template-columns: 1.4fr 1.1fr 1.3fr 96px 88px 72px 32px;
+		grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.1fr) minmax(0, 1.3fr) 96px 88px 72px 32px;
 		padding: 14px 18px;
 		border-top: 1px solid var(--ink-line);
 		transition: background 140ms var(--ease);
