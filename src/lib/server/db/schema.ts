@@ -372,6 +372,8 @@ export const trainingSessions = pgTable(
 		sessionLabel: text('session_label'),
 		exercisesDone: jsonb('exercises_done').$type<ExerciseLog[]>().default([]).notNull(),
 		perceivedEffort: integer('perceived_effort'),
+		/** Duração real da sessão em minutos. Alimenta session-RPE (carga interna). */
+		durationMinutes: integer('duration_minutes'),
 		observations: text('observations'),
 		attachments: jsonb('attachments').$type<string[]>().default([]).notNull(),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

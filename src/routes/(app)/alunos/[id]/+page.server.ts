@@ -1,5 +1,9 @@
 import { error, fail } from '@sveltejs/kit';
-import { getStudentDetail, getProfessionalByAuthId } from '$lib/server/queries';
+import {
+	getStudentDetail,
+	getProfessionalByAuthId,
+	getStudentLoadEvolution
+} from '$lib/server/queries';
 import { signStudentToken } from '$lib/server/aluno-token';
 import { sendStudentMagicLink } from '$lib/server/email';
 import type { Actions, PageServerLoad } from './$types';
@@ -8,13 +12,16 @@ export const load = (async ({ params, parent, url }) => {
 	const { professional } = await parent();
 	if (!professional) error(401, 'não autenticado');
 
-	const detail = await getStudentDetail(params.id, professional.id);
+	const [detail, loadEvolution] = await Promise.all([
+		getStudentDetail(params.id, professional.id),
+		getStudentLoadEvolution(params.id)
+	]);
 	if (!detail) error(404, 'aluno não encontrado');
 
 	const token = signStudentToken(params.id);
 	const alunoUrl = `${url.origin}/a/${params.id}?t=${token}`;
 
-	return { detail, alunoUrl };
+	return { detail, alunoUrl, loadEvolution };
 }) satisfies PageServerLoad;
 
 export const actions: Actions = {

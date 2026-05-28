@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
+	import { onMount } from 'svelte';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -15,6 +16,18 @@
 	);
 	const tokenParam = $derived(page.url.searchParams.get('t'));
 	const tq = $derived(tokenParam ? `?t=${tokenParam}` : '');
+
+	// Cronômetro da sessão — marca início no mount, calcula minutos decorridos
+	// no submit pra alimentar a carga interna (session-RPE = PSE × duração).
+	let startedAt = $state(Date.now());
+	let elapsedMin = $state(0);
+	onMount(() => {
+		startedAt = Date.now();
+		const tick = setInterval(() => {
+			elapsedMin = Math.round((Date.now() - startedAt) / 60000);
+		}, 10000);
+		return () => clearInterval(tick);
+	});
 
 	let activeIdx = $state(0);
 	let completed = $state<Record<number, boolean>>({});
@@ -84,15 +97,18 @@
 	<form
 		method="POST"
 		action="?/complete"
-		use:enhance={() => {
+		use:enhance={({ formData }) => {
 			submitting = true;
+			// Recalcula a duração exata no instante do submit
+			formData.set('duration_minutes', String(Math.round((Date.now() - startedAt) / 60000)));
 			return async ({ update }) => {
 				await update();
 				submitting = false;
 			};
 		}}
 	>
-		<!-- Inputs ocultos do exercício atual capturados em hidden fields -->
+		<!-- Inputs ocultos: duração + cada exercício -->
+		<input type="hidden" name="duration_minutes" value={elapsedMin} />
 		{#each exercises as exItem, i (i)}
 			<input type="hidden" name="sets_{i}" value={exItem.sets ?? 0} />
 			<input type="hidden" name="reps_{i}" value={exItem.reps ?? ''} />
@@ -188,7 +204,10 @@
 		<!-- Final: RPE + observations -->
 		{#if allCompleted || activeIdx === exercises.length - 1}
 			<div class="finish-card">
-				<div style="font:500 18px var(--font-sans);margin-bottom:14px">Como foi o treino?</div>
+				<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+					<div style="font:500 18px var(--font-sans)">Como foi o treino?</div>
+					<span class="num" style="font:500 13px var(--font-mono);color:var(--ink-2)">⏱ {elapsedMin} min</span>
+				</div>
 
 				<label class="lbl">PSE — Esforço percebido (0-10)</label>
 				<div class="rpe-row">

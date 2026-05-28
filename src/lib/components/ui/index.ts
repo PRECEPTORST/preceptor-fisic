@@ -6,6 +6,7 @@ export { default as Chip } from './chip.svelte';
 export { default as Avatar } from './avatar.svelte';
 export { default as StatusDot } from './status-dot.svelte';
 export { default as Sparkline } from './sparkline.svelte';
+export { default as LoadChart } from './load-chart.svelte';
 export { default as ProgressBar } from './progress-bar.svelte';
 export { default as ToastContainer } from './toast-container.svelte';
 export { toast } from './toast.svelte.js';

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Chip, Sparkline, Eyebrow, toast } from '$lib/components/ui';
+	import { Button, Chip, Sparkline, LoadChart, Eyebrow, toast } from '$lib/components/ui';
 	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
 
@@ -11,6 +11,7 @@
 	const plans = $derived(detail.plans);
 	const lastWeights = $derived(detail.lastWeights);
 	const alunoUrl = $derived(data.alunoUrl);
+	const loadEvolution = $derived(data.loadEvolution);
 
 	let tab = $state<'dados' | 'plan' | 'prog'>('dados');
 
@@ -425,10 +426,40 @@
 			</div>
 		{:else}
 			<div style="display:flex;flex-direction:column;gap:16px">
+				<!-- Evolução de carga: externa (tonelagem) × interna (PSE-sessão) -->
+				<div class="card" style="padding:24px">
+					<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;gap:16px">
+						<div>
+							<Eyebrow>◆ Evolução de carga</Eyebrow>
+							<div style="font:500 16px var(--font-sans);color:var(--ink-0);margin-top:4px">
+								Carga externa × interna · 12 semanas
+							</div>
+						</div>
+						<span
+							style="font:var(--label-mono);color:var(--ink-3);text-align:right;max-width:220px;line-height:1.4"
+						>
+							Compara o trabalho feito (tonelagem) com o esforço pago (PSE×duração)
+						</span>
+					</div>
+					{#if loadEvolution.hasData}
+						<LoadChart weeks={loadEvolution.weeks} externalMetric={loadEvolution.externalMetric} />
+					{:else}
+						<div style="padding:28px 16px;text-align:center">
+							<div style="font:500 14px var(--font-sans);color:var(--ink-1);margin-bottom:6px">
+								Sem treinos registrados ainda
+							</div>
+							<div style="font:var(--body-sm);color:var(--ink-2);max-width:420px;margin:0 auto">
+								Quando o aluno registrar sessões no app dele (com PSE e cargas), o gráfico de
+								evolução aparece aqui automaticamente.
+							</div>
+						</div>
+					{/if}
+				</div>
+
 				{#if detail.assessments.length === 0 && lastWeights.length === 0}
 					<div class="card" style="padding:48px;text-align:center">
-						<div style="font:500 16px var(--font-sans);color:var(--ink-0);margin-bottom:8px">Sem dados de progresso</div>
-						<div style="font:var(--body);color:var(--ink-2);margin-bottom:20px">Registre uma avaliação física pra começar a acompanhar.</div>
+						<div style="font:500 16px var(--font-sans);color:var(--ink-0);margin-bottom:8px">Sem dados de avaliação física</div>
+						<div style="font:var(--body);color:var(--ink-2);margin-bottom:20px">Registre uma avaliação física pra acompanhar peso, IMC, etc.</div>
 						<Button onclick={() => goto(`/alunos/${student.id}/avaliacao`)}>+ Nova avaliação</Button>
 					</div>
 				{:else}

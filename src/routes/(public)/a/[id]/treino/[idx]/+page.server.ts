@@ -100,6 +100,25 @@ export const actions: Actions = {
 		const perceivedEffort = rpeRaw ? Number(rpeRaw) : undefined;
 		const observations = String(fd.get('observations') ?? '').trim() || undefined;
 
+		// Duração: cliente envia minutos decorridos (start no mount → submit).
+		// Clampa pra faixa plausível; fora disso usa estimativa do plano ou
+		// das séries (cada série ~3.5min incluindo descanso).
+		const elapsedRaw = Number(fd.get('duration_minutes') ?? 0);
+		const plannedDuration = session.duration_minutes ?? null;
+		const totalSets = (session.main ?? []).reduce(
+			(acc, ex) => acc + (Number(ex.sets) || 3),
+			0
+		);
+		const setsEstimate = Math.round(totalSets * 3.5);
+		let durationMinutes: number | undefined;
+		if (Number.isFinite(elapsedRaw) && elapsedRaw >= 5 && elapsedRaw <= 180) {
+			durationMinutes = Math.round(elapsedRaw);
+		} else if (plannedDuration && plannedDuration >= 5) {
+			durationMinutes = plannedDuration;
+		} else if (setsEstimate >= 5) {
+			durationMinutes = Math.min(setsEstimate, 180);
+		}
+
 		await logTrainingSession({
 			studentId: params.id!,
 			planId: data.plan.id,
@@ -107,6 +126,7 @@ export const actions: Actions = {
 			sessionLabel: session.label ?? `Sessão ${idx + 1}`,
 			exerciseLogs,
 			perceivedEffort,
+			durationMinutes,
 			observations
 		});
 

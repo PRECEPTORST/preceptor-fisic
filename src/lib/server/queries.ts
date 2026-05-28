@@ -1437,6 +1437,7 @@ export type LogSessionInput = {
 		completed: boolean;
 	}[];
 	perceivedEffort?: number;
+	durationMinutes?: number;
 	observations?: string;
 };
 
@@ -1450,11 +1451,165 @@ export async function logTrainingSession(input: LogSessionInput): Promise<string
 			sessionLabel: input.sessionLabel,
 			exercisesDone: input.exerciseLogs,
 			perceivedEffort: input.perceivedEffort,
+			durationMinutes: input.durationMinutes,
 			observations: input.observations
 		})
 		.returning({ id: trainingSessions.id });
 	if (!row) throw new Error('falha ao registrar sessão');
 	return row.id;
+}
+
+/* ────────── CARGA INTERNA × EXTERNA (evolução de treino) ────────── */
+
+/**
+ * Converte string de reps numa representação numérica.
+ * "10" → 10 | "8-12" → 10 (média) | "8 a 12" → 10 | "amrap"/"máx" → 0
+ */
+function parseRepsToNumber(reps: string | undefined | null): number {
+	if (!reps) return 0;
+	const s = String(reps).toLowerCase().trim();
+	const range = s.match(/(\d+)\s*(?:-|–|a|to|até|\/)\s*(\d+)/);
+	if (range) return (Number(range[1]) + Number(range[2])) / 2;
+	const single = s.match(/(\d+)/);
+	return single ? Number(single[1]) : 0;
+}
+
+/**
+ * Extrai kg da string de carga. "20kg" → 20 | "20,5" → 20.5 |
+ * "peso corporal"/"livre" → 0 (não entra na tonelagem).
+ */
+function parseLoadToKg(load: string | undefined | null): number {
+	if (!load) return 0;
+	const s = String(load).toLowerCase().trim();
+	const withKg = s.match(/(\d+(?:[.,]\d+)?)\s*kg/);
+	if (withKg) return Number(withKg[1]!.replace(',', '.'));
+	// Sem "kg" explícito: só conta se a string for essencialmente numérica
+	// (evita pegar "10 reps" como carga). Aceita "20", "20,5".
+	const pure = s.match(/^(\d+(?:[.,]\d+)?)$/);
+	if (pure) return Number(pure[1]!.replace(',', '.'));
+	return 0;
+}
+
+/** Segunda-feira (00:00) da semana de uma data. */
+function mondayOf(d: Date): Date {
+	const date = new Date(d);
+	const day = (date.getDay() + 6) % 7; // 0 = segunda
+	date.setDate(date.getDate() - day);
+	date.setHours(0, 0, 0, 0);
+	return date;
+}
+
+export type LoadWeek = {
+	weekStart: string; // ISO date (segunda)
+	weekLabel: string; // "12/mai"
+	tonnage: number; // carga externa em kg (Σ sets×reps×kg)
+	repVolume: number; // volume total de reps (Σ sets×reps) — fallback p/ peso corporal
+	internalLoad: number; // carga interna sRPE (Σ PSE×duração) em UA
+	sessions: number;
+	avgRpe: number | null;
+};
+
+export type LoadEvolution = {
+	weeks: LoadWeek[];
+	hasData: boolean;
+	/** Métrica externa a exibir: tonelagem se houver peso, senão volume de reps */
+	externalMetric: 'tonnage' | 'volume';
+	totalSessions: number;
+};
+
+/**
+ * Evolução de carga das últimas `weeks` semanas. Agrega sessões por semana
+ * calculando carga externa (tonelagem) e interna (session-RPE).
+ */
+export async function getStudentLoadEvolution(
+	studentId: string,
+	weeksBack = 12
+): Promise<LoadEvolution> {
+	const since = new Date();
+	since.setDate(since.getDate() - weeksBack * 7);
+	since.setHours(0, 0, 0, 0);
+
+	const rows = await db
+		.select({
+			sessionDate: trainingSessions.sessionDate,
+			perceivedEffort: trainingSessions.perceivedEffort,
+			durationMinutes: trainingSessions.durationMinutes,
+			exercisesDone: trainingSessions.exercisesDone
+		})
+		.from(trainingSessions)
+		.where(
+			and(eq(trainingSessions.studentId, studentId), gte(trainingSessions.sessionDate, since))
+		)
+		.orderBy(asc(trainingSessions.sessionDate));
+
+	// Inicializa buckets pra TODAS as semanas (mesmo vazias) → timeline contínua
+	const buckets = new Map<string, LoadWeek>();
+	const firstMonday = mondayOf(since);
+	for (let i = 0; i <= weeksBack; i++) {
+		const ws = new Date(firstMonday);
+		ws.setDate(firstMonday.getDate() + i * 7);
+		const key = ws.toISOString().slice(0, 10);
+		buckets.set(key, {
+			weekStart: key,
+			weekLabel: ws
+				.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
+				.replace('.', ''),
+			tonnage: 0,
+			repVolume: 0,
+			internalLoad: 0,
+			sessions: 0,
+			avgRpe: null
+		});
+	}
+
+	const rpeSum = new Map<string, { sum: number; n: number }>();
+
+	for (const row of rows) {
+		const key = mondayOf(new Date(row.sessionDate)).toISOString().slice(0, 10);
+		const bucket = buckets.get(key);
+		if (!bucket) continue;
+
+		bucket.sessions += 1;
+
+		// Carga externa: percorre exercícios feitos
+		for (const ex of row.exercisesDone ?? []) {
+			if (!ex.completed) continue;
+			const sets = Number(ex.sets_done) || 0;
+			const reps = parseRepsToNumber(ex.reps_done);
+			const kg = parseLoadToKg(ex.load_used);
+			bucket.repVolume += sets * reps;
+			bucket.tonnage += sets * reps * kg;
+		}
+
+		// Carga interna: session-RPE = PSE × duração
+		const pse = row.perceivedEffort ?? 0;
+		const dur = row.durationMinutes ?? 0;
+		if (pse > 0) {
+			bucket.internalLoad += pse * dur;
+			const acc = rpeSum.get(key) ?? { sum: 0, n: 0 };
+			acc.sum += pse;
+			acc.n += 1;
+			rpeSum.set(key, acc);
+		}
+	}
+
+	for (const [key, acc] of rpeSum) {
+		const bucket = buckets.get(key);
+		if (bucket && acc.n > 0) bucket.avgRpe = Math.round((acc.sum / acc.n) * 10) / 10;
+	}
+
+	const weeks = Array.from(buckets.values()).sort((a, b) =>
+		a.weekStart.localeCompare(b.weekStart)
+	);
+	const totalTonnage = weeks.reduce((s, w) => s + w.tonnage, 0);
+	const totalSessions = weeks.reduce((s, w) => s + w.sessions, 0);
+
+	return {
+		weeks,
+		hasData: totalSessions > 0,
+		externalMetric: totalTonnage > 0 ? 'tonnage' : 'volume',
+		totalSessions
+	};
 }
 
 /* ────────── RATE LIMIT ────────── */
