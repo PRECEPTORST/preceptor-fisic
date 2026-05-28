@@ -234,6 +234,37 @@
 		</div>
 	</div>
 
+	<!-- Evolução de carga — DESTAQUE no topo, sempre visível (não só na aba
+	     Progresso). É a resposta de "o aluno está evoluindo?" num relance. -->
+	{#if loadEvolution.hasData}
+		<div class="load-hero">
+			<div class="card load-hero-card">
+				<div class="load-hero-head">
+					<div>
+						<Eyebrow>◆ Evolução de carga — está evoluindo?</Eyebrow>
+						<div style="font:500 16px var(--font-sans);color:var(--ink-0);margin-top:4px">
+							Carga externa × interna · 12 semanas
+						</div>
+					</div>
+					<span class="load-hero-hint">
+						Trabalho feito (tonelagem) × esforço pago (PSE × duração)
+					</span>
+				</div>
+				<LoadChart weeks={loadEvolution.weeks} externalMetric={loadEvolution.externalMetric} />
+			</div>
+		</div>
+	{:else}
+		<div class="load-hero">
+			<div class="card load-hero-empty">
+				<span style="font:600 15px var(--font-sans);color:var(--accent)">◆</span>
+				<span style="font:var(--body-sm);color:var(--ink-2)">
+					<b style="color:var(--ink-1);font-weight:500">Evolução de carga</b> — o gráfico de carga
+					externa × interna aparece aqui assim que o aluno registrar treinos com PSE e carga no app.
+				</span>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Tabs -->
 	<div style="padding:0 32px;border-bottom:1px solid var(--ink-line);background:var(--bg-1)">
 		<div style="display:flex;gap:32px">
@@ -426,36 +457,6 @@
 			</div>
 		{:else}
 			<div style="display:flex;flex-direction:column;gap:16px">
-				<!-- Evolução de carga: externa (tonelagem) × interna (PSE-sessão) -->
-				<div class="card" style="padding:24px">
-					<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;gap:16px">
-						<div>
-							<Eyebrow>◆ Evolução de carga</Eyebrow>
-							<div style="font:500 16px var(--font-sans);color:var(--ink-0);margin-top:4px">
-								Carga externa × interna · 12 semanas
-							</div>
-						</div>
-						<span
-							style="font:var(--label-mono);color:var(--ink-3);text-align:right;max-width:220px;line-height:1.4"
-						>
-							Compara o trabalho feito (tonelagem) com o esforço pago (PSE×duração)
-						</span>
-					</div>
-					{#if loadEvolution.hasData}
-						<LoadChart weeks={loadEvolution.weeks} externalMetric={loadEvolution.externalMetric} />
-					{:else}
-						<div style="padding:28px 16px;text-align:center">
-							<div style="font:500 14px var(--font-sans);color:var(--ink-1);margin-bottom:6px">
-								Sem treinos registrados ainda
-							</div>
-							<div style="font:var(--body-sm);color:var(--ink-2);max-width:420px;margin:0 auto">
-								Quando o aluno registrar sessões no app dele (com PSE e cargas), o gráfico de
-								evolução aparece aqui automaticamente.
-							</div>
-						</div>
-					{/if}
-				</div>
-
 				{#if detail.assessments.length === 0 && lastWeights.length === 0}
 					<div class="card" style="padding:48px;text-align:center">
 						<div style="font:500 16px var(--font-sans);color:var(--ink-0);margin-bottom:8px">Sem dados de avaliação física</div>
@@ -595,6 +596,52 @@
 {/if}
 
 <style>
+	/* Card de destaque da evolução de carga — topo da ficha, sempre visível */
+	.load-hero {
+		padding: 20px 32px 0;
+	}
+	.load-hero-card {
+		padding: 22px 24px !important;
+		border: 1px solid var(--accent-dim) !important;
+		background: linear-gradient(180deg, var(--accent-wash) 0%, var(--bg-2) 42%) !important;
+	}
+	.load-hero-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: 16px;
+		margin-bottom: 16px;
+	}
+	.load-hero-hint {
+		font: var(--label-mono);
+		color: var(--ink-3);
+		text-align: right;
+		max-width: 240px;
+		line-height: 1.4;
+	}
+	.load-hero-empty {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 14px 18px !important;
+	}
+	@media (max-width: 1023px) {
+		.load-hero {
+			padding: 14px 14px 0;
+		}
+		.load-hero-card {
+			padding: 16px !important;
+		}
+		.load-hero-head {
+			flex-direction: column;
+			gap: 6px;
+		}
+		.load-hero-hint {
+			text-align: left;
+			max-width: none;
+		}
+	}
+
 	.link-backdrop {
 		position: fixed;
 		inset: 0;
