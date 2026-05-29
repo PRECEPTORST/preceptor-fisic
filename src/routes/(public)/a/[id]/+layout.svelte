@@ -29,27 +29,22 @@
 		flex-direction: column;
 		view-transition-name: aluno-content;
 	}
-	/* Tablet — frame um pouco maior, com borda decorativa */
-	@media (min-width: 600px) and (max-width: 1023px) {
-		.aluno-frame {
-			border-left: 1px solid var(--ink-line);
-			border-right: 1px solid var(--ink-line);
-			margin: 24px 0;
-			border-radius: var(--r-4);
-			overflow: hidden;
-			box-shadow: var(--shadow-pop);
-		}
-	}
-	/* Desktop — modo dashboard, expande a frame e remove a "cara de celular" */
-	@media (min-width: 1024px) {
+	/* Tablet + desktop — coluna centralizada com moldura.
+	   O app do aluno é pessoal/mobile-first; no PC fica uma coluna focada
+	   e centralizada (padrão "app no desktop"), não um dashboard esticado.
+	   Topo arredondado + fundo reto (encosta na tab bar fixa, sem flutuar). */
+	@media (min-width: 600px) {
 		.aluno-shell {
-			padding: 32px 24px 48px;
+			padding: 28px 20px 0;
+			align-items: flex-start;
 		}
 		.aluno-frame {
-			max-width: 1180px;
-			min-height: calc(100vh - 80px);
-			background: transparent;
-			border-radius: 0;
+			max-width: 460px;
+			min-height: calc(100vh - 28px);
+			border: 1px solid var(--ink-line);
+			border-bottom: 0;
+			border-radius: var(--r-4) var(--r-4) 0 0;
+			box-shadow: var(--shadow-pop);
 		}
 	}
 </style>
