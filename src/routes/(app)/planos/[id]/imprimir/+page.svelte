@@ -312,15 +312,18 @@
 
 <style>
 	:global(body) {
-		background: #525659;
+		background: #2a2a2a;
 	}
-	/* Paleta teal do modelo */
+	/* Paleta do design system (violet accent) sobre papel branco. */
 	.print-root {
-		--teal: #0f9d8f;
-		--teal-dark: #0c7a70;
+		--accent: #a78bfa;
+		--accent-dark: #6d5fa3;
+		--accent-wash: #f4f0fd;
 		--ink: #1a1a1a;
-		--line: #c8d6d4;
-		--zebra: #f2f8f7;
+		--ink-2: #555;
+		--line: #d8d4e3;
+		--zebra: #f8f6fd;
+		--font-print: 'Geist Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -335,7 +338,7 @@
 		padding: 18mm 16mm 16mm;
 		background: #fff;
 		color: var(--ink);
-		font: 400 11px/1.45 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+		font: 400 11px/1.45 var(--font-print);
 		box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
 		position: relative;
 		display: flex;
@@ -349,23 +352,23 @@
 		gap: 16px;
 		padding-bottom: 8px;
 		margin-bottom: 18px;
-		border-bottom: 2px solid var(--teal);
+		border-bottom: 2px solid var(--accent);
 	}
 	.ph-brand {
-		font: 700 15px 'Segoe UI', sans-serif;
-		color: var(--teal-dark);
+		font: 700 15px var(--font-print);
+		color: var(--accent-dark);
 		letter-spacing: -0.01em;
 	}
 	.ph-student {
 		font-size: 10.5px;
-		color: #444;
+		color: var(--ink-2);
 		text-align: right;
 	}
 
 	/* ── Capa ── */
 	.cover-title {
-		font: 700 26px 'Segoe UI', sans-serif;
-		color: var(--teal-dark);
+		font: 700 26px var(--font-print);
+		color: var(--accent-dark);
 		letter-spacing: -0.02em;
 		margin: 8px 0 24px;
 	}
@@ -373,14 +376,14 @@
 		margin-bottom: 22px;
 	}
 	.cover-lbl {
-		font: 700 10px 'Segoe UI', sans-serif;
+		font: 700 10px var(--font-print);
 		text-transform: uppercase;
 		letter-spacing: 0.1em;
-		color: var(--teal);
+		color: var(--accent-dark);
 		margin-bottom: 6px;
 	}
 	.cover-val {
-		font: 600 18px 'Segoe UI', sans-serif;
+		font: 600 18px var(--font-print);
 		color: var(--ink);
 	}
 	.cover-val.small {
@@ -414,9 +417,9 @@
 
 	/* ── Títulos de treino ── */
 	.train-title {
-		font: 700 18px 'Segoe UI', sans-serif;
+		font: 700 18px var(--font-print);
 		color: #fff;
-		background: var(--teal);
+		background: var(--accent);
 		padding: 9px 14px;
 		border-radius: 4px 4px 0 0;
 		letter-spacing: 0.02em;
@@ -436,12 +439,12 @@
 		font-size: 10.5px;
 	}
 	.tbl th {
-		background: var(--teal);
+		background: var(--accent);
 		color: #fff;
 		font-weight: 600;
 		text-align: center;
 		padding: 7px 6px;
-		border: 1px solid var(--teal-dark);
+		border: 1px solid var(--accent-dark);
 		vertical-align: middle;
 	}
 	.tbl td {
@@ -483,7 +486,7 @@
 		color: #333;
 		padding: 8px 10px;
 		background: var(--zebra);
-		border-left: 3px solid var(--teal);
+		border-left: 3px solid var(--accent);
 	}
 
 	/* ── Assinatura ── */
@@ -522,7 +525,7 @@
 		padding: 0 18px;
 		border-radius: 8px;
 		cursor: pointer;
-		font: 500 14px 'Segoe UI', sans-serif;
+		font: 500 14px var(--font-print);
 		border: none;
 		color: #fff;
 	}
@@ -530,7 +533,7 @@
 		background: #444;
 	}
 	.actions-bar .print-btn {
-		background: var(--teal);
+		background: var(--accent);
 	}
 
 	/* ── Impressão ── */
