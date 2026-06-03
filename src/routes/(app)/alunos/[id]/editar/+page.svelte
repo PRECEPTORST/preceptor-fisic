@@ -15,7 +15,6 @@
 		.map((m) => m.name + (m.dose ? ' ' + m.dose : ''))
 		.join(', ');
 	const initialGoals = ((prefs?.goals as string[] | null) ?? []) as string[];
-	const initialEquip = ((prefs?.equipmentAvailable as string[] | null) ?? []) as string[];
 
 	const GOALS = [
 		{ id: 'emagrecimento', label: 'Emagrecimento' },
@@ -26,18 +25,12 @@
 		{ id: 'reabilitacao', label: 'Reabilitação' },
 		{ id: 'performance', label: 'Performance' }
 	];
-	const EQUIPMENT = ['Halteres', 'Barra', 'Rack', 'Polia', 'Esteira', 'Bike', 'Smith', 'TRX', 'Kettlebells'];
-
 	let goals = $state<string[]>(initialGoals);
-	let equipment = $state<string[]>(initialEquip);
 	let submitting = $state(false);
 	let confirmingDelete = $state(false);
 
 	function toggleGoal(g: string) {
 		goals = goals.includes(g) ? goals.filter((x) => x !== g) : [...goals, g];
-	}
-	function toggleEquip(e: string) {
-		equipment = equipment.includes(e) ? equipment.filter((x) => x !== e) : [...equipment, e];
 	}
 </script>
 

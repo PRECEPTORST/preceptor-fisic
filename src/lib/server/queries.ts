@@ -719,10 +719,13 @@ export type CreateStudentInput = {
 	medications: { name: string; dose?: string; frequency?: string }[];
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
+	prescribedDifficulty?: 'pequena' | 'media' | 'alta';
 	weeklySessions: number;
 	minutesPerSession: number;
 	goals: string[];
-	equipmentAvailable: string[];
+	equipmentAvailable?: string[];
+	/** false = aluno criado via link, vai preencher o resto depois. */
+	profileComplete?: boolean;
 };
 
 export async function createStudentTx(input: CreateStudentInput): Promise<string> {
@@ -739,7 +742,8 @@ export async function createStudentTx(input: CreateStudentInput): Promise<string
 				phone: input.phone ?? undefined,
 				email: input.email ?? undefined,
 				consentAcceptedAt: input.consentAcceptedAt,
-				consentTermsVersion: 'v1.0'
+				consentTermsVersion: 'v1.0',
+				profileCompletedAt: input.profileComplete === false ? null : new Date()
 			})
 			.returning({ id: students.id });
 		if (!s) throw new Error('falha ao criar aluno');
@@ -754,10 +758,11 @@ export async function createStudentTx(input: CreateStudentInput): Promise<string
 		await tx.insert(trainingPreferences).values({
 			studentId: s.id,
 			experienceLevel: input.experienceLevel,
+			prescribedDifficulty: input.prescribedDifficulty ?? 'media',
 			weeklySessions: input.weeklySessions,
 			minutesPerSession: input.minutesPerSession,
 			goals: input.goals,
-			equipmentAvailable: input.equipmentAvailable,
+			equipmentAvailable: input.equipmentAvailable ?? [],
 			preferredModalities: ['musculacao']
 		});
 
@@ -867,10 +872,11 @@ export type UpdateStudentInput = {
 	medications: { name: string; dose?: string; frequency?: string }[];
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
+	prescribedDifficulty?: 'pequena' | 'media' | 'alta';
 	weeklySessions: number;
 	minutesPerSession: number;
 	goals: string[];
-	equipmentAvailable: string[];
+	equipmentAvailable?: string[];
 };
 
 export async function updateStudentTx(input: UpdateStudentInput): Promise<void> {
@@ -892,6 +898,8 @@ export async function updateStudentTx(input: UpdateStudentInput): Promise<void> 
 				heightCm: input.heightCm ?? null,
 				phone: input.phone ?? null,
 				email: input.email ?? null,
+				// Editar pelo profissional conclui o perfil (se ainda estava pendente)
+				profileCompletedAt: sql`coalesce(${students.profileCompletedAt}, now())`,
 				updatedAt: new Date()
 			})
 			.where(eq(students.id, input.studentId));
@@ -930,10 +938,11 @@ export async function updateStudentTx(input: UpdateStudentInput): Promise<void> 
 				.update(trainingPreferences)
 				.set({
 					experienceLevel: input.experienceLevel,
+					...(input.prescribedDifficulty ? { prescribedDifficulty: input.prescribedDifficulty } : {}),
 					weeklySessions: input.weeklySessions,
 					minutesPerSession: input.minutesPerSession,
 					goals: input.goals,
-					equipmentAvailable: input.equipmentAvailable,
+					...(input.equipmentAvailable ? { equipmentAvailable: input.equipmentAvailable } : {}),
 					updatedAt: new Date()
 				})
 				.where(eq(trainingPreferences.id, pref.id));
@@ -941,10 +950,156 @@ export async function updateStudentTx(input: UpdateStudentInput): Promise<void> 
 			await tx.insert(trainingPreferences).values({
 				studentId: input.studentId,
 				experienceLevel: input.experienceLevel,
+				prescribedDifficulty: input.prescribedDifficulty ?? 'media',
 				weeklySessions: input.weeklySessions,
 				minutesPerSession: input.minutesPerSession,
 				goals: input.goals,
-				equipmentAvailable: input.equipmentAvailable,
+				equipmentAvailable: input.equipmentAvailable ?? [],
+				preferredModalities: ['musculacao']
+			});
+		}
+	});
+}
+
+/* ────────── AUTO-PREENCHIMENTO PELO ALUNO ────────── */
+
+export type AlunoSelfFillData = {
+	student: { id: string; name: string; birthDate: string | null; profileCompletedAt: Date | null };
+	professional: { name: string };
+	healthProfile: typeof healthProfiles.$inferSelect | null;
+	preferences: typeof trainingPreferences.$inferSelect | null;
+};
+
+/** Carrega os dados que o aluno preenche pelo link — sem auth de profissional (rota é token-gated). */
+export async function getAlunoSelfFillData(studentId: string): Promise<AlunoSelfFillData | null> {
+	const [s] = await db
+		.select()
+		.from(students)
+		.where(and(eq(students.id, studentId), isNull(students.deletedAt)))
+		.limit(1);
+	if (!s) return null;
+
+	const [pro] = await db
+		.select({ name: professionals.name })
+		.from(professionals)
+		.where(eq(professionals.id, s.professionalId))
+		.limit(1);
+	if (!pro) return null;
+
+	const [hp] = await db
+		.select()
+		.from(healthProfiles)
+		.where(eq(healthProfiles.studentId, studentId))
+		.limit(1);
+	const [pref] = await db
+		.select()
+		.from(trainingPreferences)
+		.where(eq(trainingPreferences.studentId, studentId))
+		.limit(1);
+
+	return {
+		student: {
+			id: s.id,
+			name: s.name,
+			birthDate: s.birthDate,
+			profileCompletedAt: s.profileCompletedAt
+		},
+		professional: { name: pro.name },
+		healthProfile: hp ?? null,
+		preferences: pref ?? null
+	};
+}
+
+export type CompleteStudentSelfFillInput = {
+	studentId: string;
+	birthDate?: string | null;
+	weightKg?: number | null;
+	heightCm?: number | null;
+	phone?: string | null;
+	diagnoses: { label: string }[];
+	medications: { name: string }[];
+	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
+	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
+	prescribedDifficulty: 'pequena' | 'media' | 'alta';
+	weeklySessions: number;
+	minutesPerSession: number;
+	goals: string[];
+};
+
+/** O próprio aluno completa o perfil pelo link. Não exige profissional (rota token-gated). */
+export async function completeStudentSelfFillTx(input: CompleteStudentSelfFillInput): Promise<void> {
+	await db.transaction(async (tx) => {
+		const [s] = await tx
+			.select({ id: students.id })
+			.from(students)
+			.where(and(eq(students.id, input.studentId), isNull(students.deletedAt)))
+			.limit(1);
+		if (!s) throw new Error('aluno não encontrado');
+
+		await tx
+			.update(students)
+			.set({
+				birthDate: input.birthDate ?? null,
+				weightKg: input.weightKg ?? null,
+				heightCm: input.heightCm ?? null,
+				phone: input.phone ?? null,
+				consentAcceptedAt: sql`coalesce(${students.consentAcceptedAt}, now())`,
+				consentTermsVersion: 'v1.0',
+				profileCompletedAt: new Date(),
+				updatedAt: new Date()
+			})
+			.where(eq(students.id, input.studentId));
+
+		const [hp] = await tx
+			.select({ id: healthProfiles.id })
+			.from(healthProfiles)
+			.where(eq(healthProfiles.studentId, input.studentId))
+			.limit(1);
+		if (hp) {
+			await tx
+				.update(healthProfiles)
+				.set({
+					diagnoses: input.diagnoses,
+					medications: input.medications,
+					cardiovascularRisk: input.cardiovascularRisk,
+					updatedAt: new Date()
+				})
+				.where(eq(healthProfiles.id, hp.id));
+		} else {
+			await tx.insert(healthProfiles).values({
+				studentId: input.studentId,
+				diagnoses: input.diagnoses,
+				medications: input.medications,
+				cardiovascularRisk: input.cardiovascularRisk
+			});
+		}
+
+		const [pref] = await tx
+			.select({ id: trainingPreferences.id })
+			.from(trainingPreferences)
+			.where(eq(trainingPreferences.studentId, input.studentId))
+			.limit(1);
+		if (pref) {
+			await tx
+				.update(trainingPreferences)
+				.set({
+					experienceLevel: input.experienceLevel,
+					prescribedDifficulty: input.prescribedDifficulty,
+					weeklySessions: input.weeklySessions,
+					minutesPerSession: input.minutesPerSession,
+					goals: input.goals,
+					updatedAt: new Date()
+				})
+				.where(eq(trainingPreferences.id, pref.id));
+		} else {
+			await tx.insert(trainingPreferences).values({
+				studentId: input.studentId,
+				experienceLevel: input.experienceLevel,
+				prescribedDifficulty: input.prescribedDifficulty,
+				weeklySessions: input.weeklySessions,
+				minutesPerSession: input.minutesPerSession,
+				goals: input.goals,
+				equipmentAvailable: [],
 				preferredModalities: ['musculacao']
 			});
 		}

@@ -80,13 +80,20 @@ export const load = (async ({ params, url }) => {
 
 export const actions: Actions = {
 	complete: async ({ request, params, url }) => {
+		// Token vem via hidden input do form (action URL não preserva a query
+		// string ?t=). Sem isso o redirect no fim cai em /a/[id] sem token e
+		// o load do app do aluno responde 403 logo após "concluir treino".
+		const fd = await request.formData();
+		const tokenFromForm = String(fd.get('_t') ?? '').trim() || null;
+		if (!verifyStudentToken(params.id!, tokenFromForm) && !dev) {
+			return fail(403, { error: 'sessão expirou — abra o link de novo' });
+		}
+
 		const data = await getAlunoAppData(params.id);
 		if (!data || !data.plan) return fail(404, { error: 'plano não encontrado' });
 		const idx = Number(params.idx);
 		const session = data.plan.planData.weekly_sessions?.[idx];
 		if (!session) return fail(404, { error: 'sessão não encontrada' });
-
-		const fd = await request.formData();
 		const exerciseLogs = (session.main ?? []).map((ex, i) => {
 			// set_logs: peso/reps reais por série (JSON enviado pelo front).
 			// Cada série vira { weight, reps }; vazias (sem peso E sem reps) são descartadas.
@@ -158,9 +165,11 @@ export const actions: Actions = {
 			observations
 		});
 
-		// Preserva token na URL após redirect
-		const tokenParam = url.searchParams.get('t');
-		const tq = tokenParam ? `?t=${tokenParam}&just_completed=1` : '?just_completed=1';
+		// Preserva token na URL após redirect — pega do form (hidden _t)
+		// porque a URL do form POST (?/complete) já perdeu a query string.
+		const tq = tokenFromForm
+			? `?t=${tokenFromForm}&just_completed=1`
+			: '?just_completed=1';
 		redirect(303, `/a/${params.id}${tq}`);
 	}
 };

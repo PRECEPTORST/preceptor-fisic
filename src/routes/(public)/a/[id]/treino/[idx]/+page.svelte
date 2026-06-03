@@ -137,7 +137,9 @@
 			};
 		}}
 	>
-		<!-- Inputs ocultos: duração + por exercício (séries com peso/reps em JSON) -->
+		<!-- Inputs ocultos: token (form POST tira da URL → 403 no redirect),
+		     duração + por exercício (séries com peso/reps em JSON) -->
+		<input type="hidden" name="_t" value={tokenParam ?? ''} />
 		<input type="hidden" name="duration_minutes" value={elapsedMin} />
 		{#each exercises as exItem, i (i)}
 			<input type="hidden" name="sets_{i}" value={exItem.sets ?? 0} />

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Chip, Eyebrow } from '$lib/components/ui';
+	import { Button, Eyebrow, toast } from '$lib/components/ui';
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import type { ActionData } from './$types';
@@ -16,22 +16,26 @@
 		{ id: 'performance', label: 'Performance' }
 	];
 
-	const EQUIPMENT_OPTIONS = ['Halteres', 'Barra', 'Rack', 'Polia', 'Esteira', 'Bike', 'Smith', 'TRX', 'Kettlebells'];
-
 	const v = (form as any)?.values ?? {};
+	let mode = $state<'completo' | 'link'>((form as any)?.mode ?? 'completo');
 	let goals = $state<string[]>(v.goals ?? []);
-	let equipment = $state<string[]>(v.equipment ? v.equipment.split(',').map((x: string) => x.trim()).filter(Boolean) : []);
 	let submitting = $state(false);
+
+	// Resultado do modo "link": URL gerada pro aluno preencher.
+	const fillUrl = $derived((form as any)?.fillUrl as string | undefined);
 
 	function toggleGoal(g: string) {
 		goals = goals.includes(g) ? goals.filter((x) => x !== g) : [...goals, g];
 	}
-	function toggleEquip(e: string) {
-		equipment = equipment.includes(e) ? equipment.filter((x) => x !== e) : [...equipment, e];
-	}
 
-	function field(label: string, name: string, type = 'text', placeholder = '', value: string | number | null = '') {
-		return { label, name, type, placeholder, value };
+	async function copyLink() {
+		if (!fillUrl) return;
+		try {
+			await navigator.clipboard.writeText(fillUrl);
+			toast.success('Link copiado!');
+		} catch {
+			toast.error('Não consegui copiar — selecione e copie manualmente.');
+		}
 	}
 </script>
 
@@ -49,183 +53,260 @@
 		</div>
 	</header>
 
-	<form
-		method="POST"
-		use:enhance={() => {
-			submitting = true;
-			return async ({ update }) => {
-				await update();
-				submitting = false;
-			};
-		}}
-		style="padding:32px;max-width:780px;margin:0 auto"
-	>
-		{#if form?.error}
+	{#if fillUrl}
+		<!-- Sucesso modo link: mostra o link pro aluno preencher -->
+		<div style="padding:32px;max-width:780px;margin:0 auto">
+			<div class="card" style="padding:24px">
+				<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+					<span style="font-size:20px">✅</span>
+					<h2 style="margin:0;font:600 18px var(--font-sans)">Aluno criado — agora envie o link</h2>
+				</div>
+				<p style="font:var(--body-sm);color:var(--ink-2);margin:0 0 16px">
+					Mande este link pro aluno. Ele preenche os próprios dados (perfil clínico, objetivos e
+					preferências) e o cadastro fica completo automaticamente.
+				</p>
+				<div style="display:flex;gap:8px;align-items:stretch">
+					<input
+						class="inp"
+						readonly
+						value={fillUrl}
+						onclick={(e) => (e.currentTarget as HTMLInputElement).select()}
+						style="flex:1;font-size:13px"
+					/>
+					<Button onclick={copyLink}>Copiar link</Button>
+				</div>
+				<div style="display:flex;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--ink-line)">
+					<Button variant="secondary" onclick={() => goto('/alunos')}>Ver alunos</Button>
+					<Button variant="secondary" onclick={() => location.reload()}>Cadastrar outro</Button>
+				</div>
+			</div>
+		</div>
+	{:else}
+		<!-- Seletor de modo -->
+		<div style="padding:24px 32px 0;max-width:780px;margin:0 auto">
 			<div
-				style="padding:12px 16px;margin-bottom:20px;border-radius:var(--r-2);background:var(--danger-dim);border:1px solid var(--danger);color:var(--danger);font:var(--body-sm)"
+				style="display:grid;grid-template-columns:1fr 1fr;gap:10px"
 			>
-				<div style="font-weight:600;margin-bottom:4px">{form.error}</div>
-				{#if (form as any)?.issues}
-					<ul style="margin:6px 0 0;padding-left:18px">
-						{#each (form as any).issues as issue}
-							<li>{issue}</li>
-						{/each}
-					</ul>
+				<button
+					type="button"
+					onclick={() => (mode = 'completo')}
+					class="mode-btn"
+					class:active={mode === 'completo'}
+				>
+					<div style="font:600 14px var(--font-sans)">Preencher eu mesmo</div>
+					<div style="font:var(--body-sm);color:var(--ink-2);margin-top:2px">Cadastro completo agora</div>
+				</button>
+				<button
+					type="button"
+					onclick={() => (mode = 'link')}
+					class="mode-btn"
+					class:active={mode === 'link'}
+				>
+					<div style="font:600 14px var(--font-sans)">Enviar link pro aluno</div>
+					<div style="font:var(--body-sm);color:var(--ink-2);margin-top:2px">Você só põe nome, e-mail e idade</div>
+				</button>
+			</div>
+		</div>
+
+		<form
+			method="POST"
+			use:enhance={() => {
+				submitting = true;
+				return async ({ update }) => {
+					await update({ reset: false });
+					submitting = false;
+				};
+			}}
+			style="padding:24px 32px 32px;max-width:780px;margin:0 auto"
+		>
+			<input type="hidden" name="mode" value={mode} />
+
+			{#if form?.error}
+				<div
+					style="padding:12px 16px;margin-bottom:20px;border-radius:var(--r-2);background:var(--danger-dim);border:1px solid var(--danger);color:var(--danger);font:var(--body-sm)"
+				>
+					<div style="font-weight:600;margin-bottom:4px">{form.error}</div>
+					{#if (form as any)?.issues}
+						<ul style="margin:6px 0 0;padding-left:18px">
+							{#each (form as any).issues as issue}
+								<li>{issue}</li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- Identidade -->
+			<div class="card" style="padding:24px;margin-bottom:16px">
+				<Eyebrow>Identidade</Eyebrow>
+				<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;margin-top:14px">
+					<div>
+						<label class="lbl">Nome completo *</label>
+						<input class="inp" name="name" required placeholder="Ana Beatriz Silva" value={v.name ?? ''} />
+					</div>
+					<div>
+						<label class="lbl">Data nasc.{mode === 'link' ? ' *' : ''}</label>
+						<input class="inp" name="birthDate" type="date" required={mode === 'link'} value={v.birthDate ?? ''} />
+					</div>
+					{#if mode === 'completo'}
+						<div>
+							<label class="lbl">Sexo *</label>
+							<select class="inp" name="sex" required>
+								<option value="nao_informado" selected={v.sex === 'nao_informado' || !v.sex}>Não informado</option>
+								<option value="feminino" selected={v.sex === 'feminino'}>Feminino</option>
+								<option value="masculino" selected={v.sex === 'masculino'}>Masculino</option>
+								<option value="outro" selected={v.sex === 'outro'}>Outro</option>
+							</select>
+						</div>
+					{:else}
+						<div>
+							<label class="lbl">E-mail *</label>
+							<input class="inp" name="email" type="email" required placeholder="ana@email.com" value={v.email ?? ''} />
+						</div>
+					{/if}
+				</div>
+				{#if mode === 'completo'}
+					<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-top:14px">
+						<div>
+							<label class="lbl">Peso (kg)</label>
+							<input class="inp" name="weightKg" type="number" step="0.1" placeholder="62.4" value={v.weightKg ?? ''} />
+						</div>
+						<div>
+							<label class="lbl">Altura (cm)</label>
+							<input class="inp" name="heightCm" type="number" placeholder="165" value={v.heightCm ?? ''} />
+						</div>
+						<div>
+							<label class="lbl">Telefone</label>
+							<input class="inp" name="phone" placeholder="+55 11 9..." value={v.phone ?? ''} />
+						</div>
+						<div>
+							<label class="lbl">E-mail</label>
+							<input class="inp" name="email" type="email" placeholder="ana@email.com" value={v.email ?? ''} />
+						</div>
+					</div>
 				{/if}
 			</div>
-		{/if}
 
-		<!-- Identidade -->
-		<div class="card" style="padding:24px;margin-bottom:16px">
-			<Eyebrow>Identidade</Eyebrow>
-			<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:14px;margin-top:14px">
-				<div>
-					<label class="lbl">Nome completo *</label>
-					<input class="inp" name="name" required placeholder="Ana Beatriz Silva" value={v.name ?? ''} />
+			{#if mode === 'link'}
+				<div
+					style="padding:14px 16px;margin-bottom:16px;border-radius:var(--r-2);background:var(--accent-wash);border:1px solid var(--accent);color:var(--ink-1);font:var(--body-sm)"
+				>
+					Você só preenche o básico. Ao cadastrar, geramos um link pro aluno completar perfil clínico,
+					objetivos e preferências de treino.
 				</div>
-				<div>
-					<label class="lbl">Data nasc.</label>
-					<input class="inp" name="birthDate" type="date" value={v.birthDate ?? ''} />
+			{/if}
+
+			{#if mode === 'completo'}
+				<!-- Perfil clínico -->
+				<div class="card" style="padding:24px;margin-bottom:16px">
+					<Eyebrow>Perfil clínico</Eyebrow>
+					<div style="display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px">
+						<div>
+							<label class="lbl">Diagnósticos (separe por vírgula)</label>
+							<textarea
+								class="inp"
+								name="diagnoses"
+								rows="2"
+								placeholder="hipertensão estágio 2, asma leve, lombalgia crônica"
+								style="resize:vertical">{v.diagnoses ?? ''}</textarea>
+						</div>
+						<div>
+							<label class="lbl">Medicações em uso (separe por vírgula)</label>
+							<textarea
+								class="inp"
+								name="medications"
+								rows="2"
+								placeholder="losartana 50mg/dia, metformina 850mg 2x/dia"
+								style="resize:vertical">{v.medications ?? ''}</textarea>
+						</div>
+						<div>
+							<label class="lbl">Risco cardiovascular *</label>
+							<select class="inp" name="cardiovascularRisk" required>
+								<option value="baixo" selected={!v.cardiovascularRisk || v.cardiovascularRisk === 'baixo'}>Baixo</option>
+								<option value="moderado" selected={v.cardiovascularRisk === 'moderado'}>Moderado</option>
+								<option value="alto" selected={v.cardiovascularRisk === 'alto'}>Alto</option>
+								<option value="muito_alto" selected={v.cardiovascularRisk === 'muito_alto'}>Muito alto</option>
+							</select>
+						</div>
+					</div>
 				</div>
-				<div>
-					<label class="lbl">Sexo *</label>
-					<select class="inp" name="sex" required>
-						<option value="nao_informado" selected={v.sex === 'nao_informado' || !v.sex}>Não informado</option>
-						<option value="feminino" selected={v.sex === 'feminino'}>Feminino</option>
-						<option value="masculino" selected={v.sex === 'masculino'}>Masculino</option>
-						<option value="outro" selected={v.sex === 'outro'}>Outro</option>
-					</select>
+
+				<!-- Preferências de treino -->
+				<div class="card" style="padding:24px;margin-bottom:16px">
+					<Eyebrow>Preferências de treino</Eyebrow>
+
+					<div style="margin-top:14px">
+						<label class="lbl">Objetivos (selecione 1+)</label>
+						<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+							{#each GOALS as g (g.id)}
+								<button
+									type="button"
+									onclick={() => toggleGoal(g.id)}
+									style="all:unset;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;border-radius:var(--r-pill);background:{goals.includes(g.id)
+										? 'var(--accent-wash)'
+										: 'var(--bg-3)'};border:1px solid {goals.includes(g.id)
+										? 'var(--accent)'
+										: 'var(--ink-line-2)'};color:{goals.includes(g.id)
+										? 'var(--accent-2)'
+										: 'var(--ink-1)'};font:500 12px var(--font-sans);cursor:pointer;transition:all 140ms var(--ease)"
+								>
+									{goals.includes(g.id) ? '✓' : '+'} {g.label}
+								</button>
+							{/each}
+						</div>
+						{#each goals as g (g)}<input type="hidden" name="goals" value={g} />{/each}
+					</div>
+
+					<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px">
+						<div>
+							<label class="lbl">Sessões / semana *</label>
+							<input class="inp" name="weeklySessions" type="number" min="1" max="7" required value={v.weeklySessions ?? 3} />
+						</div>
+						<div>
+							<label class="lbl">Min / sessão *</label>
+							<input class="inp" name="minutesPerSession" type="number" min="15" max="180" required value={v.minutesPerSession ?? 60} />
+						</div>
+					</div>
+
+					<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+						<div>
+							<label class="lbl">Experiência *</label>
+							<select class="inp" name="experienceLevel" required>
+								<option value="iniciante" selected={!v.experienceLevel || v.experienceLevel === 'iniciante'}>Iniciante</option>
+								<option value="intermediario" selected={v.experienceLevel === 'intermediario'}>Intermediário</option>
+								<option value="avancado" selected={v.experienceLevel === 'avancado'}>Avançado</option>
+							</select>
+						</div>
+						<div>
+							<label class="lbl">Dificuldade dos exercícios *</label>
+							<select class="inp" name="prescribedDifficulty" required>
+								<option value="pequena" selected={v.prescribedDifficulty === 'pequena'}>Pequena</option>
+								<option value="media" selected={!v.prescribedDifficulty || v.prescribedDifficulty === 'media'}>Média</option>
+								<option value="alta" selected={v.prescribedDifficulty === 'alta'}>Alta</option>
+							</select>
+						</div>
+					</div>
+					<p style="font:var(--body-sm);color:var(--ink-2);margin:8px 0 0">
+						Dificuldade controla a complexidade técnica dos exercícios prescritos — útil pra alunos novos
+						na academia, independente da experiência.
+					</p>
 				</div>
+			{/if}
+
+			<div style="display:flex;justify-content:space-between;gap:8px;padding-top:16px;border-top:1px solid var(--ink-line)">
+				<Button variant="secondary" onclick={() => goto('/alunos')}>Cancelar</Button>
+				<Button type="submit" disabled={submitting} size="lg">
+					{#if submitting}
+						Salvando…
+					{:else if mode === 'link'}
+						Criar e gerar link →
+					{:else}
+						Cadastrar aluno →
+					{/if}
+				</Button>
 			</div>
-			<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-top:14px">
-				<div>
-					<label class="lbl">Peso (kg)</label>
-					<input class="inp" name="weightKg" type="number" step="0.1" placeholder="62.4" value={v.weightKg ?? ''} />
-				</div>
-				<div>
-					<label class="lbl">Altura (cm)</label>
-					<input class="inp" name="heightCm" type="number" placeholder="165" value={v.heightCm ?? ''} />
-				</div>
-				<div>
-					<label class="lbl">Telefone</label>
-					<input class="inp" name="phone" placeholder="+55 11 9..." value={v.phone ?? ''} />
-				</div>
-				<div>
-					<label class="lbl">E-mail</label>
-					<input class="inp" name="email" type="email" placeholder="ana@email.com" value={v.email ?? ''} />
-				</div>
-			</div>
-		</div>
-
-		<!-- Perfil clínico -->
-		<div class="card" style="padding:24px;margin-bottom:16px">
-			<Eyebrow>Perfil clínico</Eyebrow>
-			<div style="display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px">
-				<div>
-					<label class="lbl">Diagnósticos (separe por vírgula)</label>
-					<textarea
-						class="inp"
-						name="diagnoses"
-						rows="2"
-						placeholder="hipertensão estágio 2, asma leve, lombalgia crônica"
-						style="resize:vertical">{v.diagnoses ?? ''}</textarea>
-				</div>
-				<div>
-					<label class="lbl">Medicações em uso (separe por vírgula)</label>
-					<textarea
-						class="inp"
-						name="medications"
-						rows="2"
-						placeholder="losartana 50mg/dia, metformina 850mg 2x/dia"
-						style="resize:vertical">{v.medications ?? ''}</textarea>
-				</div>
-				<div>
-					<label class="lbl">Risco cardiovascular *</label>
-					<select class="inp" name="cardiovascularRisk" required>
-						<option value="baixo" selected={!v.cardiovascularRisk || v.cardiovascularRisk === 'baixo'}>Baixo</option>
-						<option value="moderado" selected={v.cardiovascularRisk === 'moderado'}>Moderado</option>
-						<option value="alto" selected={v.cardiovascularRisk === 'alto'}>Alto</option>
-						<option value="muito_alto" selected={v.cardiovascularRisk === 'muito_alto'}>Muito alto</option>
-					</select>
-				</div>
-			</div>
-		</div>
-
-		<!-- Preferências de treino -->
-		<div class="card" style="padding:24px;margin-bottom:16px">
-			<Eyebrow>Preferências de treino</Eyebrow>
-
-			<div style="margin-top:14px">
-				<label class="lbl">Objetivos (selecione 1+)</label>
-				<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
-					{#each GOALS as g (g.id)}
-						<button
-							type="button"
-							onclick={() => toggleGoal(g.id)}
-							style="all:unset;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;border-radius:var(--r-pill);background:{goals.includes(g.id)
-								? 'var(--accent-wash)'
-								: 'var(--bg-3)'};border:1px solid {goals.includes(g.id)
-								? 'var(--accent)'
-								: 'var(--ink-line-2)'};color:{goals.includes(g.id)
-								? 'var(--accent-2)'
-								: 'var(--ink-1)'};font:500 12px var(--font-sans);cursor:pointer;transition:all 140ms var(--ease)"
-						>
-							{goals.includes(g.id) ? '✓' : '+'} {g.label}
-						</button>
-					{/each}
-				</div>
-				{#each goals as g (g)}<input type="hidden" name="goals" value={g} />{/each}
-			</div>
-
-			<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:18px">
-				<div>
-					<label class="lbl">Sessões / semana *</label>
-					<input class="inp" name="weeklySessions" type="number" min="1" max="7" required value={v.weeklySessions ?? 3} />
-				</div>
-				<div>
-					<label class="lbl">Min / sessão *</label>
-					<input class="inp" name="minutesPerSession" type="number" min="15" max="180" required value={v.minutesPerSession ?? 60} />
-				</div>
-				<div>
-					<label class="lbl">Experiência *</label>
-					<select class="inp" name="experienceLevel" required>
-						<option value="iniciante" selected={!v.experienceLevel || v.experienceLevel === 'iniciante'}>Iniciante</option>
-						<option value="intermediario" selected={v.experienceLevel === 'intermediario'}>Intermediário</option>
-						<option value="avancado" selected={v.experienceLevel === 'avancado'}>Avançado</option>
-					</select>
-				</div>
-			</div>
-
-			<div style="margin-top:18px">
-				<label class="lbl">Equipamento disponível</label>
-				<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
-					{#each EQUIPMENT_OPTIONS as e (e)}
-						<button
-							type="button"
-							onclick={() => toggleEquip(e)}
-							style="all:unset;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:var(--r-pill);background:{equipment.includes(e)
-								? 'var(--accent-wash)'
-								: 'var(--bg-3)'};border:1px solid {equipment.includes(e)
-								? 'var(--accent)'
-								: 'var(--ink-line-2)'};color:{equipment.includes(e)
-								? 'var(--accent-2)'
-								: 'var(--ink-1)'};font:500 12px var(--font-sans);cursor:pointer"
-						>
-							{equipment.includes(e) ? '✓' : '+'} {e}
-						</button>
-					{/each}
-				</div>
-				<input type="hidden" name="equipment" value={equipment.join(',')} />
-			</div>
-		</div>
-
-		<div style="display:flex;justify-content:space-between;gap:8px;padding-top:16px;border-top:1px solid var(--ink-line)">
-			<Button variant="secondary" onclick={() => goto('/alunos')}>Cancelar</Button>
-			<Button type="submit" disabled={submitting} size="lg">
-				{submitting ? 'Salvando…' : 'Cadastrar aluno →'}
-			</Button>
-		</div>
-	</form>
+		</form>
+	{/if}
 </div>
 
 <style>
@@ -260,5 +341,19 @@
 	.inp:focus {
 		border-color: var(--accent);
 		box-shadow: 0 0 0 3px var(--accent-wash);
+	}
+	.mode-btn {
+		all: unset;
+		box-sizing: border-box;
+		cursor: pointer;
+		padding: 14px 16px;
+		border-radius: var(--r-2);
+		background: var(--bg-2);
+		border: 1px solid var(--ink-line-2);
+		transition: all 140ms var(--ease);
+	}
+	.mode-btn.active {
+		background: var(--accent-wash);
+		border-color: var(--accent);
 	}
 </style>

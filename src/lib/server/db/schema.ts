@@ -43,6 +43,17 @@ export const experienceEnum = pgEnum('experience_level', [
 	'avancado'
 ]);
 
+/**
+ * Dificuldade-alvo dos exercícios prescritos. Independente do nível de
+ * experiência: um aluno intermediário novo numa academia pode pedir
+ * dificuldade pequena pra não receber exercícios complexos demais.
+ */
+export const prescribedDifficultyEnum = pgEnum('prescribed_difficulty', [
+	'pequena',
+	'media',
+	'alta'
+]);
+
 export const planStatusEnum = pgEnum('plan_status', [
 	'pending',
 	'generating',
@@ -153,6 +164,11 @@ export const students = pgTable(
 		email: text('email'),
 		consentAcceptedAt: timestamp('consent_accepted_at', { withTimezone: true }),
 		consentTermsVersion: text('consent_terms_version'),
+		/**
+		 * Quando o perfil ficou completo. Null = aluno criado via link de
+		 * auto-preenchimento e ainda não preencheu os próprios dados.
+		 */
+		profileCompletedAt: timestamp('profile_completed_at', { withTimezone: true }),
 		deletedAt: timestamp('deleted_at', { withTimezone: true }),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
@@ -213,6 +229,9 @@ export const trainingPreferences = pgTable(
 			.references(() => students.id, { onDelete: 'cascade' })
 			.unique(),
 		experienceLevel: experienceEnum('experience_level').default('iniciante').notNull(),
+		prescribedDifficulty: prescribedDifficultyEnum('prescribed_difficulty')
+			.default('media')
+			.notNull(),
 		preferredModalities: jsonb('preferred_modalities').$type<string[]>().default([]).notNull(),
 		weeklySessions: integer('weekly_sessions').default(3).notNull(),
 		minutesPerSession: integer('minutes_per_session').default(60).notNull(),

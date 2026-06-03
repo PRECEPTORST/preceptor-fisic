@@ -1,10 +1,11 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { getProfessionalByAuthId, createStudentTx } from '$lib/server/queries';
 import { signStudentToken } from '$lib/server/aluno-token';
 import { sendStudentMagicLink } from '$lib/server/email';
 import { env as pubEnv } from '$env/dynamic/public';
 import { logger } from '$lib/server/logger';
+import { error } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load = (async ({ parent }) => {
@@ -16,8 +17,9 @@ export const load = (async ({ parent }) => {
 const SexEnum = z.enum(['feminino', 'masculino', 'outro', 'nao_informado']);
 const RiskEnum = z.enum(['baixo', 'moderado', 'alto', 'muito_alto']);
 const ExpEnum = z.enum(['iniciante', 'intermediario', 'avancado']);
+const DifficultyEnum = z.enum(['pequena', 'media', 'alta']);
 
-const inputSchema = z.object({
+const fullSchema = z.object({
 	name: z.string().min(2).max(160),
 	birthDate: z.string().optional().nullable(),
 	sex: SexEnum,
@@ -32,7 +34,13 @@ const inputSchema = z.object({
 	weeklySessions: z.number().int().min(1).max(7),
 	minutesPerSession: z.number().int().min(15).max(180),
 	experienceLevel: ExpEnum,
-	equipment: z.string().optional().default('') // CSV
+	prescribedDifficulty: DifficultyEnum.default('media')
+});
+
+const linkSchema = z.object({
+	name: z.string().min(2).max(160),
+	email: z.string().email(),
+	birthDate: z.string().min(1)
 });
 
 function parseList(s: string): string[] {
@@ -42,13 +50,76 @@ function parseList(s: string): string[] {
 		.filter(Boolean);
 }
 
+function appBaseUrl(origin: string): string {
+	return (pubEnv.PUBLIC_APP_URL?.replace(/\/$/, '') || origin).replace(/\/$/, '');
+}
+
 export const actions: Actions = {
-	default: async ({ request, locals }) => {
+	default: async ({ request, locals, url }) => {
 		if (!locals.user) return fail(401, { error: 'não autenticado' });
 		const professional = await getProfessionalByAuthId(locals.user.id);
 		if (!professional) return fail(401, { error: 'professional não encontrado' });
 
 		const fd = await request.formData();
+		const mode = String(fd.get('mode') ?? 'completo') === 'link' ? 'link' : 'completo';
+
+		// ───────── MODO LINK: só nome, e-mail e data de nasc. ─────────
+		if (mode === 'link') {
+			const raw = {
+				name: String(fd.get('name') ?? '').trim(),
+				email: String(fd.get('email') ?? '').trim(),
+				birthDate: String(fd.get('birthDate') ?? '').trim()
+			};
+			const parsed = linkSchema.safeParse(raw);
+			if (!parsed.success) {
+				return fail(400, {
+					error: 'Preencha nome, e-mail e data de nascimento.',
+					issues: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+					mode,
+					values: raw
+				});
+			}
+
+			const id = await createStudentTx({
+				professionalId: professional.id,
+				name: parsed.data.name,
+				birthDate: parsed.data.birthDate,
+				sex: 'nao_informado',
+				email: parsed.data.email,
+				consentAcceptedAt: new Date(),
+				diagnoses: [],
+				medications: [],
+				cardiovascularRisk: 'baixo',
+				experienceLevel: 'iniciante',
+				prescribedDifficulty: 'media',
+				weeklySessions: 3,
+				minutesPerSession: 60,
+				goals: [],
+				profileComplete: false
+			});
+
+			const token = signStudentToken(id);
+			const fillUrl = `${appBaseUrl(url.origin)}/a/${id}/completar?t=${token}`;
+
+			// Dispara o e-mail com o link (best-effort, não bloqueia).
+			try {
+				await sendStudentMagicLink({
+					to: parsed.data.email,
+					studentName: parsed.data.name,
+					professionalName: professional.name,
+					magicLinkUrl: fillUrl
+				});
+			} catch (err) {
+				logger.error(
+					{ studentId: id, err: String(err).slice(0, 200) },
+					'student.fill_link.email_failed'
+				);
+			}
+
+			return { mode, fillUrl, studentName: parsed.data.name };
+		}
+
+		// ───────── MODO COMPLETO ─────────
 		const raw = {
 			name: String(fd.get('name') ?? '').trim(),
 			birthDate: String(fd.get('birthDate') ?? '').trim() || null,
@@ -64,14 +135,15 @@ export const actions: Actions = {
 			weeklySessions: Number(fd.get('weeklySessions') ?? 3),
 			minutesPerSession: Number(fd.get('minutesPerSession') ?? 60),
 			experienceLevel: String(fd.get('experienceLevel') ?? 'iniciante'),
-			equipment: String(fd.get('equipment') ?? '')
+			prescribedDifficulty: String(fd.get('prescribedDifficulty') ?? 'media')
 		};
 
-		const parsed = inputSchema.safeParse(raw);
+		const parsed = fullSchema.safeParse(raw);
 		if (!parsed.success) {
 			return fail(400, {
 				error: 'dados inválidos',
 				issues: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+				mode,
 				values: raw
 			});
 		}
@@ -90,21 +162,18 @@ export const actions: Actions = {
 			medications: parseList(parsed.data.medications).map((name) => ({ name })),
 			cardiovascularRisk: parsed.data.cardiovascularRisk,
 			experienceLevel: parsed.data.experienceLevel,
+			prescribedDifficulty: parsed.data.prescribedDifficulty,
 			weeklySessions: parsed.data.weeklySessions,
 			minutesPerSession: parsed.data.minutesPerSession,
 			goals: parsed.data.goals,
-			equipmentAvailable: parseList(parsed.data.equipment)
+			profileComplete: true
 		});
 
 		// Se o aluno tem email cadastrado, dispara o magic-link automaticamente.
-		// Não bloqueia: erro de email não impede criação do aluno.
 		if (parsed.data.email) {
 			try {
 				const token = signStudentToken(id);
-				const appUrl = (
-					pubEnv.PUBLIC_APP_URL?.replace(/\/$/, '') ?? 'https://preceptor-fisic.vercel.app'
-				);
-				const magicLinkUrl = `${appUrl}/a/${id}?t=${token}`;
+				const magicLinkUrl = `${appBaseUrl(url.origin)}/a/${id}?t=${token}`;
 				await sendStudentMagicLink({
 					to: parsed.data.email,
 					studentName: parsed.data.name,

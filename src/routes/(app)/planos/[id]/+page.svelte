@@ -663,7 +663,7 @@
 						>⚠ {redCount} restrição{redCount > 1 ? 'ões' : ''} crítica{redCount > 1 ? 's' : ''}</span>
 					{/if}
 					<Button type="submit" disabled={!canPublish || publishing}>
-						{publishing ? 'Publicando…' : '✓ Publicar pro aluno'}
+						{publishing ? 'Publicando…' : '✓ Publicar para o aluno'}
 					</Button>
 				</form>
 			{:else if isPublished}

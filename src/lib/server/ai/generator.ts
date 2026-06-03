@@ -283,6 +283,15 @@ function buildUserPrompt(ctx: StudentContext, ragContext: string, notes?: string
 	lines.push('## PREFERÊNCIAS DE TREINO');
 	if (p) {
 		lines.push(`- Experiência: ${p.experienceLevel}`);
+		const difficultyGuide: Record<string, string> = {
+			pequena:
+				'PEQUENA — priorizar exercícios de baixa complexidade técnica (máquinas guiadas, peso do corpo, movimentos uni-articulares simples), baixo risco de lesão e fácil execução. Evitar exercícios técnicos como agachamento livre, levantamento terra, arranco, ou movimentos olímpicos.',
+			media:
+				'MÉDIA — mix equilibrado: incluir alguns exercícios livres e multi-articulares com progressão moderada, mas sem variações muito avançadas.',
+			alta: 'ALTA — pode prescrever exercícios complexos e desafiadores (peso livre, multi-articulares, variações avançadas, unilaterais instáveis) compatíveis com as restrições clínicas.'
+		};
+		const diff = p.prescribedDifficulty ?? 'media';
+		lines.push(`- Dificuldade-alvo dos exercícios: ${difficultyGuide[diff] ?? difficultyGuide.media}`);
 		lines.push(`- Frequência: ${p.weeklySessions}x/semana, ${p.minutesPerSession} min/sessão`);
 		lines.push(`- Objetivos: ${(p.goals ?? []).join(', ')}`);
 		if ((p.preferredModalities ?? []).length > 0)
@@ -327,6 +336,9 @@ function buildUserPrompt(ctx: StudentContext, ragContext: string, notes?: string
 	);
 	lines.push(
 		'4. CONCISÃO: gere EXATAMENTE 2 sessões semanais (não 3, não mais — qualidade > quantidade). `execution_notes` de cada exercício em 1-2 frases curtas, direto ao ponto. monitoring_parameters: 2-3 itens essenciais. restrictions: só se houver red flag clínico real.'
+	);
+	lines.push(
+		'5. RESPEITE a Dificuldade-alvo dos exercícios definida nas PREFERÊNCIAS. A escolha dos exercícios deve refletir esse nível de complexidade técnica, independente do nível de experiência informado.'
 	);
 
 	return lines.join('\n');
