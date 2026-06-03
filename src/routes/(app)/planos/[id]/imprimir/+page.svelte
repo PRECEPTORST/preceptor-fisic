@@ -312,7 +312,7 @@
 
 <style>
 	:global(body) {
-		background: #2a2a2a;
+		background: #fff;
 	}
 	/* Paleta do design system (violet accent) sobre papel branco. */
 	.print-root {
@@ -327,8 +327,9 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 16px;
+		gap: 0;
 		padding: 24px 0 80px;
+		background: #fff;
 	}
 
 	.page {
@@ -339,10 +340,15 @@
 		background: #fff;
 		color: var(--ink);
 		font: 400 11px/1.45 var(--font-print);
-		box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
 		position: relative;
 		display: flex;
 		flex-direction: column;
+		/* Divisor sutil entre páginas na visualização (escondido no print).
+		   Sem sombra/papel-sobre-mesa: fundo branco contínuo, só uma linha
+		   tênue marca onde uma página termina e a outra começa. */
+	}
+	.page + .page {
+		border-top: 1px dashed var(--line);
 	}
 
 	.page-head {
@@ -553,6 +559,9 @@
 			min-height: auto;
 			box-shadow: none;
 			padding: 12mm 12mm 10mm;
+		}
+		.page + .page {
+			border-top: none;
 		}
 		.break-before {
 			break-before: page;
