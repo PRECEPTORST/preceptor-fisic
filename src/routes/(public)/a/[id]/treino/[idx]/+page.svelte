@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
 	import { onMount } from 'svelte';
+	import { classifyExercise, loadInputHint } from '$lib/exercise-load';
 	import type { PageData, ActionData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -68,6 +69,22 @@
 
 	const ex = $derived(exercises[activeIdx]);
 	const exVideo = $derived(ex ? (videoMap[ex.name]?.videoUrl ?? null) : null);
+
+	// Classificação do exercício pra escolher o input de carga (kg / nada / segundos).
+	// Mantemos os mesmos campos `weight` + `reps` no setLog: pra `time` o "weight"
+	// vira "segundos" (mesmo input, label diferente); pra `bodyweight` esconde
+	// o input de carga e mantém só reps (tonelagem é estimada server-side).
+	const exKind = $derived(
+		ex
+			? classifyExercise({
+					name: ex.name,
+					equipment: (ex as { equipment?: string }).equipment ?? null,
+					muscle_groups: ex.muscle_groups,
+					body_part: (ex as { body_part?: string }).body_part ?? null
+				})
+			: 'weight'
+	);
+	const exHint = $derived(loadInputHint(exKind));
 	const completedCount = $derived(Object.values(completed).filter(Boolean).length);
 	const allCompleted = $derived(completedCount === exercises.length);
 
@@ -203,12 +220,15 @@
 					</div>
 				{/if}
 
-				<!-- Registro por série: peso + reps de cada série feita.
-				     Alimenta a carga externa (Σ peso×reps) com precisão. -->
+				<!-- Registro por série: campo de carga muda por tipo de exercício.
+				     - weight     → kg × reps  (tonelagem = kg × reps × sets)
+				     - bodyweight → só reps    (tonelagem estimada via peso do aluno)
+				     - time       → s × séries (carga interna = duração × RPE)
+				     Helper em $lib/exercise-load.ts. -->
 				<div class="sets-log">
 					<div class="sets-log-head">
-						<span class="lbl">Como foi cada série</span>
-						{#if (setLogs[activeIdx]?.length ?? 0) > 1}
+						<span class="lbl">Como foi cada série · {exHint.help}</span>
+						{#if exKind === 'weight' && (setLogs[activeIdx]?.length ?? 0) > 1}
 							<button type="button" class="repeat-btn" onclick={() => repeatWeight(activeIdx)}>
 								= repetir peso da 1ª
 							</button>
@@ -218,17 +238,21 @@
 						{#each setLogs[activeIdx] ?? [] as row, si (si)}
 							<div class="set-row">
 								<span class="set-num">{si + 1}ª</span>
-								<div class="set-field">
-									<input
-										type="text"
-										inputmode="decimal"
-										bind:value={row.weight}
-										placeholder={ex.load_guidance ? '—' : 'peso'}
-										class="set-input"
-									/>
-									<span class="set-unit">kg</span>
-								</div>
-								<span class="set-x">×</span>
+								{#if exKind !== 'bodyweight'}
+									<div class="set-field">
+										<input
+											type="text"
+											inputmode={exKind === 'time' ? 'numeric' : 'decimal'}
+											bind:value={row.weight}
+											placeholder={exHint.placeholder}
+											class="set-input"
+										/>
+										<span class="set-unit">{exHint.unit}</span>
+									</div>
+									<span class="set-x">×</span>
+								{:else}
+									<span class="set-x" style="color:var(--ink-3);font-size:11px">peso corporal ·</span>
+								{/if}
 								<div class="set-field">
 									<input
 										type="text"

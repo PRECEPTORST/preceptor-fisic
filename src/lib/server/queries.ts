@@ -1056,6 +1056,7 @@ export type CompleteStudentSelfFillInput = {
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
 	prescribedDifficulty: 'pequena' | 'media' | 'alta';
+	trainingSplit?: 'auto' | 'full_body' | 'upper_lower' | 'push_pull_legs';
 	weeklySessions: number;
 	minutesPerSession: number;
 	goals: string[];
