@@ -1,24 +1,17 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import type { PageData } from './$types';
+	import type { PlanExercise } from '$lib/server/queries';
 
 	let { data }: { data: PageData } = $props();
 	const plan = $derived(data.plan);
 	const planData = $derived(plan.planData);
 	const sessions = $derived(planData.weekly_sessions ?? []);
-	const restrictions = $derived(planData.restrictions ?? []);
+	const aerobics = $derived(planData.aerobic_prescriptions ?? []);
 	const pro = $derived(data.professional);
 	const studentDetail = $derived(data.studentDetail);
 	const student = $derived(studentDetail?.student);
-	const hp = $derived(studentDetail?.healthProfile);
 	const prefs = $derived(studentDetail?.preferences);
-
-	const diagnoses = $derived(((hp?.diagnoses as { label: string }[] | null) ?? []).map((d) => d.label));
-	const meds = $derived(
-		((hp?.medications as { name: string; dose?: string; frequency?: string }[] | null) ?? []).map(
-			(m) => m.name + (m.dose ? ' ' + m.dose : '') + (m.frequency ? ' · ' + m.frequency : '')
-		)
-	);
 
 	const age = $derived.by(() => {
 		if (!student?.birthDate) return null;
@@ -29,29 +22,118 @@
 		if (m < 0 || (m === 0 && now.getDate() < b.getDate())) a--;
 		return a;
 	});
-	const bmi = $derived.by(() => {
-		const w = student?.weightKg;
-		const h = student?.heightCm;
-		if (!w || !h) return null;
-		return (w / Math.pow(h / 100, 2)).toFixed(1);
-	});
 
-	function levelLabel(l: string) {
-		return l === 'red' ? 'CRÍTICO' : l === 'yellow' ? 'CUIDADO' : 'OK';
+	function fmtDate(d: Date | string | null | undefined): string {
+		if (!d) return '—';
+		return new Date(d).toLocaleDateString('pt-BR');
 	}
-	function levelColor(l: string) {
-		return l === 'red' ? 'var(--danger)' : l === 'yellow' ? 'var(--warn)' : 'var(--success)';
+
+	// ── Período do programa ──
+	const startDate = $derived(new Date(plan.publishedAt ?? plan.createdAt));
+	const programWeeks = $derived(planData.program_weeks ?? 16);
+	const endDate = $derived(new Date(startDate.getTime() + programWeeks * 7 * 86_400_000));
+
+	// ── Objetivo (capa) ──
+	const GOAL_LABELS: Record<string, string> = {
+		emagrecimento: 'emagrecimento',
+		hipertrofia: 'hipertrofia',
+		forca: 'ganho de força',
+		condicionamento_cardiovascular: 'condicionamento cardiovascular',
+		qualidade_de_vida: 'qualidade de vida e saúde geral',
+		reabilitacao: 'reabilitação',
+		performance: 'performance'
+	};
+	const goalsText = $derived(
+		((prefs?.goals as string[] | null) ?? []).map((g) => GOAL_LABELS[g] ?? g).join(', ')
+	);
+	const objective = $derived(
+		planData.objective ||
+			(goalsText ? `Promover ${goalsText} por meio do programa de treinamento prescrito.` : '') ||
+			planData.summary ||
+			'—'
+	);
+
+	// ── Letra da sessão de força (A, B, C...) ──
+	const LETTERS = 'ABCDEFGH';
+	function sessionLetter(i: number): string {
+		return LETTERS[i] ?? String(i + 1);
+	}
+
+	// ── Agenda semanal ──
+	const WEEKDAYS = [
+		{ key: 'dom', label: 'Dom' },
+		{ key: 'seg', label: 'Seg' },
+		{ key: 'ter', label: 'Ter' },
+		{ key: 'qua', label: 'Qua' },
+		{ key: 'qui', label: 'Qui' },
+		{ key: 'sex', label: 'Sex' },
+		{ key: 'sab', label: 'Sáb' }
+	];
+	const scheduleItems = $derived([
+		...sessions.map((s, i) => ({
+			label: `Treino de Força ${sessionLetter(i)}`,
+			day: s.day_of_week ?? null
+		})),
+		...aerobics.map((a) => ({
+			label: `Treino Aeróbio${a.means ? ' · ' + a.means : ''}${a.weekly_frequency ? ' (' + a.weekly_frequency + ')' : ''}`,
+			day: null as string | null
+		}))
+	]);
+	function sessionsForDay(key: string) {
+		return scheduleItems.filter((it) => it.day === key);
+	}
+
+	// ── Helpers de exibição da ficha ──
+	const MUSCLE_ACTION_LABEL: Record<string, string> = {
+		isotonica: 'Isotônica',
+		isometrica: 'Isométrica',
+		auxotonico: 'Auxotônico',
+		isocinetica: 'Isocinética'
+	};
+	function fmtRest(ex: PlanExercise): string {
+		if (ex.rest_label) return ex.rest_label;
+		const s = ex.rest_seconds;
+		if (s == null) return '-';
+		if (s === 0) return '-';
+		return s % 60 === 0 ? `${s / 60}min` : `${s}s`;
+	}
+	function fmtSeries(ex: PlanExercise): string {
+		return ex.series_label ?? (ex.sets != null ? String(ex.sets) : '-');
+	}
+	function fmtIntensity(ex: PlanExercise): string {
+		return ex.intensity || ex.load_guidance || '-';
+	}
+	function fmtCadence(ex: PlanExercise): string {
+		return ex.cadence || ex.tempo || '-';
+	}
+	function fmtAction(ex: PlanExercise): string {
+		return ex.muscle_action ? (MUSCLE_ACTION_LABEL[ex.muscle_action] ?? '-') : '-';
+	}
+	function fmtRom(ex: PlanExercise): string {
+		return ex.range_of_motion || '-';
+	}
+
+	// Linhas da tabela de força: aquecimento (marcado) + principal + volta à calma
+	function strengthRows(s: (typeof sessions)[number]) {
+		const rows: { ex: PlanExercise; tag?: string }[] = [];
+		for (const ex of s.warmup ?? []) rows.push({ ex, tag: 'aquecimento' });
+		for (const ex of s.main ?? []) rows.push({ ex });
+		for (const ex of s.cooldown ?? []) rows.push({ ex, tag: 'volta à calma' });
+		return rows;
 	}
 
 	function doPrint() {
 		window.print();
 	}
-
 	const today = new Date().toLocaleDateString('pt-BR');
+
+	const proTitle = $derived(
+		(pro.specialty ? pro.specialty.replace(/_/g, ' ') : 'Profissional de Educação Física')
+	);
 </script>
 
 <svelte:head>
-	<title>Plano · {student?.name ?? '—'} · {today}</title>
+	<title>Prescrição · {student?.name ?? '—'} · {today}</title>
 </svelte:head>
 
 <!-- Floating actions (não imprime) -->
@@ -60,216 +142,372 @@
 	<button class="print-btn" onclick={doPrint}>⎙ Imprimir / Salvar PDF</button>
 </div>
 
-<article class="print-doc">
-	<!-- HEADER -->
-	<header class="doc-header">
-		<div class="brand">
-			<div class="brand-mark">P</div>
-			<div>
-				<div class="brand-name">Preceptor Fisic</div>
-				<div class="brand-tagline">Prescrição clínica · diretrizes auditáveis</div>
-			</div>
-		</div>
-		<div class="doc-meta">
-			<div class="eyebrow">PRESCRIÇÃO · {today}</div>
-			<div class="doc-id">№ {plan.id.slice(0, 8).toUpperCase()}</div>
-		</div>
-	</header>
+<!-- Snippet do rodapé com assinatura (repete em cada página) -->
+{#snippet signature()}
+	<div class="signature">
+		<div class="sig-line"></div>
+		<div class="sig-name">{pro.name}</div>
+		<div class="sig-sub">{proTitle}</div>
+		<div class="sig-sub">{pro.cref ? `CREF ${pro.cref.replace(/^CREF\s*/i, '')}` : 'CREF —'}</div>
+	</div>
+{/snippet}
 
-	<hr class="dbl-rule" />
-
-	<!-- PROFESSIONAL + STUDENT -->
-	<section class="row-2col">
-		<div>
-			<div class="eyebrow">Profissional</div>
-			<div class="big">{pro.name}</div>
-			<div class="sub">{pro.cref ?? 'CREF —'}{pro.specialty ? ' · ' + pro.specialty.replace(/_/g, ' ') : ''}</div>
+{#snippet pageHeader()}
+	<div class="page-head">
+		<div class="ph-brand">{pro.name}</div>
+		<div class="ph-student">
+			{student?.name ?? '—'}
+			{#if student?.birthDate}<span> · Nasc.: {fmtDate(student.birthDate)}</span>{/if}
+			{#if age != null}<span> · {age} anos</span>{/if}
 		</div>
-		<div>
-			<div class="eyebrow">Aluno</div>
-			<div class="big">{student?.name ?? '—'}</div>
-			<div class="sub">
-				{age ? age + ' anos · ' : ''}{student?.sex ?? ''}
-				{student?.weightKg ? ' · ' + student.weightKg + 'kg' : ''}
-				{student?.heightCm ? ' · ' + student.heightCm + 'cm' : ''}
-				{bmi ? ' · IMC ' + bmi : ''}
-			</div>
-		</div>
-	</section>
+	</div>
+{/snippet}
 
-	<!-- CLINICAL CONTEXT -->
-	{#if diagnoses.length > 0 || meds.length > 0 || hp?.cardiovascularRisk}
-		<section class="block">
-			<div class="eyebrow">Contexto clínico</div>
-			<div class="grid-2">
-				{#if diagnoses.length > 0}
-					<div>
-						<div class="lbl">Diagnósticos</div>
-						<div class="tags">
-							{#each diagnoses as d (d)}<span class="tag tag-warn">{d}</span>{/each}
-						</div>
-					</div>
-				{/if}
-				{#if meds.length > 0}
-					<div>
-						<div class="lbl">Medicações</div>
-						<div class="tags">
-							{#each meds as m (m)}<span class="tag tag-info">{m}</span>{/each}
-						</div>
-					</div>
-				{/if}
+<div class="print-root">
+	<!-- ═══════════ CAPA ═══════════ -->
+	<article class="page">
+		{@render pageHeader()}
+
+		<div class="cover-title">Prescrição de Exercício Físico</div>
+
+		<section class="cover-block">
+			<div class="cover-lbl">Aluno(a)</div>
+			<div class="cover-val">{student?.name ?? '—'}</div>
+			<div class="cover-meta">
+				{#if student?.birthDate}Data de nascimento: {fmtDate(student.birthDate)}{/if}
+				{#if age != null} · Idade: {age} anos{/if}
 			</div>
-			{#if hp?.cardiovascularRisk}
-				<div class="lbl" style="margin-top:10px">Risco cardiovascular: <span class="num">{hp.cardiovascularRisk.replace('_', ' ')}</span></div>
-			{/if}
 		</section>
-	{/if}
 
-	<!-- SUMMARY -->
-	<section class="block">
-		<div class="eyebrow">Resumo do plano</div>
-		<p class="prose">{planData.summary ?? '—'}</p>
-		{#if planData.progression_strategy}
-			<div class="lbl" style="margin-top:14px">Estratégia de progressão</div>
-			<p class="prose">{planData.progression_strategy}</p>
-		{/if}
-	</section>
-
-	<!-- RESTRICTIONS -->
-	{#if restrictions.length > 0}
-		<section class="block">
-			<div class="eyebrow">Restrições e cuidados clínicos · {restrictions.length}</div>
-			{#each restrictions as r, i (i)}
-				<div class="restriction-{r.level}">
-					<div class="restriction-head">
-						<span class="badge" style="color:{levelColor(r.level)};border-color:{levelColor(r.level)}"
-							>{levelLabel(r.level)}</span
-						>
-						<span class="restriction-title">{r.title}</span>
-					</div>
-					<p class="prose">{r.description}</p>
-					{#if r.affected_exercises.length > 0}
-						<div class="affected">
-							<span class="lbl">Exercícios afetados:</span> {r.affected_exercises.join(' · ')}
-						</div>
-					{/if}
-				</div>
-			{/each}
+		<section class="cover-block">
+			<div class="cover-lbl">Objetivo</div>
+			<p class="cover-text">{objective}</p>
 		</section>
-	{/if}
 
-	<!-- SESSIONS -->
-	{#each sessions as s, i (i)}
-		<section class="session" class:break-before={i > 0}>
-			<header class="session-head">
-				<div>
-					<div class="eyebrow">Sessão {i + 1}{s.duration_minutes ? ' · ' + s.duration_minutes + ' min' : ''}</div>
-					<h2 class="session-title">{s.label ?? 'Sessão ' + (i + 1)}</h2>
-					{#if s.focus}<div class="sub">Foco: {s.focus}</div>{/if}
-				</div>
-			</header>
-
-			{#if s.warmup && s.warmup.length > 0}
-				<div class="lbl" style="margin-top:12px">Aquecimento</div>
-				<table class="ex-table">
-					<tbody>
-						{#each s.warmup as ex, j (j)}
-							<tr>
-								<td class="num idx">{String(j + 1).padStart(2, '0')}</td>
-								<td class="ex-name">{ex.name}</td>
-								<td class="num">{ex.sets ?? '—'}×{ex.reps ?? '—'}</td>
-								<td class="num">{ex.rest_seconds ?? 0}s</td>
-								<td>{ex.load_guidance ?? ''}</td>
-							</tr>
+		<section class="cover-block">
+			<div class="cover-lbl">Programa semanal</div>
+			<table class="tbl schedule">
+				<thead>
+					<tr>
+						{#each WEEKDAYS as d (d.key)}<th>{d.label}</th>{/each}
+					</tr>
+				</thead>
+				<tbody>
+					<tr>
+						{#each WEEKDAYS as d (d.key)}
+							<td>
+								{#each sessionsForDay(d.key) as it (it.label)}
+									<div class="sched-cell">{it.label}</div>
+								{/each}
+							</td>
 						{/each}
-					</tbody>
-				</table>
+					</tr>
+				</tbody>
+			</table>
+			<ul class="sched-legend">
+				{#each scheduleItems as it (it.label)}
+					<li>{it.label}{it.day ? ` — ${WEEKDAYS.find((w) => w.key === it.day)?.label}` : ''}</li>
+				{/each}
+			</ul>
+		</section>
+
+		<section class="cover-block">
+			<div class="cover-lbl">Período de realização do programa</div>
+			<div class="cover-val small">{fmtDate(startDate)} a {fmtDate(endDate)} ({programWeeks} semanas)</div>
+		</section>
+
+		{@render signature()}
+	</article>
+
+	<!-- ═══════════ TREINOS DE FORÇA ═══════════ -->
+	{#each sessions as s, i (i)}
+		<article class="page break-before">
+			{@render pageHeader()}
+			<div class="train-title">TREINO DE FORÇA {sessionLetter(i)}</div>
+			{#if s.focus}<div class="train-focus">{s.focus}</div>{/if}
+
+			<table class="tbl strength">
+				<thead>
+					<tr>
+						<th class="col-ex">Exercício</th>
+						<th>Intensidade</th>
+						<th>Séries</th>
+						<th>Repetições</th>
+						<th>Pausa</th>
+						<th>Ação muscular</th>
+						<th>Cadência</th>
+						<th>Amplitude de movimento</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each strengthRows(s) as row (row.ex.name + (row.tag ?? ''))}
+						<tr>
+							<td class="col-ex">
+								<span class="ex-name">{row.ex.name}</span>
+								{#if row.tag}<span class="ex-tag">({row.tag})</span>{/if}
+							</td>
+							<td>{fmtIntensity(row.ex)}</td>
+							<td>{fmtSeries(row.ex)}</td>
+							<td>{row.ex.reps ?? '-'}</td>
+							<td>{fmtRest(row.ex)}</td>
+							<td>{fmtAction(row.ex)}</td>
+							<td>{fmtCadence(row.ex)}</td>
+							<td>{fmtRom(row.ex)}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+
+			{#if s.observations}
+				<div class="obs"><strong>Observações:</strong> {s.observations}</div>
 			{/if}
 
-			{#if s.main && s.main.length > 0}
-				<div class="lbl" style="margin-top:14px">Sessão principal</div>
-				<table class="ex-table">
+			{@render signature()}
+		</article>
+	{/each}
+
+	<!-- ═══════════ TREINO AERÓBIO ═══════════ -->
+	{#if aerobics.length > 0}
+		<article class="page break-before">
+			{@render pageHeader()}
+			<div class="train-title">TREINO AERÓBIO</div>
+
+			{#each aerobics as a (a.means + a.intensity)}
+				<table class="tbl aerobic">
 					<thead>
 						<tr>
-							<th class="idx">#</th>
-							<th>Exercício</th>
-							<th class="num-col">Sets×Reps</th>
-							<th class="num-col">Descanso</th>
+							<th>Meio</th>
+							<th>Método</th>
+							<th>Pausa</th>
 							<th>Intensidade</th>
+							<th>Volume</th>
 						</tr>
 					</thead>
 					<tbody>
-						{#each s.main as ex, j (j)}
-							<tr>
-								<td class="num idx">{String(j + 1).padStart(2, '0')}</td>
-								<td>
-									<div class="ex-name">{ex.name}</div>
-									{#if ex.muscle_groups && ex.muscle_groups.length > 0}
-										<div class="ex-muscles">{ex.muscle_groups.join(' · ')}</div>
-									{/if}
-									{#if ex.execution_notes}
-										<div class="ex-notes">{ex.execution_notes}</div>
-									{/if}
-									{#if ex.contraindications && ex.contraindications.length > 0}
-										<div class="ex-contra">⚠ Evitar: {ex.contraindications.join('; ')}</div>
-									{/if}
-								</td>
-								<td class="num">{ex.sets ?? '—'}×{ex.reps ?? '—'}</td>
-								<td class="num">{ex.rest_seconds ?? 0}s</td>
-								<td class="intensity">{ex.load_guidance ?? '—'}</td>
-							</tr>
-						{/each}
+						<tr>
+							<td>{a.means}{a.weekly_frequency ? ` (${a.weekly_frequency})` : ''}</td>
+							<td>{a.method}</td>
+							<td>{a.pause || '-'}</td>
+							<td>{a.intensity}</td>
+							<td>{a.volume}</td>
+						</tr>
 					</tbody>
 				</table>
+			{/each}
+
+			{#if aerobics.some((a) => a.observations)}
+				<div class="obs">
+					<strong>Observações:</strong>
+					{aerobics
+						.map((a) => a.observations)
+						.filter(Boolean)
+						.join(' ')}
+				</div>
 			{/if}
 
-			{#if s.cooldown && s.cooldown.length > 0}
-				<div class="lbl" style="margin-top:14px">Volta à calma</div>
-				<table class="ex-table">
-					<tbody>
-						{#each s.cooldown as ex, j (j)}
-							<tr>
-								<td class="num idx">{String(j + 1).padStart(2, '0')}</td>
-								<td class="ex-name">{ex.name}</td>
-								<td class="num">{ex.sets ?? '—'}×{ex.reps ?? '—'}</td>
-								<td class="num">{ex.rest_seconds ?? 0}s</td>
-								<td>{ex.load_guidance ?? ''}</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			{/if}
-		</section>
-	{/each}
-
-	<!-- FOOTER -->
-	<footer class="doc-footer">
-		<hr class="dbl-rule" />
-		<div class="footer-grid">
-			<div>
-				<div class="eyebrow">Validade</div>
-				<div class="sub">Reavaliar em 4-8 semanas conforme protocolo.</div>
-			</div>
-			<div>
-				<div class="eyebrow">Assinatura profissional</div>
-				<div class="signature-line"></div>
-				<div class="sub">{pro.name} · {pro.cref ?? 'CREF —'}</div>
-			</div>
-		</div>
-		<div class="footer-disc">
-			Documento gerado por Preceptor Fisic · plano #{plan.id.slice(0, 8).toUpperCase()} · {today}.
-			Recomendações fundamentadas em diretrizes ACSM, ESSA, OMS e literatura peer-reviewed indexada.
-		</div>
-	</footer>
-</article>
+			{@render signature()}
+		</article>
+	{/if}
+</div>
 
 <style>
 	:global(body) {
-		background: var(--bg-0);
+		background: #525659;
+	}
+	/* Paleta teal do modelo */
+	.print-root {
+		--teal: #0f9d8f;
+		--teal-dark: #0c7a70;
+		--ink: #1a1a1a;
+		--line: #c8d6d4;
+		--zebra: #f2f8f7;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 16px;
+		padding: 24px 0 80px;
 	}
 
-	.no-print {
+	.page {
+		width: 210mm;
+		min-height: 297mm;
+		box-sizing: border-box;
+		padding: 18mm 16mm 16mm;
+		background: #fff;
+		color: var(--ink);
+		font: 400 11px/1.45 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+		box-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+		position: relative;
+		display: flex;
+		flex-direction: column;
 	}
+
+	.page-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-end;
+		gap: 16px;
+		padding-bottom: 8px;
+		margin-bottom: 18px;
+		border-bottom: 2px solid var(--teal);
+	}
+	.ph-brand {
+		font: 700 15px 'Segoe UI', sans-serif;
+		color: var(--teal-dark);
+		letter-spacing: -0.01em;
+	}
+	.ph-student {
+		font-size: 10.5px;
+		color: #444;
+		text-align: right;
+	}
+
+	/* ── Capa ── */
+	.cover-title {
+		font: 700 26px 'Segoe UI', sans-serif;
+		color: var(--teal-dark);
+		letter-spacing: -0.02em;
+		margin: 8px 0 24px;
+	}
+	.cover-block {
+		margin-bottom: 22px;
+	}
+	.cover-lbl {
+		font: 700 10px 'Segoe UI', sans-serif;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--teal);
+		margin-bottom: 6px;
+	}
+	.cover-val {
+		font: 600 18px 'Segoe UI', sans-serif;
+		color: var(--ink);
+	}
+	.cover-val.small {
+		font-size: 14px;
+	}
+	.cover-meta {
+		font-size: 11px;
+		color: #555;
+		margin-top: 3px;
+	}
+	.cover-text {
+		margin: 0;
+		font-size: 12.5px;
+		line-height: 1.6;
+		color: #222;
+	}
+	.sched-legend {
+		margin: 10px 0 0;
+		padding-left: 18px;
+		font-size: 11px;
+		color: #333;
+	}
+	.sched-legend li {
+		margin-bottom: 2px;
+	}
+	.sched-cell {
+		font-size: 9.5px;
+		line-height: 1.25;
+		margin-bottom: 2px;
+	}
+
+	/* ── Títulos de treino ── */
+	.train-title {
+		font: 700 18px 'Segoe UI', sans-serif;
+		color: #fff;
+		background: var(--teal);
+		padding: 9px 14px;
+		border-radius: 4px 4px 0 0;
+		letter-spacing: 0.02em;
+		font-style: italic;
+	}
+	.train-focus {
+		font-size: 11px;
+		color: #555;
+		margin: 6px 0 10px;
+	}
+
+	/* ── Tabelas ── */
+	.tbl {
+		width: 100%;
+		border-collapse: collapse;
+		margin-top: 0;
+		font-size: 10.5px;
+	}
+	.tbl th {
+		background: var(--teal);
+		color: #fff;
+		font-weight: 600;
+		text-align: center;
+		padding: 7px 6px;
+		border: 1px solid var(--teal-dark);
+		vertical-align: middle;
+	}
+	.tbl td {
+		border: 1px solid var(--line);
+		padding: 7px 6px;
+		text-align: center;
+		vertical-align: middle;
+	}
+	.tbl tbody tr:nth-child(even) td {
+		background: var(--zebra);
+	}
+	.strength .col-ex,
+	.tbl .col-ex {
+		text-align: left;
+		width: 26%;
+	}
+	.ex-name {
+		font-weight: 600;
+	}
+	.ex-tag {
+		display: block;
+		font-size: 9px;
+		color: #777;
+		font-style: italic;
+	}
+	.schedule th,
+	.schedule td {
+		width: 14.28%;
+	}
+	.schedule td {
+		height: 54px;
+		vertical-align: top;
+		text-align: center;
+	}
+
+	.obs {
+		margin-top: 10px;
+		font-size: 11px;
+		color: #333;
+		padding: 8px 10px;
+		background: var(--zebra);
+		border-left: 3px solid var(--teal);
+	}
+
+	/* ── Assinatura ── */
+	.signature {
+		margin-top: auto;
+		padding-top: 28px;
+		text-align: center;
+		align-self: center;
+	}
+	.sig-line {
+		width: 240px;
+		border-top: 1px solid #333;
+		margin: 0 auto 6px;
+	}
+	.sig-name {
+		font-weight: 700;
+		font-size: 12px;
+	}
+	.sig-sub {
+		font-size: 10px;
+		color: #555;
+	}
+
+	/* ── Toolbar ── */
 	.actions-bar {
 		position: fixed;
 		top: 16px;
@@ -282,388 +520,44 @@
 	.actions-bar .print-btn {
 		height: 40px;
 		padding: 0 18px;
-		border-radius: var(--r-2);
+		border-radius: 8px;
 		cursor: pointer;
-		font: 500 14px var(--font-sans);
-		border: 1px solid var(--ink-line-2);
-		background: var(--bg-3);
-		color: var(--ink-1);
+		font: 500 14px 'Segoe UI', sans-serif;
+		border: none;
+		color: #fff;
+	}
+	.actions-bar .back {
+		background: #444;
 	}
 	.actions-bar .print-btn {
-		background: var(--accent);
-		color: #0a0a0a;
-		border-color: var(--accent);
-		box-shadow: var(--glow-accent);
+		background: var(--teal);
 	}
 
-	.print-doc {
-		max-width: 920px;
-		margin: 0 auto;
-		padding: 48px 56px 80px;
-		background: var(--bg-0);
-		color: var(--ink-0);
-		font: 400 13px/1.5 var(--font-sans);
-	}
-
-	.doc-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		margin-bottom: 18px;
-	}
-	.brand {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-	.brand-mark {
-		width: 36px;
-		height: 36px;
-		border-radius: 8px;
-		background: linear-gradient(135deg, var(--accent), var(--accent-dim));
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 700 18px var(--font-sans);
-		color: #0a0a0a;
-		box-shadow: var(--glow-accent);
-	}
-	.brand-name {
-		font: 600 16px var(--font-sans);
-		letter-spacing: -0.015em;
-	}
-	.brand-tagline {
-		font: var(--label-mono);
-		color: var(--ink-3);
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		margin-top: 2px;
-	}
-	.doc-meta {
-		text-align: right;
-	}
-	.doc-id {
-		font: 500 14px var(--font-mono);
-		color: var(--ink-1);
-		margin-top: 4px;
-	}
-
-	.dbl-rule {
-		height: 0;
-		border: none;
-		border-top: 1px solid var(--accent);
-		border-bottom: 1px solid var(--ink-line-2);
-		margin: 12px 0 18px;
-		padding-top: 2px;
-	}
-
-	.eyebrow {
-		font: var(--label-mono);
-		text-transform: uppercase;
-		letter-spacing: 0.12em;
-		color: var(--ink-2);
-	}
-	.lbl {
-		font: var(--label-mono);
-		color: var(--accent);
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-	}
-	.big {
-		font: 600 22px var(--font-sans);
-		letter-spacing: -0.015em;
-		margin-top: 4px;
-		color: var(--ink-0);
-	}
-	.sub {
-		font: var(--body-sm);
-		color: var(--ink-2);
-		margin-top: 4px;
-	}
-	.prose {
-		font: 400 13px/1.6 var(--font-sans);
-		color: var(--ink-1);
-		margin: 6px 0 0;
-	}
-
-	.row-2col {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 32px;
-		padding: 14px 0;
-		border-bottom: 1px solid var(--ink-line);
-	}
-	.block {
-		padding: 18px 0;
-		border-bottom: 1px solid var(--ink-line);
-	}
-	.grid-2 {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 18px;
-		margin-top: 10px;
-	}
-
-	.tags {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 6px;
-		margin-top: 6px;
-	}
-	.tag {
-		display: inline-flex;
-		padding: 4px 10px;
-		font: 500 11px var(--font-sans);
-		border-radius: var(--r-pill);
-		border: 1px solid;
-	}
-	.tag-warn {
-		color: var(--warn);
-		border-color: var(--warn);
-		background: var(--warn-dim);
-	}
-	.tag-info {
-		color: var(--info);
-		border-color: var(--info);
-		background: var(--info-dim);
-	}
-
-	.restriction-red,
-	.restriction-yellow,
-	.restriction-green {
-		padding: 14px 18px;
-		border-left: 4px solid;
-		margin: 10px 0;
-		page-break-inside: avoid;
-	}
-	.restriction-red {
-		border-color: var(--danger);
-		background: var(--danger-dim);
-	}
-	.restriction-yellow {
-		border-color: var(--warn);
-		background: var(--warn-dim);
-	}
-	.restriction-green {
-		border-color: var(--success);
-		background: var(--success-dim);
-	}
-	.restriction-head {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		margin-bottom: 4px;
-	}
-	.badge {
-		font: var(--label-mono);
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		padding: 2px 8px;
-		border-radius: var(--r-pill);
-		border: 1px solid;
-		background: rgba(0, 0, 0, 0.3);
-	}
-	.restriction-title {
-		font: 600 14px var(--font-sans);
-		color: var(--ink-0);
-	}
-	.affected {
-		margin-top: 8px;
-		font: var(--body-sm);
-		color: var(--ink-2);
-	}
-
-	.session {
-		padding: 20px 0;
-		border-bottom: 1px solid var(--ink-line);
-		page-break-inside: avoid;
-	}
-	.session.break-before {
-		page-break-before: always;
-	}
-	.session-head {
-		display: flex;
-		justify-content: space-between;
-	}
-	.session-title {
-		font: 600 22px var(--font-sans);
-		letter-spacing: -0.015em;
-		margin: 4px 0 0;
-		color: var(--ink-0);
-	}
-
-	.ex-table {
-		width: 100%;
-		border-collapse: collapse;
-		margin-top: 6px;
-		font: 400 12.5px var(--font-sans);
-	}
-	.ex-table thead th {
-		font: var(--label-mono);
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--ink-2);
-		text-align: left;
-		padding: 8px 8px;
-		border-bottom: 1px solid var(--ink-line-2);
-	}
-	.ex-table thead th.num-col {
-		text-align: right;
-	}
-	.ex-table tbody td {
-		padding: 10px 8px;
-		border-bottom: 1px solid var(--ink-line);
-		vertical-align: top;
-		color: var(--ink-1);
-	}
-	.ex-table .idx {
-		width: 32px;
-		color: var(--ink-3);
-	}
-	.ex-table .num {
-		font: 500 12px var(--font-mono);
-		color: var(--ink-0);
-		font-variant-numeric: tabular-nums;
-		text-align: right;
-		white-space: nowrap;
-	}
-	.ex-name {
-		font: 500 13px var(--font-sans);
-		color: var(--ink-0);
-	}
-	.ex-muscles {
-		font: var(--label-mono);
-		color: var(--ink-3);
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		margin-top: 2px;
-	}
-	.ex-notes {
-		font: 400 12px/1.5 var(--font-sans);
-		color: var(--ink-2);
-		margin-top: 6px;
-	}
-	.ex-contra {
-		font: 400 12px var(--font-sans);
-		color: var(--warn);
-		margin-top: 4px;
-	}
-	.intensity {
-		font: 500 11px var(--font-mono);
-		color: var(--accent);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-	}
-
-	.doc-footer {
-		margin-top: 32px;
-	}
-	.footer-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 32px;
-	}
-	.signature-line {
-		height: 1px;
-		background: var(--ink-line-2);
-		margin: 26px 0 8px;
-	}
-	.footer-disc {
-		font: var(--label-mono);
-		color: var(--ink-3);
-		margin-top: 24px;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-	}
-
+	/* ── Impressão ── */
 	@media print {
 		:global(body) {
-			background: white !important;
-			color: black !important;
+			background: #fff;
 		}
 		.no-print {
 			display: none !important;
 		}
-		.print-doc {
-			max-width: 100%;
+		.print-root {
 			padding: 0;
-			background: white !important;
-			color: black !important;
+			gap: 0;
 		}
-		.print-doc :global(*) {
-			color-adjust: exact;
-			-webkit-print-color-adjust: exact;
+		.page {
+			width: auto;
+			min-height: auto;
+			box-shadow: none;
+			padding: 12mm 12mm 10mm;
+		}
+		.break-before {
+			break-before: page;
+			page-break-before: always;
 		}
 		@page {
 			size: A4;
-			margin: 18mm 14mm;
-		}
-		.brand-mark {
-			background: #6d5fa3 !important;
-			color: white !important;
-			box-shadow: none !important;
-		}
-		.brand-name,
-		.big,
-		.session-title,
-		.ex-name,
-		.restriction-title {
-			color: #050505 !important;
-		}
-		.eyebrow,
-		.brand-tagline,
-		.lbl,
-		.ex-muscles {
-			color: #6d5fa3 !important;
-		}
-		.sub,
-		.prose,
-		.affected,
-		.ex-notes,
-		.footer-disc {
-			color: #2a2a2a !important;
-		}
-		.ex-table thead th {
-			color: #444 !important;
-			border-color: #999 !important;
-		}
-		.ex-table tbody td {
-			color: #050505 !important;
-			border-color: #ddd !important;
-		}
-		.dbl-rule {
-			border-top-color: #6d5fa3 !important;
-			border-bottom-color: #888 !important;
-		}
-		.tag-warn {
-			background: #fff8e1 !important;
-			color: #855e00 !important;
-			border-color: #855e00 !important;
-		}
-		.tag-info {
-			background: #e3f0ff !important;
-			color: #1f4d80 !important;
-			border-color: #1f4d80 !important;
-		}
-		.restriction-red {
-			background: #fde7e7 !important;
-			border-left-color: #c0392b !important;
-		}
-		.restriction-yellow {
-			background: #fff8d6 !important;
-			border-left-color: #b88700 !important;
-		}
-		.restriction-green {
-			background: #e6faec !important;
-			border-left-color: #1d7a3e !important;
-		}
-		.restriction-red,
-		.restriction-yellow,
-		.restriction-green {
-			color: #050505 !important;
-		}
-		.intensity {
-			color: #6d5fa3 !important;
+			margin: 0;
 		}
 	}
 </style>

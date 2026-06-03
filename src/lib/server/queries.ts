@@ -406,6 +406,14 @@ export type PlanExercise = {
 	muscle_groups?: string[];
 	execution_notes?: string;
 	contraindications?: string[];
+	// Campos da ficha de prescrição (modelo impresso)
+	intensity?: string;
+	series_label?: string;
+	cadence?: string;
+	tempo?: string;
+	muscle_action?: 'isotonica' | 'isometrica' | 'auxotonico' | 'isocinetica';
+	range_of_motion?: string;
+	rest_label?: string;
 	source_refs?: {
 		type: string;
 		note?: string;
@@ -413,6 +421,16 @@ export type PlanExercise = {
 		source_id?: string;
 		page_number?: number;
 	}[];
+};
+
+export type PlanAerobic = {
+	means: string;
+	weekly_frequency?: string;
+	method: string;
+	pause?: string;
+	intensity: string;
+	volume: string;
+	observations?: string;
 };
 
 /**
@@ -450,16 +468,21 @@ export type SourceMap = Record<string, SourceCitation>;
 export type PlanSessionData = {
 	label?: string;
 	focus?: string;
+	day_of_week?: 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom';
 	duration_minutes?: number;
 	warmup?: PlanExercise[];
 	main?: PlanExercise[];
 	cooldown?: PlanExercise[];
+	observations?: string;
 };
 
 export type PlanData = {
 	summary?: string;
+	objective?: string;
+	program_weeks?: number;
 	restrictions?: PlanRestriction[];
 	weekly_sessions?: PlanSessionData[];
+	aerobic_prescriptions?: PlanAerobic[];
 	assessment_protocols?: unknown[];
 	progression_strategy?: unknown[];
 	monitoring_parameters?: unknown[];
@@ -723,6 +746,7 @@ export type CreateStudentInput = {
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
 	prescribedDifficulty?: 'pequena' | 'media' | 'alta';
+	trainingSplit?: 'auto' | 'full_body' | 'upper_lower' | 'push_pull_legs';
 	weeklySessions: number;
 	minutesPerSession: number;
 	goals: string[];
@@ -763,6 +787,7 @@ export async function createStudentTx(input: CreateStudentInput): Promise<string
 			studentId: s.id,
 			experienceLevel: input.experienceLevel,
 			prescribedDifficulty: input.prescribedDifficulty ?? 'media',
+			trainingSplit: input.trainingSplit ?? 'auto',
 			weeklySessions: input.weeklySessions,
 			minutesPerSession: input.minutesPerSession,
 			goals: input.goals,
@@ -878,6 +903,7 @@ export type UpdateStudentInput = {
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
 	prescribedDifficulty?: 'pequena' | 'media' | 'alta';
+	trainingSplit?: 'auto' | 'full_body' | 'upper_lower' | 'push_pull_legs';
 	weeklySessions: number;
 	minutesPerSession: number;
 	goals: string[];
@@ -946,6 +972,7 @@ export async function updateStudentTx(input: UpdateStudentInput): Promise<void> 
 				.set({
 					experienceLevel: input.experienceLevel,
 					...(input.prescribedDifficulty ? { prescribedDifficulty: input.prescribedDifficulty } : {}),
+					...(input.trainingSplit ? { trainingSplit: input.trainingSplit } : {}),
 					weeklySessions: input.weeklySessions,
 					minutesPerSession: input.minutesPerSession,
 					goals: input.goals,
@@ -1095,6 +1122,7 @@ export async function completeStudentSelfFillTx(input: CompleteStudentSelfFillIn
 				.set({
 					experienceLevel: input.experienceLevel,
 					prescribedDifficulty: input.prescribedDifficulty,
+					trainingSplit: input.trainingSplit ?? 'auto',
 					weeklySessions: input.weeklySessions,
 					minutesPerSession: input.minutesPerSession,
 					goals: input.goals,

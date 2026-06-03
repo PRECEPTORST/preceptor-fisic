@@ -53,7 +53,8 @@ export const actions: Actions = {
 			weeklySessions: Number(fd.get('weeklySessions') ?? 3),
 			minutesPerSession: Number(fd.get('minutesPerSession') ?? 60),
 			experienceLevel: ExpEnum.safeParse(String(fd.get('experienceLevel') ?? '')),
-			prescribedDifficulty: DifficultyEnum.safeParse(String(fd.get('prescribedDifficulty') ?? 'media'))
+			prescribedDifficulty: DifficultyEnum.safeParse(String(fd.get('prescribedDifficulty') ?? 'media')),
+			trainingSplit: z.enum(['auto', 'full_body', 'upper_lower', 'push_pull_legs']).safeParse(String(fd.get('trainingSplit') ?? 'auto'))
 		};
 
 		if (!raw.name || raw.name.length < 2) return fail(400, { error: 'nome inválido' });
@@ -61,6 +62,7 @@ export const actions: Actions = {
 		if (!raw.cardiovascularRisk.success) return fail(400, { error: 'risco CV inválido' });
 		if (!raw.experienceLevel.success) return fail(400, { error: 'experiência inválida' });
 		if (!raw.prescribedDifficulty.success) return fail(400, { error: 'dificuldade inválida' });
+		if (!raw.trainingSplit.success) return fail(400, { error: 'estrutura de treino inválida' });
 
 		try {
 			await updateStudentTx({
@@ -79,6 +81,7 @@ export const actions: Actions = {
 				cardiovascularRisk: raw.cardiovascularRisk.data,
 				experienceLevel: raw.experienceLevel.data,
 				prescribedDifficulty: raw.prescribedDifficulty.data,
+				trainingSplit: raw.trainingSplit.data,
 				weeklySessions: raw.weeklySessions,
 				minutesPerSession: raw.minutesPerSession,
 				goals: raw.goals

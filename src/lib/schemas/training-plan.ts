@@ -65,9 +65,45 @@ export const exerciseSchema = z.object({
 	tempo: z.string().optional(),
 	execution_notes: z.string().min(10).max(3000),
 	contraindications: z.array(z.string()).default([]),
-	source_refs: z.array(sourceRefSchema).default([])
+	source_refs: z.array(sourceRefSchema).default([]),
+
+	// ── Campos da ficha de prescrição (modelo impresso). Todos opcionais:
+	//    planos antigos continuam válidos; o gerador novo preenche-os.
+	/** Coluna "Intensidade" — formato curto de % de carga, ex: "80/60% Máx", "85%", "50/75%". */
+	intensity: z.string().max(60).optional(),
+	/** Coluna "Séries" quando é esquema (ex: "2/2", "3/3"). Sem isso, usa `sets`. */
+	series_label: z.string().max(40).optional(),
+	/** Coluna "Cadência" — tempo de execução, ex: "2/2", "1/3". */
+	cadence: z.string().max(40).optional(),
+	/** Coluna "Ação muscular". */
+	muscle_action: z.enum(['isotonica', 'isometrica', 'auxotonico', 'isocinetica']).optional(),
+	/** Coluna "Amplitude de movimento", ex: "90°", "Full", "90° de flexão do cotovelo". */
+	range_of_motion: z.string().max(120).optional(),
+	/** Coluna "Pausa" em texto livre, ex: "40s/1min". Sem isso, formata `rest_seconds`. */
+	rest_label: z.string().max(40).optional()
 });
 export type Exercise = z.infer<typeof exerciseSchema>;
+
+/**
+ * Prescrição aeróbia — tabela "Meio · Método · Pausa · Intensidade · Volume"
+ * do modelo. Separada das sessões de força (weekly_sessions).
+ */
+export const aerobicPrescriptionSchema = z.object({
+	/** "Meio" — ex: "Esteira", "Corrida na Rua", "Bike". */
+	means: z.string().min(2).max(200),
+	/** Frequência semanal, ex: "2x semana". Exibida junto do meio. */
+	weekly_frequency: z.string().max(60).optional(),
+	/** "Método" — ex: "Contínuo", "Intervalado". */
+	method: z.string().min(2).max(120),
+	/** "Pausa" — ex: "-", "1min". */
+	pause: z.string().max(60).default('-'),
+	/** "Intensidade" — ex: "60-70%Fcmáx (150-167bpm)". */
+	intensity: z.string().min(2).max(200),
+	/** "Volume" — ex: "50min", "8km". */
+	volume: z.string().min(1).max(120),
+	observations: z.string().max(600).optional()
+});
+export type AerobicPrescription = z.infer<typeof aerobicPrescriptionSchema>;
 
 export const sessionSchema = z.object({
 	label: z.string().min(2).max(300),
@@ -76,7 +112,9 @@ export const sessionSchema = z.object({
 	duration_minutes: z.number().int().min(15).max(240),
 	warmup: z.array(exerciseSchema).default([]),
 	main: z.array(exerciseSchema).min(3),
-	cooldown: z.array(exerciseSchema).default([])
+	cooldown: z.array(exerciseSchema).default([]),
+	/** Linha "Observações" no rodapé da tabela de força, ex: "Executar até 1-2 reps de reserva." */
+	observations: z.string().max(600).optional()
 });
 
 export const monitoringParameterSchema = z.object({
@@ -103,6 +141,10 @@ export const restrictionSchema = z.object({
 
 export const trainingPlanSchema = z.object({
 	summary: z.string().min(80).max(2000),
+	/** Objetivo do programa em 1-2 frases, exibido na capa da prescrição. */
+	objective: z.string().max(800).optional(),
+	/** Duração total do programa em semanas (pra calcular o período na capa). Default tratado no consumidor: 16. */
+	program_weeks: z.number().int().min(1).max(104).optional(),
 	progression_strategy: z.string().min(120).max(3000),
 	// Cap em 5 sessões — cobre a maioria das preferências (1x a 5x/semana).
 	// Hobby ainda tem 60s pra gerar tudo, mas com salvamento de partial
@@ -110,6 +152,8 @@ export const trainingPlanSchema = z.object({
 	// LLM é instruído via prompt a usar EXATAMENTE weeklySessions, então
 	// raramente bate o teto.
 	weekly_sessions: z.array(sessionSchema).min(1).max(5),
+	/** Prescrição aeróbia (página "Treino Aeróbio" do modelo). */
+	aerobic_prescriptions: z.array(aerobicPrescriptionSchema).default([]),
 	// Monitoring relaxado pra .default([]) (era min(1)). LLM emite esses
 	// campos POR ÚLTIMO; quando aborta no timeout, o partial até as sessões
 	// ainda é válido e o plano vai pra `generated` em vez de `failed`.

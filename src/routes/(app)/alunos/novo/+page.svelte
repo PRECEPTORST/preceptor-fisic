@@ -295,10 +295,18 @@
 								<option value="alta" selected={v.prescribedDifficulty === 'alta'}>Alta</option>
 							</select>
 						</div>
+						<div>
+							<label class="lbl">Estrutura do treino</label>
+							<select class="inp" name="trainingSplit">
+								<option value="auto" selected={!v.trainingSplit || v.trainingSplit === 'auto'}>Automática (IA decide pela frequência)</option>
+								<option value="full_body" selected={v.trainingSplit === 'full_body'}>Full-body (todos os grupos em cada sessão)</option>
+								<option value="upper_lower" selected={v.trainingSplit === 'upper_lower'}>Upper/Lower (alterna superior e inferior)</option>
+								<option value="push_pull_legs" selected={v.trainingSplit === 'push_pull_legs'}>Push/Pull/Legs</option>
+							</select>
+						</div>
 					</div>
 					<p style="font:var(--body-sm);color:var(--ink-2);margin:8px 0 0">
-						Dificuldade controla a complexidade técnica dos exercícios prescritos — útil pra alunos novos
-						na academia, independente da experiência.
+						Dificuldade controla a complexidade técnica dos exercícios. Estrutura define a divisão muscular semanal — "automática" deixa a IA escolher: full-body pra 1-3x/sem, upper/lower pra 4x, push/pull/legs pra 5-6x.
 					</p>
 				</div>
 			{/if}

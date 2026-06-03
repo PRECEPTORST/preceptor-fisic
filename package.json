@@ -38,7 +38,6 @@
     "hls.js": "^1.6.16",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
-    "postgres": "^3.4.5",
     "resend": "^6.12.3",
     "tailwind-merge": "^3.5.0",
     "zod": "^3.24.1"
@@ -59,6 +58,7 @@
     "eslint-plugin-svelte": "^3.17.0",
     "ffmpeg-static": "^5.3.0",
     "jsdom": "^29.1.1",
+    "postgres": "^3.4.9",
     "prettier": "^3.6.2",
     "prettier-plugin-svelte": "^3.4.0",
     "prettier-plugin-tailwindcss": "^0.6.14",

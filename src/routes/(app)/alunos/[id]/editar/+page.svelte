@@ -193,9 +193,18 @@
 						<option value="alta" selected={prefs?.prescribedDifficulty === 'alta'}>Alta</option>
 					</select>
 				</div>
+				<div>
+					<label class="lbl">Estrutura do treino</label>
+					<select class="inp" name="trainingSplit">
+						<option value="auto" selected={!prefs?.trainingSplit || prefs?.trainingSplit === 'auto'}>Automática (IA decide pela frequência)</option>
+						<option value="full_body" selected={prefs?.trainingSplit === 'full_body'}>Full-body</option>
+						<option value="upper_lower" selected={prefs?.trainingSplit === 'upper_lower'}>Upper/Lower</option>
+						<option value="push_pull_legs" selected={prefs?.trainingSplit === 'push_pull_legs'}>Push/Pull/Legs</option>
+					</select>
+				</div>
 			</div>
 			<p style="font:var(--body-sm);color:var(--ink-2);margin:8px 0 0">
-				Dificuldade controla a complexidade técnica dos exercícios prescritos, independente da experiência.
+				Dificuldade controla complexidade técnica. Estrutura define divisão muscular semanal.
 			</p>
 		</div>
 

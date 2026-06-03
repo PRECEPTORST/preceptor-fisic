@@ -35,7 +35,8 @@ const fullSchema = z.object({
 	weeklySessions: z.number().int().min(1).max(7),
 	minutesPerSession: z.number().int().min(15).max(180),
 	experienceLevel: ExpEnum,
-	prescribedDifficulty: DifficultyEnum.default('media')
+	prescribedDifficulty: DifficultyEnum.default('media'),
+	trainingSplit: z.enum(['auto', 'full_body', 'upper_lower', 'push_pull_legs']).default('auto')
 });
 
 const linkSchema = z.object({
@@ -137,7 +138,8 @@ export const actions: Actions = {
 			weeklySessions: Number(fd.get('weeklySessions') ?? 3),
 			minutesPerSession: Number(fd.get('minutesPerSession') ?? 60),
 			experienceLevel: String(fd.get('experienceLevel') ?? 'iniciante'),
-			prescribedDifficulty: String(fd.get('prescribedDifficulty') ?? 'media')
+			prescribedDifficulty: String(fd.get('prescribedDifficulty') ?? 'media'),
+			trainingSplit: String(fd.get('trainingSplit') ?? 'auto')
 		};
 
 		const parsed = fullSchema.safeParse(raw);
@@ -166,6 +168,7 @@ export const actions: Actions = {
 			cardiovascularRisk: parsed.data.cardiovascularRisk,
 			experienceLevel: parsed.data.experienceLevel,
 			prescribedDifficulty: parsed.data.prescribedDifficulty,
+			trainingSplit: parsed.data.trainingSplit,
 			weeklySessions: parsed.data.weeklySessions,
 			minutesPerSession: parsed.data.minutesPerSession,
 			goals: parsed.data.goals,

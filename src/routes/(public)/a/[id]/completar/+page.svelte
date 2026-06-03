@@ -21,6 +21,9 @@
 
 	const initialDiag = ((hp?.diagnoses as { label: string }[] | null) ?? []).map((d) => d.label).join(', ');
 	const initialMeds = ((hp?.medications as { name: string }[] | null) ?? []).map((m) => m.name).join(', ');
+	const initialLimitations = ((hp?.injuries as { region: string; notes?: string }[] | null) ?? [])
+		.map((i) => i.region + (i.notes ? ' · ' + i.notes : ''))
+		.join(', ');
 
 	let goals = $state<string[]>(((prefs?.goals as string[] | null) ?? []) as string[]);
 	let submitting = $state(false);
@@ -96,6 +99,8 @@
 			<textarea class="inp" name="diagnoses" rows="2" placeholder="hipertensão, asma leve...">{initialDiag}</textarea>
 			<label class="lbl" style="margin-top:12px">Usa alguma medicação? (separe por vírgula)</label>
 			<textarea class="inp" name="medications" rows="2" placeholder="losartana 50mg...">{initialMeds}</textarea>
+			<label class="lbl" style="margin-top:12px">Tem alguma limitação física ou lesão? (separe por vírgula)</label>
+			<textarea class="inp" name="limitations" rows="2" placeholder="dor lombar ao agachar, ombro direito limitado...">{initialLimitations}</textarea>
 			<label class="lbl" style="margin-top:12px">Risco cardiovascular *</label>
 			<select class="inp" name="cardiovascularRisk" required>
 				<option value="baixo" selected={!hp?.cardiovascularRisk || hp?.cardiovascularRisk === 'baixo'}>Baixo — sem problemas conhecidos</option>

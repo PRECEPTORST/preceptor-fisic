@@ -54,6 +54,20 @@ export const prescribedDifficultyEnum = pgEnum('prescribed_difficulty', [
 	'alta'
 ]);
 
+/**
+ * Estrutura semanal do treino. `auto` deixa a IA decidir com base em
+ * frequência + experiência. Os outros 3 cobrem ~95% dos casos:
+ *  - full_body: todos os grupos em toda sessão (1-3x/sem, iniciante)
+ *  - upper_lower: alterna superior/inferior (4x/sem)
+ *  - push_pull_legs: clássico hipertrofia (4-6x/sem)
+ */
+export const trainingSplitEnum = pgEnum('training_split', [
+	'auto',
+	'full_body',
+	'upper_lower',
+	'push_pull_legs'
+]);
+
 export const planStatusEnum = pgEnum('plan_status', [
 	'pending',
 	'generating',
@@ -232,6 +246,7 @@ export const trainingPreferences = pgTable(
 		prescribedDifficulty: prescribedDifficultyEnum('prescribed_difficulty')
 			.default('media')
 			.notNull(),
+		trainingSplit: trainingSplitEnum('training_split').default('auto').notNull(),
 		preferredModalities: jsonb('preferred_modalities').$type<string[]>().default([]).notNull(),
 		weeklySessions: integer('weekly_sessions').default(3).notNull(),
 		minutesPerSession: integer('minutes_per_session').default(60).notNull(),
