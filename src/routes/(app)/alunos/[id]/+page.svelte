@@ -11,6 +11,8 @@
 	const plans = $derived(detail.plans);
 	const lastWeights = $derived(detail.lastWeights);
 	const alunoUrl = $derived(data.alunoUrl);
+	const fillUrl = $derived(data.fillUrl);
+	const profilePending = $derived(!student.profileCompletedAt);
 	const loadEvolution = $derived(data.loadEvolution);
 
 	let tab = $state<'dados' | 'plan' | 'prog'>('dados');
@@ -23,6 +25,15 @@
 			toast.success('Link copiado.');
 		} catch {
 			toast.error('Não foi possível copiar — selecione o texto acima manualmente.');
+		}
+	}
+
+	async function copyFillLink() {
+		try {
+			await navigator.clipboard.writeText(fillUrl);
+			toast.success('Link de preenchimento copiado.');
+		} catch {
+			toast.error('Não foi possível copiar.');
 		}
 	}
 
@@ -233,6 +244,24 @@
 			{/each}
 		</div>
 	</div>
+
+	<!-- Cadastro pendente: aluno criado via link e ainda não preencheu os dados. -->
+	{#if profilePending}
+		<div style="padding:0 32px;margin-top:20px">
+			<div
+				style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:16px 20px;border-radius:var(--r-3);background:var(--accent-wash);border:1px solid var(--accent)"
+			>
+				<span style="font-size:20px">⏳</span>
+				<div style="flex:1;min-width:200px">
+					<div style="font:600 14px var(--font-sans);color:var(--ink-0)">Aguardando preenchimento do aluno</div>
+					<div style="font:var(--body-sm);color:var(--ink-2);margin-top:2px">
+						Envie o link pro aluno completar perfil clínico e preferências.
+					</div>
+				</div>
+				<Button variant="secondary" size="md" onclick={copyFillLink} title={fillUrl}>📋 Copiar link de preenchimento</Button>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Evolução de carga — DESTAQUE no topo, sempre visível (não só na aba
 	     Progresso). É a resposta de "o aluno está evoluindo?" num relance. -->

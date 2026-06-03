@@ -11,6 +11,9 @@
 	const prefs = $derived(detail.preferences);
 
 	const initialDiagnoses = ((hp?.diagnoses as { label: string }[] | null) ?? []).map((d) => d.label).join(', ');
+	const initialLimitations = ((hp?.injuries as { region: string; notes?: string }[] | null) ?? [])
+		.map((i) => i.region + (i.notes ? ' · ' + i.notes : ''))
+		.join(', ');
 	const initialMeds = ((hp?.medications as { name: string; dose?: string; frequency?: string }[] | null) ?? [])
 		.map((m) => m.name + (m.dose ? ' ' + m.dose : ''))
 		.join(', ');
@@ -119,6 +122,15 @@
 					<textarea class="inp" name="medications" rows="2" style="resize:vertical">{initialMeds}</textarea>
 				</div>
 				<div>
+					<label class="lbl">Limitações físicas / lesões (separe por vírgula)</label>
+					<textarea
+						class="inp"
+						name="limitations"
+						rows="2"
+						placeholder="dor lombar ao agachar, ombro direito limitado, joelho com menisco operado"
+						style="resize:vertical">{initialLimitations}</textarea>
+				</div>
+				<div>
 					<label class="lbl">Risco cardiovascular *</label>
 					<select class="inp" name="cardiovascularRisk" required>
 						<option value="baixo" selected={hp?.cardiovascularRisk === 'baixo'}>Baixo</option>
@@ -153,7 +165,7 @@
 				{#each goals as g (g)}<input type="hidden" name="goals" value={g} />{/each}
 			</div>
 
-			<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:18px">
+			<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px">
 				<div>
 					<label class="lbl">Sessões / sem.</label>
 					<input class="inp" name="weeklySessions" type="number" min="1" max="7" required value={prefs?.weeklySessions ?? 3} />
@@ -162,6 +174,9 @@
 					<label class="lbl">Min / sessão</label>
 					<input class="inp" name="minutesPerSession" type="number" min="15" max="180" required value={prefs?.minutesPerSession ?? 60} />
 				</div>
+			</div>
+
+			<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
 				<div>
 					<label class="lbl">Experiência</label>
 					<select class="inp" name="experienceLevel" required>
@@ -170,27 +185,18 @@
 						<option value="avancado" selected={prefs?.experienceLevel === 'avancado'}>Avançado</option>
 					</select>
 				</div>
-			</div>
-
-			<div style="margin-top:18px">
-				<label class="lbl">Equipamento disponível</label>
-				<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
-					{#each EQUIPMENT as e (e)}
-						<button
-							type="button"
-							onclick={() => toggleEquip(e)}
-							style="all:unset;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:var(--r-pill);background:{equipment.includes(e)
-								? 'var(--accent-wash)'
-								: 'var(--bg-3)'};border:1px solid {equipment.includes(e)
-								? 'var(--accent)'
-								: 'var(--ink-line-2)'};color:{equipment.includes(e)
-								? 'var(--accent-2)'
-								: 'var(--ink-1)'};font:500 12px var(--font-sans);cursor:pointer"
-						>{equipment.includes(e) ? '✓' : '+'} {e}</button>
-					{/each}
+				<div>
+					<label class="lbl">Dificuldade dos exercícios</label>
+					<select class="inp" name="prescribedDifficulty" required>
+						<option value="pequena" selected={prefs?.prescribedDifficulty === 'pequena'}>Pequena</option>
+						<option value="media" selected={!prefs?.prescribedDifficulty || prefs?.prescribedDifficulty === 'media'}>Média</option>
+						<option value="alta" selected={prefs?.prescribedDifficulty === 'alta'}>Alta</option>
+					</select>
 				</div>
-				<input type="hidden" name="equipment" value={equipment.join(',')} />
 			</div>
+			<p style="font:var(--body-sm);color:var(--ink-2);margin:8px 0 0">
+				Dificuldade controla a complexidade técnica dos exercícios prescritos, independente da experiência.
+			</p>
 		</div>
 
 		<div

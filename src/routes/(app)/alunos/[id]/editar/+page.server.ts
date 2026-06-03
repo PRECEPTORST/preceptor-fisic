@@ -21,6 +21,7 @@ export const load = (async ({ params, parent }) => {
 const SexEnum = z.enum(['feminino', 'masculino', 'outro', 'nao_informado']);
 const RiskEnum = z.enum(['baixo', 'moderado', 'alto', 'muito_alto']);
 const ExpEnum = z.enum(['iniciante', 'intermediario', 'avancado']);
+const DifficultyEnum = z.enum(['pequena', 'media', 'alta']);
 
 function parseList(s: string): string[] {
 	return s
@@ -47,17 +48,19 @@ export const actions: Actions = {
 			cardiovascularRisk: RiskEnum.safeParse(String(fd.get('cardiovascularRisk') ?? '')),
 			diagnoses: String(fd.get('diagnoses') ?? ''),
 			medications: String(fd.get('medications') ?? ''),
+			limitations: String(fd.get('limitations') ?? ''),
 			goals: fd.getAll('goals').map(String),
 			weeklySessions: Number(fd.get('weeklySessions') ?? 3),
 			minutesPerSession: Number(fd.get('minutesPerSession') ?? 60),
 			experienceLevel: ExpEnum.safeParse(String(fd.get('experienceLevel') ?? '')),
-			equipment: String(fd.get('equipment') ?? '')
+			prescribedDifficulty: DifficultyEnum.safeParse(String(fd.get('prescribedDifficulty') ?? 'media'))
 		};
 
 		if (!raw.name || raw.name.length < 2) return fail(400, { error: 'nome inválido' });
 		if (!raw.sex.success) return fail(400, { error: 'sexo inválido' });
 		if (!raw.cardiovascularRisk.success) return fail(400, { error: 'risco CV inválido' });
 		if (!raw.experienceLevel.success) return fail(400, { error: 'experiência inválida' });
+		if (!raw.prescribedDifficulty.success) return fail(400, { error: 'dificuldade inválida' });
 
 		try {
 			await updateStudentTx({
@@ -72,12 +75,13 @@ export const actions: Actions = {
 				email: raw.email || null,
 				diagnoses: parseList(raw.diagnoses).map((label) => ({ label })),
 				medications: parseList(raw.medications).map((name) => ({ name })),
+				injuries: parseList(raw.limitations).map((region) => ({ region })),
 				cardiovascularRisk: raw.cardiovascularRisk.data,
 				experienceLevel: raw.experienceLevel.data,
+				prescribedDifficulty: raw.prescribedDifficulty.data,
 				weeklySessions: raw.weeklySessions,
 				minutesPerSession: raw.minutesPerSession,
-				goals: raw.goals,
-				equipmentAvailable: parseList(raw.equipment)
+				goals: raw.goals
 			});
 		} catch (e) {
 			return fail(400, { error: (e as Error).message });

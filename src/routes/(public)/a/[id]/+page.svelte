@@ -13,6 +13,15 @@
 	const streak = $derived(data.streakDays);
 	const recent = $derived(data.recentSessions);
 
+	// Restrições clínicas do plano (vermelhas/amarelas/verdes) — mostradas
+	// no card "Atenção clínica" pro aluno saber o que evitar / monitorar.
+	type PlanRestriction = { level?: 'red' | 'yellow' | 'green'; title?: string; description?: string };
+	const restrictions = $derived(
+		((plan?.planData.restrictions ?? []) as PlanRestriction[]).filter(
+			(r) => r.title && r.level !== 'green' // green = "aprovado", sem necessidade de alerta
+		)
+	);
+
 	// Preserva o magic-link token na navegação interna
 	const tokenParam = $derived(page.url.searchParams.get('t'));
 	const tq = $derived(tokenParam ? `?t=${tokenParam}` : '');
@@ -180,6 +189,39 @@
 			</div>
 		{/if}
 
+		<!-- Atenção clínica — restrições do plano (red/yellow) -->
+		{#if restrictions.length > 0}
+			<div class="restr-card">
+				<div class="restr-head">
+					<span class="restr-head-icon">⚠</span>
+					<div>
+						<div class="eyebrow" style="margin-bottom:2px">Atenção clínica</div>
+						<div style="font:500 15px var(--font-sans);color:var(--ink-0)">
+							{restrictions.length} ponto{restrictions.length === 1 ? '' : 's'} de atenção
+						</div>
+					</div>
+				</div>
+				<div class="restr-list">
+					{#each restrictions as r, i (i)}
+						<div class="restr-item" class:red={r.level === 'red'} class:yellow={r.level === 'yellow'}>
+							<div class="restr-item-mark">
+								{r.level === 'red' ? '●' : '○'}
+							</div>
+							<div style="flex:1;min-width:0">
+								<div style="font:500 13px var(--font-sans);color:var(--ink-0);margin-bottom:2px">{r.title}</div>
+								{#if r.description}
+									<div style="font:400 12px var(--font-sans);line-height:1.5;color:var(--ink-2)">{r.description}</div>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+				<div class="restr-foot">
+					Prescrito por <strong>{pro.name}</strong> — em caso de dúvida, fale com seu treinador antes de treinar.
+				</div>
+			</div>
+		{/if}
+
 		<!-- Streak + frequência -->
 		<div class="stats-row">
 			<div class="card mini">
@@ -340,6 +382,65 @@
 		letter-spacing: -0.01em;
 		box-shadow: 0 8px 24px rgba(167, 139, 250, 0.3);
 	}
+	/* Card "Atenção clínica" — restrições do plano que o aluno precisa ver */
+	.restr-card {
+		margin: 0 16px 16px;
+		padding: 16px 18px;
+		background: var(--bg-1);
+		border: 1px solid var(--ink-line);
+		border-left: 3px solid var(--warn);
+		border-radius: var(--r-2);
+	}
+	.restr-head {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin-bottom: 12px;
+	}
+	.restr-head-icon {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		background: var(--warn-dim);
+		color: var(--warn);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font: 600 16px var(--font-sans);
+		flex-shrink: 0;
+	}
+	.restr-list {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+	.restr-item {
+		display: flex;
+		gap: 10px;
+		padding: 10px 12px;
+		background: var(--bg-2);
+		border-radius: var(--r-1);
+	}
+	.restr-item.red { border-left: 2px solid var(--danger); }
+	.restr-item.yellow { border-left: 2px solid var(--warn); }
+	.restr-item-mark {
+		font: 600 12px var(--font-sans);
+		color: var(--ink-2);
+		width: 14px;
+		flex-shrink: 0;
+		text-align: center;
+	}
+	.restr-item.red .restr-item-mark { color: var(--danger); }
+	.restr-item.yellow .restr-item-mark { color: var(--warn); }
+	.restr-foot {
+		margin-top: 12px;
+		padding-top: 10px;
+		border-top: 1px dashed var(--ink-line-2);
+		font: 400 11px var(--font-sans);
+		line-height: 1.5;
+		color: var(--ink-3);
+	}
+
 	.thumb-strip {
 		display: flex;
 		gap: 10px;

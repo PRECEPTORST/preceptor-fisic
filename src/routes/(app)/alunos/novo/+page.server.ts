@@ -2,7 +2,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { getProfessionalByAuthId, createStudentTx } from '$lib/server/queries';
 import { signStudentToken } from '$lib/server/aluno-token';
-import { sendStudentMagicLink } from '$lib/server/email';
+import { sendStudentMagicLink, sendStudentFillLink } from '$lib/server/email';
 import { env as pubEnv } from '$env/dynamic/public';
 import { logger } from '$lib/server/logger';
 import { error } from '@sveltejs/kit';
@@ -30,6 +30,7 @@ const fullSchema = z.object({
 	cardiovascularRisk: RiskEnum,
 	diagnoses: z.string().optional().default(''), // CSV
 	medications: z.string().optional().default(''), // CSV
+	limitations: z.string().optional().default(''), // CSV → vira healthProfile.injuries
 	goals: z.array(z.string()).default([]),
 	weeklySessions: z.number().int().min(1).max(7),
 	minutesPerSession: z.number().int().min(15).max(180),
@@ -103,11 +104,11 @@ export const actions: Actions = {
 
 			// Dispara o e-mail com o link (best-effort, não bloqueia).
 			try {
-				await sendStudentMagicLink({
+				await sendStudentFillLink({
 					to: parsed.data.email,
 					studentName: parsed.data.name,
 					professionalName: professional.name,
-					magicLinkUrl: fillUrl
+					fillUrl
 				});
 			} catch (err) {
 				logger.error(
@@ -131,6 +132,7 @@ export const actions: Actions = {
 			cardiovascularRisk: String(fd.get('cardiovascularRisk') ?? 'baixo'),
 			diagnoses: String(fd.get('diagnoses') ?? ''),
 			medications: String(fd.get('medications') ?? ''),
+			limitations: String(fd.get('limitations') ?? ''),
 			goals: fd.getAll('goals').map(String),
 			weeklySessions: Number(fd.get('weeklySessions') ?? 3),
 			minutesPerSession: Number(fd.get('minutesPerSession') ?? 60),
@@ -160,6 +162,7 @@ export const actions: Actions = {
 			consentAcceptedAt: new Date(),
 			diagnoses: parseList(parsed.data.diagnoses).map((label) => ({ label })),
 			medications: parseList(parsed.data.medications).map((name) => ({ name })),
+			injuries: parseList(parsed.data.limitations).map((region) => ({ region })),
 			cardiovascularRisk: parsed.data.cardiovascularRisk,
 			experienceLevel: parsed.data.experienceLevel,
 			prescribedDifficulty: parsed.data.prescribedDifficulty,

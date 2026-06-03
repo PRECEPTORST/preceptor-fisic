@@ -20,8 +20,9 @@ export const load = (async ({ params, parent, url }) => {
 
 	const token = signStudentToken(params.id);
 	const alunoUrl = `${url.origin}/a/${params.id}?t=${token}`;
+	const fillUrl = `${url.origin}/a/${params.id}/completar?t=${token}`;
 
-	return { detail, alunoUrl, loadEvolution };
+	return { detail, alunoUrl, fillUrl, loadEvolution };
 }) satisfies PageServerLoad;
 
 export const actions: Actions = {

@@ -220,6 +220,16 @@
 								style="resize:vertical">{v.medications ?? ''}</textarea>
 						</div>
 						<div>
+							<label class="lbl">Limitações físicas / lesões (separe por vírgula)</label>
+							<textarea
+								class="inp"
+								name="limitations"
+								rows="2"
+								placeholder="dor lombar ao agachar, ombro direito limitado acima de 90°, joelho com menisco operado em 2023"
+								style="resize:vertical">{v.limitations ?? ''}</textarea>
+							<div class="hint">Articulações, regiões com dor, restrições de amplitude — vai pro contexto da IA na hora de gerar o plano.</div>
+						</div>
+						<div>
 							<label class="lbl">Risco cardiovascular *</label>
 							<select class="inp" name="cardiovascularRisk" required>
 								<option value="baixo" selected={!v.cardiovascularRisk || v.cardiovascularRisk === 'baixo'}>Baixo</option>

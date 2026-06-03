@@ -717,6 +717,9 @@ export type CreateStudentInput = {
 	consentAcceptedAt: Date;
 	diagnoses: { label: string; severity?: 'leve' | 'moderada' | 'grave' }[];
 	medications: { name: string; dose?: string; frequency?: string }[];
+	/** Limitações físicas / lesões — regiões com restrição de amplitude
+	 *  ou dor. Persistido em healthProfile.injuries. */
+	injuries?: { region: string; notes?: string }[];
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
 	prescribedDifficulty?: 'pequena' | 'media' | 'alta';
@@ -752,6 +755,7 @@ export async function createStudentTx(input: CreateStudentInput): Promise<string
 			studentId: s.id,
 			diagnoses: input.diagnoses,
 			medications: input.medications,
+			injuries: input.injuries ?? [],
 			cardiovascularRisk: input.cardiovascularRisk
 		});
 
@@ -870,6 +874,7 @@ export type UpdateStudentInput = {
 	email?: string | null;
 	diagnoses: { label: string; severity?: 'leve' | 'moderada' | 'grave' }[];
 	medications: { name: string; dose?: string; frequency?: string }[];
+	injuries?: { region: string; notes?: string }[];
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
 	prescribedDifficulty?: 'pequena' | 'media' | 'alta';
@@ -915,6 +920,7 @@ export async function updateStudentTx(input: UpdateStudentInput): Promise<void> 
 				.set({
 					diagnoses: input.diagnoses,
 					medications: input.medications,
+					injuries: input.injuries ?? [],
 					cardiovascularRisk: input.cardiovascularRisk,
 					updatedAt: new Date()
 				})
@@ -924,6 +930,7 @@ export async function updateStudentTx(input: UpdateStudentInput): Promise<void> 
 				studentId: input.studentId,
 				diagnoses: input.diagnoses,
 				medications: input.medications,
+				injuries: input.injuries ?? [],
 				cardiovascularRisk: input.cardiovascularRisk
 			});
 		}
@@ -1018,6 +1025,7 @@ export type CompleteStudentSelfFillInput = {
 	phone?: string | null;
 	diagnoses: { label: string }[];
 	medications: { name: string }[];
+	injuries?: { region: string; notes?: string }[];
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
 	prescribedDifficulty: 'pequena' | 'media' | 'alta';
@@ -1061,6 +1069,7 @@ export async function completeStudentSelfFillTx(input: CompleteStudentSelfFillIn
 				.set({
 					diagnoses: input.diagnoses,
 					medications: input.medications,
+					injuries: input.injuries ?? [],
 					cardiovascularRisk: input.cardiovascularRisk,
 					updatedAt: new Date()
 				})
@@ -1070,6 +1079,7 @@ export async function completeStudentSelfFillTx(input: CompleteStudentSelfFillIn
 				studentId: input.studentId,
 				diagnoses: input.diagnoses,
 				medications: input.medications,
+				injuries: input.injuries ?? [],
 				cardiovascularRisk: input.cardiovascularRisk
 			});
 		}

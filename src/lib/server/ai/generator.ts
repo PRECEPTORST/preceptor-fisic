@@ -101,24 +101,65 @@ const CATALOG_PROMPT_CAP = 150;
 const DEFAULT_EQUIPMENT_FALLBACK = ['body weight', 'dumbbell', 'band'];
 
 /**
- * Filtra o catálogo pelo equipamento do aluno. Sempre inclui body weight
- * (universal). Casamento por substring nos dois sentidos pra tolerar
- * variações ("dumbbell" matchando "dumbbell (used as handles for deeper
- * range)"). Cap em CATALOG_PROMPT_CAP — prioriza match exato de equipamento,
- * depois bodyweight, depois o resto.
+ * Mapeia o nível de experiência do aluno (PT-BR, do schema da app) pras
+ * difficulties do catálogo ExerciseDB Pro (EN). Iniciante NÃO vê nada
+ * advanced; intermediário vê até intermediate; avançado pega todos.
  */
-function filterCatalogByEquipment(
+const EXPERIENCE_TO_DIFFICULTY: Record<string, Set<string>> = {
+	iniciante: new Set(['beginner']),
+	intermediario: new Set(['beginner', 'intermediate']),
+	avancado: new Set(['beginner', 'intermediate', 'advanced'])
+};
+
+/**
+ * Dificuldade-alvo prescrita pelo profissional → difficulties do catálogo.
+ * Knob independente da experiência: deixa o treinador limitar a complexidade
+ * técnica dos exercícios (ex: aluno novo na academia recebe só exercícios
+ * simples, mesmo que seja experiente em treino).
+ */
+const PRESCRIBED_TO_DIFFICULTY: Record<string, Set<string>> = {
+	pequena: new Set(['beginner']),
+	media: new Set(['beginner', 'intermediate']),
+	alta: new Set(['beginner', 'intermediate', 'advanced'])
+};
+
+/**
+ * Filtra o catálogo por (1) equipamento disponível e (2) dificuldade
+ * permitida. Sempre inclui body weight (universal). Casamento por substring
+ * pra tolerar variações ("dumbbell" matchando "dumbbell (used as handles for
+ * deeper range)"). Cap em CATALOG_PROMPT_CAP.
+ *
+ * Difficulty: aplica o MAIS restritivo entre o nível de experiência e a
+ * dificuldade-alvo prescrita pelo treinador — filtra ANTES de enviar pro LLM,
+ * então a IA nem vê exercícios acima do permitido.
+ */
+function filterCatalog(
 	catalog: CatalogPromptItem[],
-	studentEquipment: string[] | null | undefined
+	studentEquipment: string[] | null | undefined,
+	experienceLevel: string | null | undefined,
+	prescribedDifficulty: string | null | undefined
 ): CatalogPromptItem[] {
 	const studentEq = (studentEquipment ?? [])
 		.map((s) => s.toLowerCase().trim())
 		.filter(Boolean);
 	const targetEq = studentEq.length > 0 ? studentEq : DEFAULT_EQUIPMENT_FALLBACK;
 
+	// Interseção (mais restritivo) entre experiência e dificuldade prescrita.
+	const byExperience = experienceLevel ? EXPERIENCE_TO_DIFFICULTY[experienceLevel] : null;
+	const byPrescribed = prescribedDifficulty ? PRESCRIBED_TO_DIFFICULTY[prescribedDifficulty] : null;
+	let allowedDiff: Set<string> | null = null;
+	if (byExperience && byPrescribed) {
+		allowedDiff = new Set([...byExperience].filter((d) => byPrescribed.has(d)));
+	} else {
+		allowedDiff = byExperience ?? byPrescribed ?? null;
+	}
+	const passesDifficulty = (d: string | null) =>
+		!allowedDiff || !d || allowedDiff.has(d.toLowerCase());
+
 	const exact: CatalogPromptItem[] = [];
 	const bodyweight: CatalogPromptItem[] = [];
 	for (const item of catalog) {
+		if (!passesDifficulty(item.difficulty)) continue;
 		const itemEq = (item.equipment ?? '').toLowerCase();
 		if (!itemEq) continue;
 		if (itemEq === 'body weight') {
@@ -134,7 +175,9 @@ function filterCatalogByEquipment(
 }
 
 async function fetchCatalogSubset(
-	studentEquipment: string[] | null | undefined
+	studentEquipment: string[] | null | undefined,
+	experienceLevel: string | null | undefined,
+	prescribedDifficulty: string | null | undefined
 ): Promise<CatalogPromptItem[]> {
 	const all = await db
 		.select({
@@ -147,7 +190,7 @@ async function fetchCatalogSubset(
 			difficulty: exerciseCatalog.difficulty
 		})
 		.from(exerciseCatalog);
-	return filterCatalogByEquipment(all, studentEquipment);
+	return filterCatalog(all, studentEquipment, experienceLevel, prescribedDifficulty);
 }
 
 function formatCatalogForPrompt(items: CatalogPromptItem[]): string {
@@ -222,7 +265,9 @@ async function loadStudentContext(
 		.limit(1);
 
 	const catalog = await fetchCatalogSubset(
-		(preferences?.equipmentAvailable as string[] | null) ?? null
+		(preferences?.equipmentAvailable as string[] | null) ?? null,
+		preferences?.experienceLevel ?? null,
+		preferences?.prescribedDifficulty ?? null
 	);
 
 	return {
@@ -273,6 +318,18 @@ function buildUserPrompt(ctx: StudentContext, ragContext: string, notes?: string
 		}
 	} else {
 		lines.push('- (sem medicamentos em uso)');
+	}
+	lines.push('');
+	// Limitações físicas / lesões (campo "limitations" do form → injuries jsonb).
+	// Crítico pra IA evitar movimentos que afetam regiões comprometidas.
+	const inj = (h?.injuries as Array<{ region: string; notes?: string }> | null) ?? [];
+	lines.push('## LIMITAÇÕES FÍSICAS / LESÕES (EVITAR exercícios que estressem essas regiões)');
+	if (inj.length > 0) {
+		for (const i of inj) {
+			lines.push(`- ${i.region}${i.notes ? ` — ${i.notes}` : ''}`);
+		}
+	} else {
+		lines.push('- (nenhuma limitação reportada)');
 	}
 	lines.push('');
 	lines.push(`## RISCO CARDIOVASCULAR: ${h?.cardiovascularRisk ?? 'baixo'}`);
@@ -335,7 +392,7 @@ function buildUserPrompt(ctx: StudentContext, ragContext: string, notes?: string
 		'3. Quando escolher do catálogo, use o nome EXATO do catálogo no campo `name` (não invente variações), e copie o external_id PRECISO em `catalog_id`.'
 	);
 	lines.push(
-		'4. CONCISÃO: gere EXATAMENTE 2 sessões semanais (não 3, não mais — qualidade > quantidade). `execution_notes` de cada exercício em 1-2 frases curtas, direto ao ponto. monitoring_parameters: 2-3 itens essenciais. restrictions: só se houver red flag clínico real.'
+		`4. SESSÕES SEMANAIS: gere EXATAMENTE ${Math.max(1, Math.min(5, ctx.preferences?.weeklySessions ?? 3))} sessões — esse é o número que o aluno definiu na frequência alvo dele. CONCISÃO: \`execution_notes\` de cada exercício em 1-2 frases curtas, direto ao ponto. monitoring_parameters: 2-3 itens essenciais. restrictions: só se houver red flag clínico real.`
 	);
 	lines.push(
 		'5. RESPEITE a Dificuldade-alvo dos exercícios definida nas PREFERÊNCIAS. A escolha dos exercícios deve refletir esse nível de complexidade técnica, independente do nível de experiência informado.'

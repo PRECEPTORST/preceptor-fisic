@@ -126,6 +126,32 @@ export async function sendStudentMagicLink(opts: {
 }
 
 /**
+ * Email pro aluno com o link de auto-preenchimento do cadastro.
+ * Disparado quando o profissional cria o aluno no modo "enviar link".
+ */
+export async function sendStudentFillLink(opts: {
+	to: string;
+	studentName: string;
+	professionalName: string;
+	fillUrl: string;
+}): Promise<EmailResult> {
+	const firstName = opts.studentName.split(' ')[0] || 'aluno';
+	const subject = `${opts.professionalName} pediu pra você completar seu cadastro`;
+	const body = `
+<p style="margin:0 0 14px;">Olá <strong style="color:#fafafa;">${firstName}</strong>,</p>
+<p style="margin:0 0 14px;"><strong style="color:#fafafa;">${opts.professionalName}</strong> começou seu cadastro no Preceptor Fisic. Pra montar seus treinos sob medida, falta você preencher alguns dados.</p>
+<p style="margin:0;">Leva 2 minutos. <strong style="color:#fafafa;">Não precisa criar conta nem baixar nada</strong> — é só clicar.</p>
+`;
+	return send({
+		to: opts.to,
+		subject,
+		html: baseTemplate('Complete seu cadastro.', body, opts.fillUrl, 'Preencher meus dados →'),
+		text: `${opts.professionalName} pediu pra você completar seu cadastro no Preceptor Fisic. Preencha: ${opts.fillUrl}`,
+		tag: 'student.fill_link'
+	});
+}
+
+/**
  * Boas-vindas pro profissional após signup confirmado.
  */
 export async function sendProfessionalWelcome(opts: {

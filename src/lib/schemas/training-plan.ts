@@ -104,9 +104,12 @@ export const restrictionSchema = z.object({
 export const trainingPlanSchema = z.object({
 	summary: z.string().min(80).max(2000),
 	progression_strategy: z.string().min(120).max(3000),
-	// Cap em 3 sessões — Hobby tem 60s pra gerar tudo. Schema antes pedia
-	// até 7, LLM gerava 3-4 e estourava o tempo. min(1) garante pelo menos 1.
-	weekly_sessions: z.array(sessionSchema).min(1).max(3),
+	// Cap em 5 sessões — cobre a maioria das preferências (1x a 5x/semana).
+	// Hobby ainda tem 60s pra gerar tudo, mas com salvamento de partial
+	// no abort + schema enxuto (execution_notes.min(10)) o orçamento dá.
+	// LLM é instruído via prompt a usar EXATAMENTE weeklySessions, então
+	// raramente bate o teto.
+	weekly_sessions: z.array(sessionSchema).min(1).max(5),
 	// Monitoring relaxado pra .default([]) (era min(1)). LLM emite esses
 	// campos POR ÚLTIMO; quando aborta no timeout, o partial até as sessões
 	// ainda é válido e o plano vai pra `generated` em vez de `failed`.
