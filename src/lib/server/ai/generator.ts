@@ -401,8 +401,21 @@ function buildUserPrompt(ctx: StudentContext, ragContext: string, notes?: string
 	lines.push(
 		'3. Quando escolher do catálogo, use o nome EXATO do catálogo no campo `name` (não invente variações), e copie o external_id PRECISO em `catalog_id`.'
 	);
+	// Sugestão de distribuição semanal — spreading com pelo menos 1 dia de
+	// descanso entre treinos quando possível. Mesma tabela pra todos os
+	// splits (full-body/upper-lower/PPL). LLM pode desviar se for clínicamente
+	// melhor, mas o default cobre 95% dos casos.
+	const N = Math.max(1, Math.min(5, ctx.preferences?.weeklySessions ?? 3));
+	const DAY_DIST: Record<number, string[]> = {
+		1: ['seg'],
+		2: ['seg', 'qui'],
+		3: ['seg', 'qua', 'sex'],
+		4: ['seg', 'ter', 'qui', 'sex'],
+		5: ['seg', 'ter', 'qua', 'qui', 'sex']
+	};
+	const suggestedDays = DAY_DIST[N]?.join(', ') ?? 'seg, qua, sex';
 	lines.push(
-		`4. SESSÕES SEMANAIS: gere EXATAMENTE ${Math.max(1, Math.min(5, ctx.preferences?.weeklySessions ?? 3))} sessões — esse é o número que o aluno definiu na frequência alvo dele. CONCISÃO: \`execution_notes\` de cada exercício em 1-2 frases curtas, direto ao ponto. monitoring_parameters: 2-3 itens essenciais. restrictions: só se houver red flag clínico real.`
+		`4. SESSÕES SEMANAIS: gere EXATAMENTE ${N} sessões — esse é o número que o aluno definiu na frequência alvo dele. OBRIGATÓRIO preencher \`day_of_week\` de CADA sessão (valores válidos: "seg" | "ter" | "qua" | "qui" | "sex" | "sab" | "dom"). Distribua os treinos pela semana com descanso entre eles — sugestão de distribuição pra ${N} sessões: ${suggestedDays}. CONCISÃO: \`execution_notes\` de cada exercício em 1-2 frases curtas. monitoring_parameters: 2-3 itens. restrictions: só se houver red flag.`
 	);
 	lines.push(
 		'5. RESPEITE a Dificuldade-alvo dos exercícios definida nas PREFERÊNCIAS. A escolha dos exercícios deve refletir esse nível de complexidade técnica, independente do nível de experiência informado.'
