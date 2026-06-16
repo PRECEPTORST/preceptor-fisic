@@ -624,18 +624,21 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 
 				return { object: await result.object, usage: await result.usage };
 			} catch (streamErr) {
-				// Salvamento: se o stream foi abortado pelo nosso timeout mas
-				// o último partial valida contra o schema (monitoring/restrictions
-				// agora têm default([])), devolvemos o plano mesmo assim. Melhor
-				// um plano bom-o-suficiente que `failed` no rosto do user.
+				// Salvamento: tenta aproveitar o último partial SEMPRE que existir
+				// — não só em timeout/abort. Dois cenários levam aqui:
+				//   1) abort do nosso timeout (corta no meio de uma sessão);
+				//   2) o objeto FINAL falhou a validação do schema (ex.: última
+				//      sessão incompleta, um campo curto demais).
+				// Em ambos, o partial truncado costuma validar. Antes, só (1)
+				// era tratado — (2) ia direto pra "Geração falhou" mesmo tendo
+				// um plano quase pronto e válido em mãos.
 				const msg = streamErr instanceof Error ? streamErr.message : String(streamErr);
-				const wasAbort = /aborted|timeout|AbortError/i.test(msg);
-				if (wasAbort && lastPartial) {
-					// O abort quase sempre corta NO MEIO de uma sessão — a última
-					// fica com exercício incompleto e o schema rejeita o plano
-					// inteiro. Tenta validar versões truncadas: completo, depois
-					// sem a última sessão, depois sem as 2 últimas... Plano com
-					// 2 de 3 sessões é muito melhor que "failed" na cara do user.
+				if (lastPartial) {
+					// O corte quase sempre deixa a ÚLTIMA sessão com exercício
+					// incompleto e o schema rejeita o plano inteiro. Tenta validar
+					// versões truncadas: completo, depois sem a última sessão,
+					// depois sem as 2 últimas... Plano com 2 de 3 sessões é muito
+					// melhor que "failed" na cara do user.
 					const base = lastPartial as Record<string, unknown>;
 					const sessions = Array.isArray(base.weekly_sessions) ? base.weekly_sessions : [];
 					for (let keep = sessions.length; keep >= 1; keep--) {
@@ -656,8 +659,8 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 						const parsed = trainingPlanSchema.safeParse(candidate);
 						if (parsed.success) {
 							log.warn(
-								{ kept: keep, of: sessions.length },
-								'plan.generate.salvaged_from_timeout'
+								{ kept: keep, of: sessions.length, reason: msg.slice(0, 120) },
+								'plan.generate.salvaged_partial'
 							);
 							return { object: parsed.data, usage: undefined };
 						}

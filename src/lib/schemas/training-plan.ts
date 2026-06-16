@@ -63,7 +63,10 @@ export const exerciseSchema = z.object({
 	load_guidance: z.string().min(2).max(400),
 	rest_seconds: z.number().int().min(0).max(900),
 	tempo: z.string().optional(),
-	execution_notes: z.string().min(10).max(3000),
+	// min baixo de propósito: uma cue clínica curta ("Controle escapular") é
+	// válida. min(10) rejeitava o plano INTEIRO por uma nota tersa de 1 dos
+	// 20+ exercícios — causa comum de "Geração falhou" sem motivo real.
+	execution_notes: z.string().min(3).max(3000),
 	contraindications: z.array(z.string()).default([]),
 	source_refs: z.array(sourceRefSchema).default([]),
 
