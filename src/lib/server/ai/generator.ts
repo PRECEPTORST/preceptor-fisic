@@ -43,12 +43,12 @@ import { validatePlan, violationToRestriction, deriveStudentCtxFromHealth } from
 const PRIMARY_MODEL = env.AI_MODEL_FAST ?? 'gemini-2.5-flash';
 const FALLBACK_MODEL = env.AI_MODEL_PRIMARY ?? 'gemini-2.5-pro';
 
-/** Teto da chamada de IA (ms). Em produção (Vercel Hobby) fica abaixo dos
- * 60s do maxDuration pra sobrar tempo do catch persistir status=failed.
- * Em dev local (Node persistente, sem teto de função) damos 120s — o
- * abort de 56s só serve pra simular prod, e atrapalha testes longos.
- * Override por env AI_GEN_TIMEOUT_MS. */
-const AI_GEN_TIMEOUT_MS = Number(env.AI_GEN_TIMEOUT_MS ?? (isDev ? '120000' : '56000'));
+/** Teto da chamada de IA (ms). Fica ABAIXO do maxDuration da função (300s no
+ * Pro) pra sobrar tempo de validar + persistir o plano (ou marcar failed).
+ * 280s dá folga generosa pra IA fechar o plano completo num paciente
+ * complexo. Em dev local (Node persistente) 120s basta. Se você estiver no
+ * plano Hobby da Vercel (maxDuration 60), baixe via env AI_GEN_TIMEOUT_MS=56000. */
+const AI_GEN_TIMEOUT_MS = Number(env.AI_GEN_TIMEOUT_MS ?? (isDev ? '120000' : '280000'));
 
 function isQuotaError(err: unknown): boolean {
 	const msg = err instanceof Error ? err.message : String(err);
@@ -523,15 +523,19 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 			// Timer de progresso — garante movimento visual mesmo se o
 			// partialObjectStream do Gemini não emitir incrementalmente
 			// (caso comum: o modelo entrega tudo de uma vez no fim).
-			// Sobe 55→88 gradual; o for-await cuida do planData + fase.
+			// Aproxima de 88 de forma assintótica (ease-out): avança rápido no
+			// começo e vai diminuindo o passo, então a barra NUNCA parece travada
+			// mesmo numa geração longa (Pro pode levar minutos). Cap em 88 pra os
+			// passos pós-geração (91/95/100) sempre irem pra frente.
 			let simulatedPct = 55;
 			const progressTimer = setInterval(() => {
-				simulatedPct = Math.min(88, simulatedPct + 2);
+				const step = Math.max(1, Math.round((88 - simulatedPct) / 10));
+				simulatedPct = Math.min(88, simulatedPct + step);
 				db.update(trainingPlans)
 					.set({ progressPct: simulatedPct, updatedAt: new Date() })
 					.where(eq(trainingPlans.id, planId))
 					.catch(() => {});
-			}, 2500);
+			}, 4000);
 
 			// Texto bruto acumulado do stream (alimenta UI "Gemini escrevendo").
 			// Truncado em sliding window pra não bloar o DB row.
@@ -690,8 +694,8 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 				})
 				.where(eq(trainingPlans.id, planId));
 			// Fallback NÃO streaming pra simplicidade — Pro raramente é tocado.
-			// Timeout menor (45s) porque já gastamos tempo na tentativa primária
-			// e ainda precisamos validar+persistir dentro do maxDuration de 60s.
+			// 120s: o erro de quota geralmente vem cedo, então sobra tempo no
+			// maxDuration (300s) pro Pro gerar o plano completo e ainda validar.
 			const fallbackGen = await generateObject({
 				model: google(FALLBACK_MODEL),
 				schema: trainingPlanSchema,
@@ -701,7 +705,7 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 				system: SYSTEM_PROMPT_PT_BR,
 				prompt: userPrompt,
 				maxRetries: 1,
-				abortSignal: AbortSignal.timeout(45_000)
+				abortSignal: AbortSignal.timeout(120_000)
 			});
 			plan = fallbackGen.object;
 			usage = fallbackGen.usage;

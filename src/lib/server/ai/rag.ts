@@ -83,7 +83,7 @@ async function embedQuery(text: string): Promise<number[]> {
 		model: google.textEmbeddingModel(EMBED_MODEL),
 		value: text,
 		// Embed costuma ser <2s. Abort em 20s pra impedir que o RAG trave a
-		// função e estoure o maxDuration de 60s sem nem chegar na IA.
+		// função e consuma o orçamento de tempo sem nem chegar na geração.
 		abortSignal: AbortSignal.timeout(20_000),
 		providerOptions: {
 			google: { outputDimensionality: EMBED_DIMS, taskType: 'RETRIEVAL_QUERY' }

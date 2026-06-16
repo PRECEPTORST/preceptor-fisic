@@ -315,7 +315,7 @@
 
 			<div class="gen-footnote">
 				<span style="color:var(--accent)">★</span>
-				Pode levar 15-30s · Plano completa automaticamente
+				Pode levar de 30s a alguns minutos · Plano completa automaticamente
 			</div>
 		</div>
 	</div>

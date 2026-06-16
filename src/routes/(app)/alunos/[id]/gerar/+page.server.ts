@@ -7,10 +7,12 @@ import {
 import { createPlanPlaceholder, generateTrainingPlanInBackground } from '$lib/server/ai/generator';
 import type { Actions, PageServerLoad } from './$types';
 
-// Vercel: estende o limite da função pra 60s (Hobby max). Plano com Flash leva
-// ~10-20s, com Pro ~30-50s. Sem isso, default é 10s e a IA morre antes de salvar.
+// Vercel: estende o limite da função pra 300s (máx do plano Pro) — a geração
+// roda em background via waitUntil e precisa fechar o plano COMPLETO antes do
+// runtime encerrar. (No adapter não-split o valor efetivo vem do svelte.config,
+// mas deixamos aqui consistente.) No Hobby, voltar pra 60.
 export const config = {
-	maxDuration: 60
+	maxDuration: 300
 };
 
 // Rate limit: cada professional pode gerar no máximo 5 planos a cada 5 minutos.
