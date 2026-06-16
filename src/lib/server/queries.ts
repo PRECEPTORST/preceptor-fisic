@@ -2010,20 +2010,19 @@ export async function getDashboardStats(professionalId: string): Promise<Dashboa
 				(SELECT COUNT(*) FROM physical_assessments
 					WHERE created_by = ${professionalId})::int AS assessments_total
 		`),
-		// Heatmap: 26 semanas (182 dias) — count de sessões por dia
+		// Heatmap: 26 semanas (182 dias) — count de sessões por dia.
+		// Antes: generate_series(0,181) × subquery COUNT por dia = 182
+		// subqueries por load do dashboard (lento). Agora: 1 GROUP BY que
+		// retorna só os dias COM sessão (esparso); o array de 182 posições
+		// é montado em JS preenchendo zeros.
 		db.execute<{ day_offset: number; sessions_count: number }>(sql`
-			WITH days AS (
-				SELECT generate_series(0, 181)::int AS day_offset
-			)
 			SELECT
-				d.day_offset,
-				COALESCE((
-					SELECT COUNT(*) FROM training_sessions ts
-					WHERE ts.logged_by = ${professionalId}
-					  AND ts.session_date::date = (CURRENT_DATE - d.day_offset * INTERVAL '1 day')::date
-				), 0)::int AS sessions_count
-			FROM days d
-			ORDER BY d.day_offset DESC
+				(CURRENT_DATE - ts.session_date::date)::int AS day_offset,
+				COUNT(*)::int AS sessions_count
+			FROM training_sessions ts
+			WHERE ts.logged_by = ${professionalId}
+			  AND ts.session_date::date > CURRENT_DATE - 182
+			GROUP BY 1
 		`),
 		// Próximos 7 dias de agendamentos
 		db.execute<{
@@ -2059,10 +2058,14 @@ export async function getDashboardStats(professionalId: string): Promise<Dashboa
 
 	const heatmapRows =
 		(heatmapResult as unknown as { rows?: typeof heatmapResult }).rows ?? heatmapResult;
-	const heatmap = (heatmapRows as Array<{ day_offset: number; sessions_count: number }>).map(
-		(r) => Number(r.sessions_count)
-	);
-	const heatmapMax = heatmap.length > 0 ? Math.max(...heatmap, 1) : 1;
+	// 182 posições, cronológico (índice 0 = 181 dias atrás … 181 = hoje) —
+	// mesma ordem que a query antiga (ORDER BY day_offset DESC) produzia.
+	const heatmap = new Array<number>(182).fill(0);
+	for (const r of heatmapRows as Array<{ day_offset: number; sessions_count: number }>) {
+		const idx = 181 - Number(r.day_offset);
+		if (idx >= 0 && idx < 182) heatmap[idx] = Number(r.sessions_count);
+	}
+	const heatmapMax = Math.max(...heatmap, 1);
 
 	const upcomingRows =
 		(upcomingResult as unknown as { rows?: typeof upcomingResult }).rows ?? upcomingResult;

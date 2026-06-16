@@ -193,9 +193,11 @@ body {
 
 /* ── View Transitions — cross-fade entre rotas ── */
 
+/* 120ms (era 240) — a transição roda em TODA navegação; mais curta deixa o
+   clique no menu parecendo instantâneo em vez de "travado/lento". */
 ::view-transition-old(page-content),
 ::view-transition-new(page-content) {
-	animation-duration: var(--dur-2);
+	animation-duration: 120ms;
 	animation-timing-function: var(--ease);
 }
 ::view-transition-old(page-content) {
@@ -208,13 +210,12 @@ body {
 @keyframes pf-fade-out {
 	to {
 		opacity: 0;
-		transform: translateY(-4px);
 	}
 }
 @keyframes pf-fade-in-up {
 	from {
 		opacity: 0;
-		transform: translateY(8px);
+		transform: translateY(4px);
 	}
 	to {
 		opacity: 1;
