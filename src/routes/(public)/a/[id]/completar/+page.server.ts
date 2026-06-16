@@ -21,8 +21,16 @@ const RiskEnum = z.enum(['baixo', 'moderado', 'alto', 'muito_alto']);
 const ExpEnum = z.enum(['iniciante', 'intermediario', 'avancado']);
 const DifficultyEnum = z.enum(['pequena', 'media', 'alta']);
 
+// Aceita só ISO (yyyy-mm-dd) ou vazio. Sem isso, um "31/12/1990" (dd/mm/yyyy,
+// comum no BR) passa e estoura na coluna date do Postgres → 500.
+const isoDate = z
+	.string()
+	.trim()
+	.regex(/^\d{4}-\d{2}-\d{2}$/, 'data deve estar no formato AAAA-MM-DD')
+	.refine((s) => !Number.isNaN(new Date(s).getTime()), 'data inválida');
+
 const schema = z.object({
-	birthDate: z.string().optional().nullable(),
+	birthDate: isoDate.nullable().optional(),
 	weightKg: z.number().positive().nullable().optional(),
 	heightCm: z.number().positive().nullable().optional(),
 	phone: z.string().optional().nullable(),

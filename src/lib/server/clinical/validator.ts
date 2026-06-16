@@ -46,6 +46,16 @@ type ClinicalRuleRow = {
 function appliesTo(rule: ClinicalRuleRow, ctx: StudentCtx): boolean {
 	const w = rule.ruleDsl.when ?? {};
 
+	// As condition_tags da regra (coluna) definem A QUE condição ela se refere.
+	// Isso escopa a regra SEMPRE — os filtros `when` (idade, risco CV) são
+	// restrições ADICIONAIS, não substitutas. Antes, uma regra com tags +
+	// um `when.age_gte` aplicava só pela idade, ignorando as tags → marcava
+	// restrição de uma condição que o aluno nem tinha (falso positivo que
+	// podia bloquear a publicação indevidamente).
+	if (rule.conditionTags && rule.conditionTags.length > 0) {
+		if (!rule.conditionTags.some((t) => ctx.conditionTags.includes(t))) return false;
+	}
+
 	// condition_tags_any → student tem AO MENOS uma
 	if (w.condition_tags_any && w.condition_tags_any.length > 0) {
 		if (!w.condition_tags_any.some((t) => ctx.conditionTags.includes(t))) return false;
@@ -65,18 +75,6 @@ function appliesTo(rule: ClinicalRuleRow, ctx: StudentCtx): boolean {
 		const studentIdx = CV_RISK_ORDER.indexOf(ctx.cvRisk);
 		const minIdx = CV_RISK_ORDER.indexOf(w.cv_risk_min);
 		if (studentIdx < minIdx) return false;
-	}
-
-	// Se a regra não tem nenhum filtro `when`, aplica a todos
-	const hasNoFilter =
-		!w.condition_tags_any?.length &&
-		!w.condition_tags_all?.length &&
-		w.age_gte == null &&
-		w.age_lte == null &&
-		!w.cv_risk_min;
-	if (hasNoFilter && (!rule.conditionTags || rule.conditionTags.length > 0)) {
-		// Regra com tags mas sem filtro `when` — aplicável só se aluno tem alguma das tags da regra
-		return rule.conditionTags.some((t) => ctx.conditionTags.includes(t));
 	}
 
 	return true;
@@ -212,12 +210,19 @@ export async function validatePlan(
 			const { metric, value } = dsl.forbid.intensity_above;
 			const offenders: { ex: Exercise; observed: number }[] = [];
 			for (const { ex } of exercises) {
+				// A intensidade pode estar em load_guidance OU nos campos da ficha
+				// (intensity/series_label). Os parsers exigem marcadores explícitos
+				// (RPE, "% 1RM", "FC %"), então combinar os campos só amplia onde
+				// procurar — sem risco de falso positivo.
+				const intensityText = [ex.load_guidance, ex.intensity, ex.series_label]
+					.filter(Boolean)
+					.join(' ');
 				const observed =
 					metric === 'rpe'
-						? parseRpe(ex.load_guidance)
+						? parseRpe(intensityText)
 						: metric === 'percent_1rm'
-							? parsePercent1RM(ex.load_guidance)
-							: parseHrPercentMax(ex.load_guidance);
+							? parsePercent1RM(intensityText)
+							: parseHrPercentMax(intensityText);
 				if (observed != null && observed > value) {
 					offenders.push({ ex, observed });
 				}

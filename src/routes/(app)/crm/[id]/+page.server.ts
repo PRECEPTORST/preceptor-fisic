@@ -7,6 +7,7 @@ import {
 	type LeadSource,
 	type LeadStage
 } from '$lib/server/queries';
+import { parseDateOrNull } from '$lib/server/validation';
 import type { Actions, PageServerLoad } from './$types';
 
 const VALID_STAGES: LeadStage[] = [
@@ -52,8 +53,8 @@ export const actions: Actions = {
 		const stage = String(data.get('stage') ?? 'visitante') as LeadStage;
 		const notes = String(data.get('notes') ?? '').trim() || null;
 		const lostReason = String(data.get('lostReason') ?? '').trim() || null;
-		const followStr = String(data.get('nextFollowUpAt') ?? '').trim();
-		const nextFollowUpAt = followStr ? new Date(followStr) : null;
+		// Data livre malformada → Invalid Date → 500 ao serializar. Saneia.
+		const nextFollowUpAt = parseDateOrNull(data.get('nextFollowUpAt'));
 
 		if (!name) return fail(400, { error: 'nome obrigatório' });
 		if (!VALID_SOURCES.includes(source)) return fail(400, { error: 'fonte inválida' });

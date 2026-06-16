@@ -7,6 +7,7 @@ import {
 	updateAppointment,
 	deleteAppointment
 } from '$lib/server/queries';
+import { isUuid } from '$lib/server/validation';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load = (async ({ params, parent }) => {
@@ -43,8 +44,12 @@ export const actions: Actions = {
 		const notes = String(fd.get('notes') ?? '').trim() || undefined;
 
 		if (!date || !time || !type.success || !status.success) return fail(400, { error: 'dados inválidos' });
+		if (studentId && !isUuid(studentId)) return fail(400, { error: 'aluno inválido' });
 		const startsAt = new Date(`${date}T${time}:00`);
 		if (Number.isNaN(startsAt.getTime())) return fail(400, { error: 'data inválida' });
+		// duration sem validação ia inserir NaN numa coluna integer (500).
+		if (!Number.isFinite(duration) || duration < 15 || duration > 240)
+			return fail(400, { error: 'duração inválida' });
 
 		await updateAppointment({
 			appointmentId: params.id!,

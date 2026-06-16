@@ -63,6 +63,22 @@ export const actions: Actions = {
 		if (!raw.experienceLevel.success) return fail(400, { error: 'experiência inválida' });
 		if (!raw.prescribedDifficulty.success) return fail(400, { error: 'dificuldade inválida' });
 		if (!raw.trainingSplit.success) return fail(400, { error: 'estrutura de treino inválida' });
+		// Sem isso, valores não-numéricos (NaN) ou data BR (dd/mm/aaaa) iam pro
+		// DB e a transação falhava com um erro cru de Postgres.
+		if (!Number.isFinite(raw.weeklySessions) || raw.weeklySessions < 1 || raw.weeklySessions > 7)
+			return fail(400, { error: 'frequência semanal inválida (1 a 7)' });
+		if (
+			!Number.isFinite(raw.minutesPerSession) ||
+			raw.minutesPerSession < 15 ||
+			raw.minutesPerSession > 180
+		)
+			return fail(400, { error: 'minutos por sessão inválidos (15 a 180)' });
+		if (raw.weightKg != null && !Number.isFinite(raw.weightKg))
+			return fail(400, { error: 'peso inválido' });
+		if (raw.heightCm != null && !Number.isFinite(raw.heightCm))
+			return fail(400, { error: 'altura inválida' });
+		if (raw.birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(raw.birthDate))
+			return fail(400, { error: 'data de nascimento inválida (use AAAA-MM-DD)' });
 
 		try {
 			await updateStudentTx({

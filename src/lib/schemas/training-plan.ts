@@ -146,12 +146,12 @@ export const trainingPlanSchema = z.object({
 	/** Duração total do programa em semanas (pra calcular o período na capa). Default tratado no consumidor: 16. */
 	program_weeks: z.number().int().min(1).max(104).optional(),
 	progression_strategy: z.string().min(120).max(3000),
-	// Cap em 5 sessões — cobre a maioria das preferências (1x a 5x/semana).
+	// Cap em 7 sessões — alinhado à preferência do aluno (1x a 7x/semana).
 	// Hobby ainda tem 60s pra gerar tudo, mas com salvamento de partial
 	// no abort + schema enxuto (execution_notes.min(10)) o orçamento dá.
 	// LLM é instruído via prompt a usar EXATAMENTE weeklySessions, então
 	// raramente bate o teto.
-	weekly_sessions: z.array(sessionSchema).min(1).max(5),
+	weekly_sessions: z.array(sessionSchema).min(1).max(7),
 	/** Prescrição aeróbia (página "Treino Aeróbio" do modelo). */
 	aerobic_prescriptions: z.array(aerobicPrescriptionSchema).default([]),
 	// Monitoring relaxado pra .default([]) (era min(1)). LLM emite esses

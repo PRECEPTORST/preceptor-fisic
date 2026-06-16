@@ -223,8 +223,15 @@ function deriveConditionTags(health: HealthProfile | null): string[] {
 		if (/hipertens|press[aã]o alta|has/.test(label)) {
 			tags.add(d.severity === 'grave' ? 'hipertensao_estagio_2' : 'hipertensao_estagio_1');
 		}
-		if (/diabetes|dm1|dm 1|tipo 1/.test(label)) tags.add('diabetes_tipo_1');
-		if (/diabetes|dm2|dm 2|tipo 2/.test(label)) tags.add('diabetes_tipo_2');
+		// Um label genérico "diabetes" casava nas DUAS regras → marcava o aluno
+		// como tipo 1 E tipo 2 ao mesmo tempo (contraindicações conflitantes).
+		// Agora: tipo só quando explícito; diabetes genérico → tipo 2 (~90% dos casos).
+		if (/diabetes|diabet|\bdm\b|dm[12]|dm [12]/.test(label)) {
+			const isDm1 = /dm1|dm 1|tipo 1|tipo i\b/.test(label);
+			const isDm2 = /dm2|dm 2|tipo 2|tipo ii\b/.test(label);
+			if (isDm1) tags.add('diabetes_tipo_1');
+			if (isDm2 || !isDm1) tags.add('diabetes_tipo_2');
+		}
 		if (/cardiopat|coronar|iam|infarto|dac/.test(label)) tags.add('cardiopatia_isquemica');
 		if (/insufici[eê]ncia card|icc/.test(label)) tags.add('ic_compensada');
 		if (/dpoc|enfisema|bronquite|pulmona/.test(label)) tags.add('dpoc_moderada');
@@ -407,13 +414,18 @@ function buildUserPrompt(ctx: StudentContext, ragContext: string, notes?: string
 	// descanso entre treinos quando possível. Mesma tabela pra todos os
 	// splits (full-body/upper-lower/PPL). LLM pode desviar se for clínicamente
 	// melhor, mas o default cobre 95% dos casos.
-	const N = Math.max(1, Math.min(5, ctx.preferences?.weeklySessions ?? 3));
+	// Honra a frequência real do aluno (até 7x — preferências validam 1–7).
+	// Antes o cap era 5: quem pedia 6–7 recebia só 5 sessões e a aderência
+	// (sessions7 / weeklySessions) ficava distorcida.
+	const N = Math.max(1, Math.min(7, ctx.preferences?.weeklySessions ?? 3));
 	const DAY_DIST: Record<number, string[]> = {
 		1: ['seg'],
 		2: ['seg', 'qui'],
 		3: ['seg', 'qua', 'sex'],
 		4: ['seg', 'ter', 'qui', 'sex'],
-		5: ['seg', 'ter', 'qua', 'qui', 'sex']
+		5: ['seg', 'ter', 'qua', 'qui', 'sex'],
+		6: ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
+		7: ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom']
 	};
 	const suggestedDays = DAY_DIST[N]?.join(', ') ?? 'seg, qua, sex';
 	lines.push(

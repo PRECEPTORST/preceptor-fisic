@@ -14,6 +14,7 @@ import { Resend } from 'resend';
 import { env } from '$env/dynamic/private';
 import { env as pubEnv } from '$env/dynamic/public';
 import { logger } from './logger';
+import { signStudentToken } from './aluno-token';
 
 const RESEND_API_KEY = env.RESEND_API_KEY;
 const FROM = env.RESEND_FROM ?? 'Preceptor Fisic <onboarding@resend.dev>';
@@ -220,7 +221,8 @@ export async function sendAppointmentNotification(opts: {
 		html: baseTemplate(
 			'Sessão agendada.',
 			body,
-			`${APP_URL}/a/${opts.studentId}`,
+			// Link do app do aluno é token-gated: sem ?t=, o /a/[id] responde 403.
+			`${APP_URL}/a/${opts.studentId}?t=${signStudentToken(opts.studentId)}`,
 			'Abrir meu app →'
 		),
 		tag: 'appointment.notification'

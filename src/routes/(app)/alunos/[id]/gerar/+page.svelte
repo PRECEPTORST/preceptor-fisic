@@ -2,7 +2,6 @@
 	import { Button, Avatar, Eyebrow } from '$lib/components/ui';
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
-	import { onDestroy } from 'svelte';
 	import type { PageData } from './$types';
 
 	let {
@@ -59,15 +58,13 @@
 	};
 	const primaryGoal = $derived(goalsList[0] ? (GOAL_LABELS[goalsList[0]] ?? goalsList[0]) : 'sem objetivo');
 
-	let tickInterval: ReturnType<typeof setInterval> | null = null;
-
 	$effect(() => {
 		if (phase !== 'generating') return;
-		tickInterval = setInterval(() => (msgIdx = (msgIdx + 1) % messages.length), 2000);
-	});
-
-	onDestroy(() => {
-		if (tickInterval) clearInterval(tickInterval);
+		// O teardown do $effect roda antes de re-executar E ao destruir o
+		// componente, então o interval nunca vaza (ex.: gerar → falhar → gerar
+		// de novo criava um 2º interval com o 1º ainda rodando).
+		const id = setInterval(() => (msgIdx = (msgIdx + 1) % messages.length), 2000);
+		return () => clearInterval(id);
 	});
 </script>
 

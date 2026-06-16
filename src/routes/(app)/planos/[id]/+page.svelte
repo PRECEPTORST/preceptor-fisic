@@ -784,7 +784,7 @@
 						</div>
 						<div style="font:600 14px var(--font-sans);color:var(--ink-0);margin-bottom:6px">{r.title}</div>
 						<div style="font:var(--body-sm);color:var(--ink-0);line-height:1.5;opacity:0.92">{r.description}</div>
-						{#if r.affected_exercises.length > 0}
+						{#if (r.affected_exercises?.length ?? 0) > 0}
 							<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
 								{#each r.affected_exercises as ex (ex)}
 									<span
@@ -803,7 +803,7 @@
 								>
 								<blockquote
 									style="margin:8px 0 0;padding:10px 14px;border-left:2px solid {levelColor(r.level)};font:var(--body-sm);color:var(--ink-1);font-style:italic;line-height:1.5;background:rgba(0,0,0,0.2)"
-									>"{src.excerpt}{src.excerpt.length >= 280 ? '…' : ''}"</blockquote
+									>"{src.excerpt ?? ''}{(src.excerpt?.length ?? 0) >= 280 ? '…' : ''}"</blockquote
 								>
 							</details>
 						{/if}

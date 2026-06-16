@@ -55,16 +55,25 @@ const supabase: Handle = async ({ event, resolve }) => {
 	);
 
 	event.locals.safeGetSession = async () => {
-		const {
-			data: { session }
-		} = await event.locals.supabase.auth.getSession();
-		if (!session) return { session: null, user: null };
-		const {
-			data: { user },
-			error
-		} = await event.locals.supabase.auth.getUser();
-		if (error) return { session: null, user: null };
-		return { session, user };
+		// getSession/getUser fazem rede até o Supabase Auth. Um blip de rede
+		// lança aqui e, como esse handler roda em TODA request, derrubaria o
+		// site inteiro com 500. Tratamos como "não autenticado" — o authGuard
+		// então manda pro /login, que é o comportamento seguro/esperado.
+		try {
+			const {
+				data: { session }
+			} = await event.locals.supabase.auth.getSession();
+			if (!session) return { session: null, user: null };
+			const {
+				data: { user },
+				error
+			} = await event.locals.supabase.auth.getUser();
+			if (error) return { session: null, user: null };
+			return { session, user };
+		} catch (err) {
+			logger.warn({ err: String(err).slice(0, 200) }, 'auth.safeGetSession.failed');
+			return { session: null, user: null };
+		}
 	};
 
 	return resolve(event, {

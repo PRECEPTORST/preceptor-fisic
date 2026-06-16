@@ -113,7 +113,9 @@ export const actions: Actions = {
 				setLogs = [];
 			}
 
-			const setsDone = setLogs.length || Number(fd.get(`sets_${i}`) ?? ex.sets ?? 0);
+			// `|| 0` no fim garante que um sets_i não-numérico vire 0 (e não NaN,
+			// que serializaria como null no JSON da sessão).
+			const setsDone = setLogs.length || Number(fd.get(`sets_${i}`) ?? ex.sets ?? 0) || 0;
 			// Resumo legível: reps reais ("10,10,8") e maior peso usado.
 			const repsSummary = setLogs.length
 				? setLogs.map((s) => s.reps).join(',')
@@ -131,8 +133,11 @@ export const actions: Actions = {
 				completed: fd.get(`completed_${i}`) === 'on'
 			};
 		});
-		const rpeRaw = fd.get('rpe');
-		const perceivedEffort = rpeRaw ? Number(rpeRaw) : undefined;
+		// rpe não-numérico (NaN) iria parar na coluna integer perceived_effort
+		// (erro do Postgres → 500). Só aceita 0–10; senão fica undefined.
+		const rpeNum = fd.get('rpe') ? Number(fd.get('rpe')) : NaN;
+		const perceivedEffort =
+			Number.isFinite(rpeNum) ? Math.min(10, Math.max(0, Math.round(rpeNum))) : undefined;
 		const observations = String(fd.get('observations') ?? '').trim() || undefined;
 
 		// Duração: cliente envia minutos decorridos (start no mount → submit).

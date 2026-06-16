@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { searchExerciseCatalog, getCatalogFacets } from '$lib/server/queries';
+import { toIntInRange } from '$lib/server/validation';
 import type { PageServerLoad } from './$types';
 
 const PAGE_SIZE = 48;
@@ -12,7 +13,8 @@ export const load = (async ({ parent, url }) => {
 	const bodyPart = url.searchParams.get('bp') ?? undefined;
 	const equipment = url.searchParams.get('eq') ?? undefined;
 	const difficulty = url.searchParams.get('diff') ?? undefined;
-	const page = Math.max(1, Number(url.searchParams.get('page') ?? '1'));
+	// ?page=abc → NaN → OFFSET NaN → erro de SQL (500). Saneia pra inteiro >= 1.
+	const page = toIntInRange(url.searchParams.get('page') ?? '1', { min: 1, max: 100000, fallback: 1 });
 
 	const [{ items, total }, facets] = await Promise.all([
 		searchExerciseCatalog({

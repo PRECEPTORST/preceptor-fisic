@@ -4,6 +4,7 @@
  */
 import { eq, and, desc, asc, isNull, sql, count, gte, lte, inArray } from 'drizzle-orm';
 import { db } from './db';
+import { isUuid } from './validation';
 import {
 	professionals,
 	students,
@@ -247,6 +248,7 @@ export async function getStudentDetail(
 	studentId: string,
 	professionalId: string
 ): Promise<StudentDetail | null> {
+	if (!isUuid(studentId) || !isUuid(professionalId)) return null;
 	const studentRows = await db
 		.select()
 		.from(students)
@@ -691,6 +693,7 @@ export async function getPlanDetail(
 	planId: string,
 	professionalId: string
 ): Promise<PlanDetail | null> {
+	if (!isUuid(planId) || !isUuid(professionalId)) return null;
 	const rows = await db
 		.select({
 			id: trainingPlans.id,
@@ -1006,6 +1009,7 @@ export type AlunoSelfFillData = {
 
 /** Carrega os dados que o aluno preenche pelo link — sem auth de profissional (rota é token-gated). */
 export async function getAlunoSelfFillData(studentId: string): Promise<AlunoSelfFillData | null> {
+	if (!isUuid(studentId)) return null;
 	const [s] = await db
 		.select()
 		.from(students)
@@ -1146,6 +1150,7 @@ export async function completeStudentSelfFillTx(input: CompleteStudentSelfFillIn
 }
 
 export async function softDeleteStudent(studentId: string, professionalId: string): Promise<void> {
+	if (!isUuid(studentId) || !isUuid(professionalId)) return;
 	await db
 		.update(students)
 		.set({ deletedAt: new Date(), updatedAt: new Date() })
@@ -1157,6 +1162,7 @@ export async function softDeleteStudent(studentId: string, professionalId: strin
 export type PublishResult = { ok: boolean; reason?: string };
 
 export async function publishPlan(planId: string, professionalId: string): Promise<PublishResult> {
+	if (!isUuid(planId) || !isUuid(professionalId)) return { ok: false, reason: 'plano não encontrado' };
 	const [plan] = await db
 		.select({
 			id: trainingPlans.id,
@@ -1188,6 +1194,7 @@ export async function publishPlan(planId: string, professionalId: string): Promi
 }
 
 export async function archivePlan(planId: string, professionalId: string): Promise<void> {
+	if (!isUuid(planId) || !isUuid(professionalId)) return;
 	await db
 		.update(trainingPlans)
 		.set({ status: 'archived', archivedAt: new Date(), updatedAt: new Date() })
@@ -1283,6 +1290,7 @@ export async function getAppointmentById(
 	appointmentId: string,
 	professionalId: string
 ): Promise<AppointmentRow | null> {
+	if (!isUuid(appointmentId) || !isUuid(professionalId)) return null;
 	const [r] = await db
 		.select({
 			id: appointments.id,
@@ -1306,6 +1314,7 @@ export async function getAppointmentById(
 }
 
 export async function updateAppointment(input: UpdateAppointmentInput): Promise<void> {
+	if (!isUuid(input.appointmentId) || !isUuid(input.professionalId)) return;
 	await db
 		.update(appointments)
 		.set({
@@ -1327,6 +1336,7 @@ export async function updateAppointment(input: UpdateAppointmentInput): Promise<
 }
 
 export async function deleteAppointment(appointmentId: string, professionalId: string): Promise<void> {
+	if (!isUuid(appointmentId) || !isUuid(professionalId)) return;
 	await db
 		.delete(appointments)
 		.where(and(eq(appointments.id, appointmentId), eq(appointments.professionalId, professionalId)));
@@ -1338,6 +1348,7 @@ export async function getExerciseById(
 	exerciseId: string,
 	professionalId: string
 ): Promise<ExerciseLibraryItem | null> {
+	if (!isUuid(exerciseId) || !isUuid(professionalId)) return null;
 	const [r] = await db
 		.select()
 		.from(exerciseLibrary)
@@ -1349,6 +1360,7 @@ export async function getExerciseById(
 }
 
 export async function updateExercise(input: UpdateExerciseInput): Promise<void> {
+	if (!isUuid(input.exerciseId) || !isUuid(input.professionalId)) return;
 	await db
 		.update(exerciseLibrary)
 		.set({
@@ -1371,6 +1383,7 @@ export async function updateExercise(input: UpdateExerciseInput): Promise<void> 
 }
 
 export async function deleteExercise(exerciseId: string, professionalId: string): Promise<void> {
+	if (!isUuid(exerciseId) || !isUuid(professionalId)) return;
 	await db
 		.delete(exerciseLibrary)
 		.where(
@@ -1565,6 +1578,7 @@ export type AlunoAppData = {
 };
 
 export async function getAlunoAppData(studentId: string): Promise<AlunoAppData | null> {
+	if (!isUuid(studentId)) return null;
 	const [s] = await db
 		.select()
 		.from(students)
@@ -1780,6 +1794,9 @@ export async function getStudentLoadEvolution(
 	studentId: string,
 	weeksBack = 12
 ): Promise<LoadEvolution> {
+	if (!isUuid(studentId)) {
+		return { weeks: [], hasData: false, externalMetric: 'volume', totalSessions: 0 };
+	}
 	const since = new Date();
 	since.setDate(since.getDate() - weeksBack * 7);
 	since.setHours(0, 0, 0, 0);
@@ -1924,6 +1941,7 @@ export async function getRecentSessionLogs(
 	sessionLabel: string,
 	limit = 5
 ): Promise<SessionLogEntry[]> {
+	if (!isUuid(planId)) return [];
 	const rows = await db
 		.select({
 			id: trainingSessions.id,
@@ -2174,6 +2192,7 @@ export async function searchExerciseCatalog(opts: {
 }
 
 export async function getCatalogExercise(id: string): Promise<CatalogExercise | null> {
+	if (!isUuid(id)) return null;
 	const result = await db.execute<CatalogRow>(sql`
 		SELECT id, external_id, name, name_en, body_part, target_muscle,
 		       secondary_muscles, equipment, difficulty, category,
@@ -2305,6 +2324,7 @@ export async function getAllLeads(): Promise<LeadListItem[]> {
 }
 
 export async function getLeadById(id: string): Promise<LeadListItem | null> {
+	if (!isUuid(id)) return null;
 	const [row] = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
 	return (row ?? null) as LeadListItem | null;
 }
@@ -2349,6 +2369,7 @@ export async function updateLead(
 		lostReason: string | null;
 	}>
 ): Promise<Lead | null> {
+	if (!isUuid(id)) return null;
 	const [row] = await db
 		.update(leads)
 		.set({ ...data, updatedAt: new Date() })
@@ -2362,6 +2383,7 @@ export async function updateLeadStage(id: string, stage: LeadStage): Promise<Lea
 }
 
 export async function deleteLead(id: string): Promise<boolean> {
+	if (!isUuid(id)) return false;
 	const res = await db.delete(leads).where(eq(leads.id, id)).returning({ id: leads.id });
 	return res.length > 0;
 }

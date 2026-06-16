@@ -10,6 +10,7 @@ import { db } from '$lib/server/db';
 import { students } from '$lib/server/db/schema';
 import { sendAppointmentNotification } from '$lib/server/email';
 import { logger } from '$lib/server/logger';
+import { isUuid } from '$lib/server/validation';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load = (async ({ parent }) => {
@@ -37,12 +38,16 @@ export const actions: Actions = {
 		const notes = String(fd.get('notes') ?? '').trim() || undefined;
 
 		if (!date || !time) return fail(400, { error: 'data e horário são obrigatórios' });
+		if (studentId && !isUuid(studentId)) return fail(400, { error: 'aluno inválido' });
 		const type = TypeEnum.safeParse(typeRaw);
 		if (!type.success) return fail(400, { error: 'tipo inválido' });
 
 		const startsAt = new Date(`${date}T${time}:00`);
 		if (Number.isNaN(startsAt.getTime())) return fail(400, { error: 'data inválida' });
-		if (duration < 15 || duration > 240) return fail(400, { error: 'duração inválida' });
+		// NaN passa em (NaN<15 || NaN>240) — ambos false — e vai parar numa
+		// coluna integer NOT NULL (erro do Postgres → 500). Exige número válido.
+		if (!Number.isFinite(duration) || duration < 15 || duration > 240)
+			return fail(400, { error: 'duração inválida' });
 
 		// Ownership: studentId vem do form — valida que o aluno pertence a
 		// este profissional antes de criar o appointment (e antes de mandar
