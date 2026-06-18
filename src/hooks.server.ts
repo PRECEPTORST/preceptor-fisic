@@ -59,19 +59,37 @@ const supabase: Handle = async ({ event, resolve }) => {
 		// lança aqui e, como esse handler roda em TODA request, derrubaria o
 		// site inteiro com 500. Tratamos como "não autenticado" — o authGuard
 		// então manda pro /login, que é o comportamento seguro/esperado.
+		// DIAGNÓSTICO TEMPORÁRIO (#login-loop): distingue "cookie não chegou"
+		// de "cookie chegou mas é inválido" (rotação de refresh token).
+		const sbCookies = event.cookies
+			.getAll()
+			.filter((c) => c.name.startsWith('sb-'))
+			.map((c) => c.name);
 		try {
 			const {
 				data: { session }
 			} = await event.locals.supabase.auth.getSession();
-			if (!session) return { session: null, user: null };
+			if (!session) {
+				logger.info(
+					{ path: event.url.pathname, sbCookies, reason: 'no_session_from_cookies' },
+					'auth.diag'
+				);
+				return { session: null, user: null };
+			}
 			const {
 				data: { user },
 				error
 			} = await event.locals.supabase.auth.getUser();
-			if (error) return { session: null, user: null };
+			if (error) {
+				logger.info(
+					{ path: event.url.pathname, sbCookies, reason: 'getuser_error', err: error.message.slice(0, 120) },
+					'auth.diag'
+				);
+				return { session: null, user: null };
+			}
 			return { session, user };
 		} catch (err) {
-			logger.warn({ err: String(err).slice(0, 200) }, 'auth.safeGetSession.failed');
+			logger.warn({ err: String(err).slice(0, 200), sbCookies }, 'auth.safeGetSession.failed');
 			return { session: null, user: null };
 		}
 	};
