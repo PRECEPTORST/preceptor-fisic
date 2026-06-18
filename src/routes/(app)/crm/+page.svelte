@@ -9,6 +9,32 @@
 	const leads = $derived(data.leads as LeadListItem[]);
 	const counts = $derived(data.counts);
 
+	// Feedbacks dos beta testers (admin vê aqui no CRM).
+	const feedbacks = $derived(data.feedbacks ?? []);
+	let summarizing = $state(false);
+	const fbSummary = $derived(
+		form && 'summary' in form ? ((form as { summary?: string }).summary ?? null) : null
+	);
+	const fbSummaryCount = $derived(
+		form && 'summarizedCount' in form
+			? ((form as { summarizedCount?: number }).summarizedCount ?? null)
+			: null
+	);
+	const FB_CAT_LABEL: Record<string, string> = {
+		bug: 'Bug / erro',
+		sugestao: 'Sugestão',
+		duvida: 'Dúvida',
+		elogio: 'Elogio',
+		outro: 'Outro'
+	};
+	const FB_CAT_COLOR: Record<string, string> = {
+		bug: 'var(--danger)',
+		sugestao: 'var(--accent)',
+		duvida: 'var(--info)',
+		elogio: 'var(--success)',
+		outro: 'var(--ink-3)'
+	};
+
 	type View = 'kanban' | 'tabela';
 	let view = $state<View>('kanban');
 
@@ -365,6 +391,69 @@
 			{/if}
 		</div>
 	{/if}
+
+	<!-- ───── Feedbacks dos beta testers ───── -->
+	<section style="margin-top:32px;padding-top:24px;border-top:1px solid var(--ink-line)">
+		<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+			<div>
+				<Eyebrow>◆ Beta</Eyebrow>
+				<div style="font:600 17px var(--font-sans);color:var(--ink-0);margin-top:4px">
+					Feedbacks dos beta testers · {feedbacks.length}
+				</div>
+			</div>
+			<form
+				method="POST"
+				action="?/summarizeFeedback"
+				use:enhance={() => {
+					summarizing = true;
+					return async ({ result, update }) => {
+						summarizing = false;
+						if (result.type === 'failure') {
+							toast.error(String(result.data?.error ?? 'Falha ao resumir.'));
+						}
+						await update({ reset: false });
+					};
+				}}
+			>
+				<Button type="submit" variant="secondary" disabled={summarizing || feedbacks.length === 0}>
+					{summarizing ? 'Resumindo com IA…' : '✦ Gerar resumo (IA)'}
+				</Button>
+			</form>
+		</div>
+
+		{#if fbSummary}
+			<div class="card" style="padding:18px;margin-bottom:18px;border-left:3px solid var(--accent)">
+				<div style="font:500 12px var(--font-mono);text-transform:uppercase;letter-spacing:0.05em;color:var(--accent);margin-bottom:10px">
+					Resumo por IA{fbSummaryCount ? ` · ${fbSummaryCount} feedbacks` : ''}
+				</div>
+				<div style="font:400 14px var(--font-sans);color:var(--ink-1);line-height:1.6;white-space:pre-wrap">{fbSummary}</div>
+			</div>
+		{/if}
+
+		{#if feedbacks.length === 0}
+			<div class="card" style="padding:24px;text-align:center;font:var(--body-sm);color:var(--ink-2)">
+				Nenhum feedback recebido ainda.
+			</div>
+		{:else}
+			<div style="display:flex;flex-direction:column;gap:8px">
+				{#each feedbacks as f (f.id)}
+					<div class="card" style="padding:12px 14px">
+						<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+							<span
+								style="font:500 10.5px var(--font-mono);text-transform:uppercase;letter-spacing:0.05em;color:{FB_CAT_COLOR[
+									f.category
+								]}">{FB_CAT_LABEL[f.category] ?? f.category}</span
+							>
+							<span style="font:500 12px var(--font-sans);color:var(--ink-1)">{f.authorName ?? 'Anônimo'}</span>
+							{#if f.page}<span style="font:var(--label-mono);color:var(--ink-3)">· {f.page}</span>{/if}
+							<span style="font:var(--label-mono);color:var(--ink-3);margin-left:auto">{fmtDate(f.createdAt)}</span>
+						</div>
+						<div style="font:400 13.5px var(--font-sans);color:var(--ink-1);white-space:pre-wrap">{f.message}</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</section>
 
 	{#if form?.error}
 		<div class="error-flash">⚠ {form.error}</div>

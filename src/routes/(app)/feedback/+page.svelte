@@ -2,9 +2,9 @@
 	import { Button, Eyebrow, toast } from '$lib/components/ui';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
-	import type { ActionData, PageData } from './$types';
+	import type { PageData } from './$types';
 
-	let { data, form }: { data: PageData; form: ActionData } = $props();
+	let { data }: { data: PageData } = $props();
 
 	const CATEGORIES = [
 		{ id: 'bug', label: 'Bug / erro' },
@@ -27,18 +27,6 @@
 	let category = $state('sugestao');
 	let message = $state('');
 	let submitting = $state(false);
-	let summarizing = $state(false);
-
-	// Acessores seguros — `form` é união das actions (submit/summarize), então
-	// evitamos depender de narrowing do TS no template.
-	const summary = $derived(
-		form && 'summary' in form ? ((form as { summary?: string }).summary ?? null) : null
-	);
-	const summarizedCount = $derived(
-		form && 'summarizedCount' in form
-			? ((form as { summarizedCount?: number }).summarizedCount ?? null)
-			: null
-	);
 
 	function fmtDate(d: Date | string) {
 		return new Date(d).toLocaleDateString('pt-BR', {
@@ -82,10 +70,8 @@
 		}}
 	>
 		<div>
-			<label
-				for="fb-cat"
-				style="display:block;font:500 12px var(--font-sans);color:var(--ink-1);margin-bottom:6px"
-				>Categoria</label
+			<span style="display:block;font:500 12px var(--font-sans);color:var(--ink-1);margin-bottom:6px"
+				>Categoria</span
 			>
 			<div style="display:flex;flex-wrap:wrap;gap:8px">
 				{#each CATEGORIES as c (c.id)}
@@ -163,74 +149,6 @@
 					<div style="font:400 13.5px var(--font-sans);color:var(--ink-1);white-space:pre-wrap">{f.message}</div>
 				</div>
 			{/each}
-		</div>
-	{/if}
-
-	<!-- Painel admin -->
-	{#if data.isAdmin}
-		<div style="margin-top:36px;padding-top:24px;border-top:1px solid var(--ink-line)">
-			<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px">
-				<div>
-					<Eyebrow>◆ Admin</Eyebrow>
-					<div style="font:600 17px var(--font-sans);color:var(--ink-0);margin-top:4px">
-						Todos os feedbacks · {data.all.length}
-					</div>
-				</div>
-				<form
-					method="POST"
-					action="?/summarize"
-					use:enhance={() => {
-						summarizing = true;
-						return async ({ result, update }) => {
-							summarizing = false;
-							if (result.type === 'failure') {
-								toast.error(String(result.data?.error ?? 'Falha ao resumir.'));
-							}
-							await update({ reset: false });
-						};
-					}}
-				>
-					<Button type="submit" variant="secondary" disabled={summarizing || data.all.length === 0}>
-						{summarizing ? 'Resumindo com IA…' : '✦ Gerar resumo (IA)'}
-					</Button>
-				</form>
-			</div>
-
-			{#if summary}
-				<div
-					class="card"
-					style="padding:18px;margin-bottom:18px;border-left:3px solid var(--accent)"
-				>
-					<div style="font:500 12px var(--font-mono);text-transform:uppercase;letter-spacing:0.05em;color:var(--accent);margin-bottom:10px">
-						Resumo por IA{summarizedCount ? ` · ${summarizedCount} feedbacks` : ''}
-					</div>
-					<div style="font:400 14px var(--font-sans);color:var(--ink-1);line-height:1.6;white-space:pre-wrap">{summary}</div>
-				</div>
-			{/if}
-
-			{#if data.all.length === 0}
-				<div class="card" style="padding:24px;text-align:center;color:var(--ink-2)">
-					Nenhum feedback recebido ainda.
-				</div>
-			{:else}
-				<div style="display:flex;flex-direction:column;gap:8px">
-					{#each data.all as f (f.id)}
-						<div class="card" style="padding:12px 14px">
-							<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-								<span
-									style="font:500 10.5px var(--font-mono);text-transform:uppercase;letter-spacing:0.05em;color:{CAT_COLOR[
-										f.category
-									]}">{CAT_LABEL[f.category] ?? f.category}</span
-								>
-								<span style="font:500 12px var(--font-sans);color:var(--ink-1)">{f.authorName ?? 'Anônimo'}</span>
-								{#if f.page}<span style="font:var(--label-mono);color:var(--ink-3)">· {f.page}</span>{/if}
-								<span style="font:var(--label-mono);color:var(--ink-3);margin-left:auto">{fmtDate(f.createdAt)}</span>
-							</div>
-							<div style="font:400 13.5px var(--font-sans);color:var(--ink-1);white-space:pre-wrap">{f.message}</div>
-						</div>
-					{/each}
-				</div>
-			{/if}
 		</div>
 	{/if}
 </div>
