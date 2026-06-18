@@ -1,6 +1,5 @@
 <script lang="ts">
 	import '../app.css';
-	import { onNavigate } from '$app/navigation';
 	import { ToastContainer } from '$lib/components/ui';
 	import { env } from '$env/dynamic/public';
 	import { injectSpeedInsights } from '@vercel/speed-insights/sveltekit';
@@ -21,42 +20,12 @@
 	// Só ativa se PUBLIC_PLAUSIBLE_DOMAIN tiver setada.
 	const plausibleDomain = env.PUBLIC_PLAUSIBLE_DOMAIN;
 
-	// View Transitions: cross-fade suave entre rotas. Só age no conteúdo
-	// marcado com `view-transition-name: page-content` (sidebar fica estável).
-	//
-	// CRÍTICO: o onNavigate DEVE sempre resolver. Se o startViewTransition
-	// abortar (estado inválido — ex: transition anterior presa), o callback
-	// não roda, resolve() não é chamado, e a navegação trava pra sempre.
-	// Por isso: failsafe de 600ms + catch nas promises da transition.
-	onNavigate((nav) => {
-		const startVT = (
-			document as Document & { startViewTransition?: (cb: () => unknown) => unknown }
-		).startViewTransition;
-		if (typeof startVT !== 'function') return;
-
-		return new Promise<void>((resolve) => {
-			let resolved = false;
-			const done = () => {
-				if (!resolved) {
-					resolved = true;
-					resolve();
-				}
-			};
-			// Failsafe: navegação nunca pode ficar presa por um efeito visual.
-			const failsafe = setTimeout(done, 600);
-
-			try {
-				const transition = startVT.call(document, async () => {
-					done();
-					await nav.complete;
-				}) as { ready?: Promise<unknown>; finished?: Promise<unknown> };
-				transition.ready?.catch(() => done());
-				transition.finished?.catch(() => done()).finally(() => clearTimeout(failsafe));
-			} catch {
-				done();
-			}
-		});
-	});
+	// View Transitions REMOVIDAS de propósito: o startViewTransition disparado
+	// a cada navegação congelava a thread principal capturando o snapshot da
+	// página depois de algumas trocas de rota — o app travava e nenhum clique
+	// respondia (nem o failsafe de timeout rodava, porque a thread estava
+	// presa). Navegação client-side normal do SvelteKit é instantânea e
+	// confiável; o cross-fade não vale o risco de travar o app.
 </script>
 
 <svelte:head>
