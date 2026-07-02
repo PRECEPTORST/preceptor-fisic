@@ -59,10 +59,18 @@ export type StudentListItem = {
 	goal: string | null;
 	planTitle: string | null;
 	planActive: boolean;
+	/** Sessões-alvo/semana das preferências. null = não definido. */
+	weeklyTarget: number | null;
 	adherence: number;
 	sessions7: number;
 	last: string | null;
+	/** Dias desde a última sessão (calendário). null = nunca treinou. */
+	daysSinceLast: number | null;
 	streak: number;
+	/** Maior PSE (0–10) reportado nos últimos 7 dias. null = sem sessão. */
+	maxRpe7: number | null;
+	/** Observação recente mais recente (últimos 14d), se houver. */
+	lastObs: string | null;
 	status: 'active' | 'paused';
 };
 
@@ -105,6 +113,8 @@ export async function getStudentsByProfessional(
 		sessions_7: number;
 		last_session: Date | null;
 		streak: number;
+		max_rpe_7: number | null;
+		last_obs: string | null;
 	}>(sql`
 		SELECT
 			s.id,
@@ -154,7 +164,20 @@ export async function getStudentsByProfessional(
 					SELECT MIN(d) AS gap FROM flags WHERE has_session = false
 				)
 				SELECT COALESCE((SELECT gap FROM first_gap), 60)
-			), 0)::int AS streak
+			), 0)::int AS streak,
+			-- Sinais de atenção: maior PSE da semana e última observação recente.
+			(
+				SELECT MAX(perceived_effort) FROM training_sessions
+				WHERE student_id = s.id
+				  AND session_date >= now() - interval '7 days'
+			) AS max_rpe_7,
+			(
+				SELECT observations FROM training_sessions
+				WHERE student_id = s.id
+				  AND observations IS NOT NULL AND btrim(observations) <> ''
+				  AND session_date >= now() - interval '14 days'
+				ORDER BY session_date DESC LIMIT 1
+			) AS last_obs
 		FROM students s
 		LEFT JOIN training_preferences tp ON tp.student_id = s.id
 		WHERE s.professional_id = ${professionalId}
@@ -179,6 +202,8 @@ export async function getStudentsByProfessional(
 			sessions_7: number;
 			last_session: Date | string | null;
 			streak: number;
+			max_rpe_7: number | null;
+			last_obs: string | null;
 		}>
 	).map((r) => {
 		const sessions7 = Number(r.sessions_7 ?? 0);
@@ -198,6 +223,17 @@ export async function getStudentsByProfessional(
 		const lastFmt = lastDate
 			? formatLocal(lastDate, { day: '2-digit', month: 'short' }).replace('.', '')
 			: null;
+		// Dias de calendário desde a última sessão (Brasília). Alimenta a regra
+		// "sumido" do motor de atenção sem precisar de outra ida ao banco.
+		const daysSinceLast = lastDate
+			? Math.max(
+					0,
+					Math.floor(
+						(startOfLocalDay(new Date()).getTime() - startOfLocalDay(lastDate).getTime()) /
+							86_400_000
+					)
+				)
+			: null;
 		const adherence = r.weekly_sessions
 			? Math.min(100, Math.round((sessions7 / r.weekly_sessions) * 100))
 			: 0;
@@ -213,10 +249,14 @@ export async function getStudentsByProfessional(
 			goal: goalLabel,
 			planTitle: r.plan_summary?.slice(0, 60) ?? null,
 			planActive: status === 'active',
+			weeklyTarget: r.weekly_sessions ?? null,
 			adherence,
 			sessions7,
 			last: lastFmt,
+			daysSinceLast,
 			streak: Number(r.streak ?? 0),
+			maxRpe7: r.max_rpe_7 !== null ? Number(r.max_rpe_7) : null,
+			lastObs: r.last_obs ?? null,
 			status
 		};
 	});
@@ -2010,6 +2050,66 @@ export async function getStudentLoadEvolution(
 		externalMetric: totalTonnage > 0 && tonnageSets * 2 >= countedSets ? 'tonnage' : 'volume',
 		totalSessions
 	};
+}
+
+/* ────────── HISTÓRICO DE TREINO (ficha) ────────── */
+
+export type RecentSession = {
+	id: string;
+	date: string; // ISO — formatado no client em Brasília
+	label: string | null;
+	perceivedEffort: number | null;
+	durationMinutes: number | null;
+	/** Exercícios marcados como feitos / total logado. */
+	doneCount: number;
+	totalCount: number;
+	observations: string | null;
+};
+
+/**
+ * Últimas sessões executadas pelo aluno — expõe na ficha o dado que hoje só
+ * entra em agregado (PSE, observações, exercícios feitos). É onde o "joelho
+ * doeu" fica visível pro profissional. Guarda por professionalId (posse).
+ */
+export async function getRecentTrainingSessions(
+	studentId: string,
+	professionalId: string,
+	limit = 20
+): Promise<RecentSession[]> {
+	if (!isUuid(studentId) || !isUuid(professionalId)) return [];
+	const rows = await db
+		.select({
+			id: trainingSessions.id,
+			sessionDate: trainingSessions.sessionDate,
+			sessionLabel: trainingSessions.sessionLabel,
+			perceivedEffort: trainingSessions.perceivedEffort,
+			durationMinutes: trainingSessions.durationMinutes,
+			exercisesDone: trainingSessions.exercisesDone,
+			observations: trainingSessions.observations
+		})
+		.from(trainingSessions)
+		.where(
+			and(
+				eq(trainingSessions.studentId, studentId),
+				eq(trainingSessions.loggedBy, professionalId)
+			)
+		)
+		.orderBy(desc(trainingSessions.sessionDate))
+		.limit(limit);
+
+	return rows.map((r) => {
+		const ex = r.exercisesDone ?? [];
+		return {
+			id: r.id,
+			date: new Date(r.sessionDate).toISOString(),
+			label: r.sessionLabel,
+			perceivedEffort: r.perceivedEffort,
+			durationMinutes: r.durationMinutes,
+			doneCount: ex.filter((e) => e.completed).length,
+			totalCount: ex.length,
+			observations: r.observations
+		};
+	});
 }
 
 /* ────────── RATE LIMIT ────────── */

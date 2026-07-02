@@ -4,7 +4,8 @@ import { env as pubEnv } from '$env/dynamic/public';
 import {
 	getStudentDetail,
 	getProfessionalByAuthId,
-	getStudentLoadEvolution
+	getStudentLoadEvolution,
+	getRecentTrainingSessions
 } from '$lib/server/queries';
 import { db } from '$lib/server/db';
 import { trainingPlans } from '$lib/server/db/schema';
@@ -25,9 +26,10 @@ export const load = (async ({ params, parent, url }) => {
 	const { professional } = await parent();
 	if (!professional) error(401, 'não autenticado');
 
-	const [detail, loadEvolution, planStatuses] = await Promise.all([
+	const [detail, loadEvolution, recentSessions, planStatuses] = await Promise.all([
 		getStudentDetail(params.id, professional.id),
 		getStudentLoadEvolution(params.id),
+		getRecentTrainingSessions(params.id, professional.id),
 		// Status real dos planos (pending/generating/failed) — getStudentDetail
 		// só expõe isActive, e plano gerando/falho não pode aparecer como "Encerrado".
 		db
@@ -48,7 +50,7 @@ export const load = (async ({ params, parent, url }) => {
 	const alunoUrl = `${base}/a/${params.id}?t=${token}`;
 	const fillUrl = `${base}/a/${params.id}/completar?t=${token}`;
 
-	return { detail: { ...detail, plans }, alunoUrl, fillUrl, loadEvolution };
+	return { detail: { ...detail, plans }, alunoUrl, fillUrl, loadEvolution, recentSessions };
 }) satisfies PageServerLoad;
 
 export const actions: Actions = {

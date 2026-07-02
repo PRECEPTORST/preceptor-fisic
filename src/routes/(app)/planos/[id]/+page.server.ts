@@ -1,13 +1,15 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
-import { audit, clientFingerprint, type AuditAction } from '$lib/server/audit';
+import { audit, clientFingerprint } from '$lib/server/audit';
 import { deriveTagsFromDiagnosisLabels } from '$lib/server/ai/condition-tags';
 import {
 	getPlanDetail,
 	getProfessionalByAuthId,
+	getCatalogExercise,
 	publishPlan,
 	archivePlan,
-	type PlanData
+	type PlanData,
+	type PlanExercise
 } from '$lib/server/queries';
 import { toIntInRange } from '$lib/server/validation';
 import { db } from '$lib/server/db';
@@ -211,6 +213,155 @@ export const actions: Actions = {
 		}
 
 		return { success: true, action: 'editExercise', validation };
+	},
+
+	// Personal TROCA um exercício da IA por outro do catálogo (com vídeo +
+	// instruções). Mantém a prescrição (séries/reps/descanso/intensidade) por
+	// padrão — a ideia é trocar o MOVIMENTO, não a dose. Revalida clinicamente.
+	swapExercise: async ({ params, request, locals }) => {
+		if (!locals.user) return fail(401, { error: 'não autenticado' });
+		const professional = await getProfessionalByAuthId(locals.user.id);
+		if (!professional) return fail(401, { error: 'professional não encontrado' });
+
+		const plan = await getPlanDetail(params.id!, professional.id);
+		if (!plan) return fail(404, { error: 'plano não encontrado' });
+
+		const fd = await request.formData();
+		const sessionIdx = Number(fd.get('sessionIdx'));
+		const block = String(fd.get('block') ?? '');
+		const exerciseIdx = Number(fd.get('exerciseIdx'));
+		const catalogId = String(fd.get('catalogId') ?? '');
+		const keep = fd.get('keepPrescription') === 'on';
+		if (!['warmup', 'main', 'cooldown'].includes(block))
+			return fail(400, { error: 'bloco inválido' });
+		if (!Number.isInteger(sessionIdx) || !Number.isInteger(exerciseIdx))
+			return fail(400, { error: 'índice inválido' });
+
+		const cat = await getCatalogExercise(catalogId);
+		if (!cat) return fail(400, { error: 'exercício do catálogo não encontrado' });
+
+		const planData = structuredClone(plan.planData) as PlanData;
+		const blockArr =
+			planData.weekly_sessions?.[sessionIdx]?.[block as 'warmup' | 'main' | 'cooldown'];
+		const ex = blockArr?.[exerciseIdx];
+		if (!ex) return fail(404, { error: 'exercício não encontrado' });
+
+		// Troca a IDENTIDADE (nome, catalog_id → habilita vídeo, grupos musculares).
+		ex.name = cat.name;
+		ex.catalog_id = /^\d{4,5}$/.test(cat.externalId) ? cat.externalId : undefined;
+		ex.muscle_groups = Array.from(
+			new Set([cat.targetMuscle, ...(cat.secondaryMuscles ?? [])].filter(Boolean))
+		);
+		// Cues clínicas eram específicas do movimento antigo — limpa (o personal
+		// reescreve via editar se quiser).
+		ex.execution_notes = undefined;
+		if (!keep) {
+			ex.sets = 3;
+			ex.reps = '8-12';
+			ex.rest_seconds = 60;
+			ex.load_guidance = undefined;
+			ex.intensity = undefined;
+		}
+
+		const validation = await revalidateAndPersist(params.id!, plan.studentId, planData);
+		if (!validation) {
+			await db
+				.update(trainingPlans)
+				.set({ planData, updatedAt: new Date() })
+				.where(eq(trainingPlans.id, params.id!));
+			return { success: true, action: 'swapExercise', newName: cat.name, validation: null };
+		}
+		return { success: true, action: 'swapExercise', newName: cat.name, validation };
+	},
+
+	// Personal ADICIONA um exercício do catálogo a um bloco da sessão.
+	addExercise: async ({ params, request, locals }) => {
+		if (!locals.user) return fail(401, { error: 'não autenticado' });
+		const professional = await getProfessionalByAuthId(locals.user.id);
+		if (!professional) return fail(401, { error: 'professional não encontrado' });
+
+		const plan = await getPlanDetail(params.id!, professional.id);
+		if (!plan) return fail(404, { error: 'plano não encontrado' });
+
+		const fd = await request.formData();
+		const sessionIdx = Number(fd.get('sessionIdx'));
+		const block = String(fd.get('block') ?? '');
+		const catalogId = String(fd.get('catalogId') ?? '');
+		if (!['warmup', 'main', 'cooldown'].includes(block))
+			return fail(400, { error: 'bloco inválido' });
+		if (!Number.isInteger(sessionIdx)) return fail(400, { error: 'índice inválido' });
+
+		const cat = await getCatalogExercise(catalogId);
+		if (!cat) return fail(400, { error: 'exercício do catálogo não encontrado' });
+
+		const planData = structuredClone(plan.planData) as PlanData;
+		const session = planData.weekly_sessions?.[sessionIdx];
+		if (!session) return fail(404, { error: 'sessão não encontrada' });
+		const key = block as 'warmup' | 'main' | 'cooldown';
+		if (!Array.isArray(session[key])) session[key] = [];
+
+		const novo: PlanExercise = {
+			name: cat.name,
+			catalog_id: /^\d{4,5}$/.test(cat.externalId) ? cat.externalId : undefined,
+			muscle_groups: Array.from(
+				new Set([cat.targetMuscle, ...(cat.secondaryMuscles ?? [])].filter(Boolean))
+			),
+			sets: 3,
+			reps: '8-12',
+			rest_seconds: 60,
+			source_refs: []
+		};
+		session[key]!.push(novo);
+
+		const validation = await revalidateAndPersist(params.id!, plan.studentId, planData);
+		if (!validation) {
+			await db
+				.update(trainingPlans)
+				.set({ planData, updatedAt: new Date() })
+				.where(eq(trainingPlans.id, params.id!));
+			return { success: true, action: 'addExercise', newName: cat.name, validation: null };
+		}
+		return { success: true, action: 'addExercise', newName: cat.name, validation };
+	},
+
+	// Personal REMOVE um exercício. Guarda: o bloco `main` não pode ficar vazio
+	// (sessão sem exercício principal não faz sentido clínico).
+	removeExercise: async ({ params, request, locals }) => {
+		if (!locals.user) return fail(401, { error: 'não autenticado' });
+		const professional = await getProfessionalByAuthId(locals.user.id);
+		if (!professional) return fail(401, { error: 'professional não encontrado' });
+
+		const plan = await getPlanDetail(params.id!, professional.id);
+		if (!plan) return fail(404, { error: 'plano não encontrado' });
+
+		const fd = await request.formData();
+		const sessionIdx = Number(fd.get('sessionIdx'));
+		const block = String(fd.get('block') ?? '');
+		const exerciseIdx = Number(fd.get('exerciseIdx'));
+		if (!['warmup', 'main', 'cooldown'].includes(block))
+			return fail(400, { error: 'bloco inválido' });
+		if (!Number.isInteger(sessionIdx) || !Number.isInteger(exerciseIdx))
+			return fail(400, { error: 'índice inválido' });
+
+		const planData = structuredClone(plan.planData) as PlanData;
+		const blockArr =
+			planData.weekly_sessions?.[sessionIdx]?.[block as 'warmup' | 'main' | 'cooldown'];
+		if (!blockArr || !blockArr[exerciseIdx])
+			return fail(404, { error: 'exercício não encontrado' });
+		if (block === 'main' && blockArr.length <= 1)
+			return fail(400, { error: 'A sessão precisa de ao menos 1 exercício principal.' });
+
+		blockArr.splice(exerciseIdx, 1);
+
+		const validation = await revalidateAndPersist(params.id!, plan.studentId, planData);
+		if (!validation) {
+			await db
+				.update(trainingPlans)
+				.set({ planData, updatedAt: new Date() })
+				.where(eq(trainingPlans.id, params.id!));
+			return { success: true, action: 'removeExercise', validation: null };
+		}
+		return { success: true, action: 'removeExercise', validation };
 	},
 
 	// #C02 — override clínico: profissional assume responsabilidade por uma

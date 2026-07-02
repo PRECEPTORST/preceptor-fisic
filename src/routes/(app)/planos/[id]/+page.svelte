@@ -37,7 +37,102 @@
 	let savingEdit = $state(false);
 	function toggleEdit(key: string) {
 		editKey = editKey === key ? null : key;
+		if (editKey) pickerFor = null;
 	}
+
+	// Trocar / adicionar exercício do catálogo (seletor com busca).
+	type CatalogHit = {
+		id: string;
+		externalId: string;
+		name: string;
+		bodyPart: string;
+		targetMuscle: string;
+		equipment: string | null;
+		difficulty: string | null;
+		hasVideo: boolean;
+	};
+	// pickerFor identifica onde o seletor está aberto: sessão i, bloco, e ou o
+	// índice do exercício a trocar (mode 'swap') ou o bloco pra adicionar ('add').
+	let pickerFor = $state<{ i: number; block: string; j: number; mode: 'swap' | 'add' } | null>(null);
+	let pickerQuery = $state('');
+	let pickerResults = $state<CatalogHit[]>([]);
+	let pickerLoading = $state(false);
+	let pickerSelected = $state<CatalogHit | null>(null);
+	let keepPrescription = $state(true);
+	let swapping = $state(false);
+	let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function pickerKey(i: number, block: string, j: number, mode: 'swap' | 'add') {
+		return `${i}-${block}-${j}-${mode}`;
+	}
+	function isPickerOpen(i: number, block: string, j: number, mode: 'swap' | 'add') {
+		return (
+			pickerFor?.i === i &&
+			pickerFor?.block === block &&
+			pickerFor?.j === j &&
+			pickerFor?.mode === mode
+		);
+	}
+	function openPicker(i: number, block: string, j: number, mode: 'swap' | 'add') {
+		if (isPickerOpen(i, block, j, mode)) {
+			pickerFor = null;
+			return;
+		}
+		editKey = null;
+		pickerFor = { i, block, j, mode };
+		pickerQuery = '';
+		pickerResults = [];
+		pickerSelected = null;
+		keepPrescription = true;
+		void runSearch();
+	}
+	async function runSearch() {
+		pickerLoading = true;
+		try {
+			const r = await fetch(`/planos/${plan.id}/catalogo?q=${encodeURIComponent(pickerQuery)}`);
+			if (r.ok) {
+				const body = (await r.json()) as { items: CatalogHit[] };
+				pickerResults = body.items ?? [];
+			}
+		} catch {
+			// silencioso — mantém resultados anteriores
+		} finally {
+			pickerLoading = false;
+		}
+	}
+	function onPickerInput() {
+		pickerSelected = null;
+		clearTimeout(searchTimer);
+		searchTimer = setTimeout(() => void runSearch(), 250);
+	}
+	const DIFF_PT: Record<string, string> = {
+		beginner: 'iniciante',
+		intermediate: 'intermediário',
+		advanced: 'avançado'
+	};
+
+	// Handler comum de resultado de swap/add/remove: toast + fecha + revalida UI.
+	function exerciseMutationHandler(closeAfter: () => void) {
+		return async ({ result, update }: { result: any; update: () => Promise<void> }) => {
+			swapping = false;
+			savingEdit = false;
+			if (result.type === 'success') {
+				const v = result.data?.validation;
+				const n = (v?.violations as number) ?? 0;
+				const nm = result.data?.newName ? ` · ${result.data.newName}` : '';
+				if (v && n > 0)
+					toast.warn(`Plano atualizado${nm} · ${n} violaç${n === 1 ? 'ão' : 'ões'} clínica${n === 1 ? '' : 's'}.`);
+				else toast.success(`Plano atualizado${nm}.`);
+				closeAfter();
+				await invalidateAll();
+			} else if (result.type === 'failure') {
+				toast.error(String(result.data?.error ?? 'Não foi possível atualizar.'));
+			} else {
+				await update();
+			}
+		};
+	}
+	onDestroy(() => clearTimeout(searchTimer));
 
 	type SrcRef = {
 		type?: string;
@@ -389,6 +484,109 @@
 		}
 		.edit-in:focus {
 			border-color: var(--accent);
+		}
+		/* Remover exercício — link discreto de perigo no painel de edição */
+		.remove-link {
+			all: unset;
+			cursor: pointer;
+			font: 500 12px var(--font-sans);
+			color: var(--danger);
+			opacity: 0.85;
+		}
+		.remove-link:hover {
+			opacity: 1;
+			text-decoration: underline;
+		}
+		.remove-link:disabled {
+			opacity: 0.4;
+			cursor: default;
+		}
+		/* Adicionar exercício — botão discreto no fim de cada bloco */
+		.add-btn {
+			all: unset;
+			cursor: pointer;
+			font: 500 12px var(--font-mono);
+			letter-spacing: 0.04em;
+			color: var(--accent);
+			padding: 4px 10px;
+			border: 1px dashed var(--ink-line-2);
+			border-radius: var(--r-pill);
+		}
+		.add-btn:hover {
+			background: var(--accent-wash);
+		}
+		/* Seletor de catálogo (trocar / adicionar) */
+		.picker {
+			padding: 12px 20px 16px 60px;
+			background: var(--bg-1);
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+		}
+		.keep-row {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			font: 500 12px var(--font-sans);
+			color: var(--ink-1);
+			cursor: pointer;
+		}
+		.picker-empty {
+			font: 400 12.5px var(--font-sans);
+			color: var(--ink-3);
+			padding: 6px 2px;
+		}
+		.picker-results {
+			display: flex;
+			flex-direction: column;
+			max-height: 260px;
+			overflow-y: auto;
+			border: 1px solid var(--ink-line);
+			border-radius: var(--r-2);
+		}
+		.picker-item {
+			all: unset;
+			cursor: pointer;
+			box-sizing: border-box;
+			width: 100%;
+			padding: 9px 12px;
+			display: flex;
+			flex-direction: column;
+			gap: 2px;
+			border-bottom: 1px solid var(--ink-line);
+		}
+		.picker-item:last-child {
+			border-bottom: none;
+		}
+		.picker-item:hover {
+			background: var(--bg-2);
+		}
+		.picker-item.sel {
+			background: var(--accent-wash);
+			box-shadow: inset 2px 0 0 var(--accent);
+		}
+		.pi-name {
+			font: 500 13.5px var(--font-sans);
+			color: var(--ink-0);
+		}
+		.pi-meta {
+			font: var(--label-mono);
+			color: var(--ink-3);
+			text-transform: capitalize;
+		}
+		.picker-confirm {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+			flex-wrap: wrap;
+			padding: 10px 12px;
+			background: var(--accent-wash);
+			border-radius: var(--r-2);
+		}
+		.pc-label {
+			font: 400 13px var(--font-sans);
+			color: var(--ink-0);
 		}
 		.gen-shell {
 			flex: 1;
@@ -1000,6 +1198,70 @@
 			</div>
 		{/if}
 
+		<!-- Seletor de exercício do catálogo (trocar / adicionar) -->
+		{#snippet exercisePicker(i: number, blockKey: string, j: number, mode: 'swap' | 'add')}
+			<div class="picker">
+				<input
+					class="edit-in"
+					placeholder="Buscar exercício no catálogo…"
+					bind:value={pickerQuery}
+					oninput={onPickerInput}
+				/>
+				{#if mode === 'swap'}
+					<label class="keep-row">
+						<input type="checkbox" bind:checked={keepPrescription} /> manter séries · reps · descanso · intensidade
+					</label>
+				{/if}
+				{#if pickerLoading && pickerResults.length === 0}
+					<div class="picker-empty">Buscando…</div>
+				{:else if pickerResults.length === 0}
+					<div class="picker-empty">Nenhum exercício encontrado.</div>
+				{:else}
+					<div class="picker-results">
+						{#each pickerResults as c (c.id)}
+							<button
+								type="button"
+								class="picker-item"
+								class:sel={pickerSelected?.id === c.id}
+								onclick={() => (pickerSelected = c)}
+							>
+								<span class="pi-name">{c.name}</span>
+								<span class="pi-meta"
+									>{c.bodyPart}{c.equipment ? ' · ' + c.equipment : ''}{c.difficulty
+										? ' · ' + (DIFF_PT[c.difficulty] ?? c.difficulty)
+										: ''}{c.hasVideo ? ' · 🎬 vídeo' : ''}</span
+								>
+							</button>
+						{/each}
+					</div>
+				{/if}
+				{#if pickerSelected}
+					<form
+						method="POST"
+						action="?/{mode === 'swap' ? 'swapExercise' : 'addExercise'}"
+						use:enhance={() => {
+							swapping = true;
+							return exerciseMutationHandler(() => (pickerFor = null));
+						}}
+						class="picker-confirm"
+					>
+						<input type="hidden" name="sessionIdx" value={i} />
+						<input type="hidden" name="block" value={blockKey} />
+						{#if mode === 'swap'}<input type="hidden" name="exerciseIdx" value={j} />{/if}
+						{#if mode === 'swap' && keepPrescription}<input type="hidden" name="keepPrescription" value="on" />{/if}
+						<input type="hidden" name="catalogId" value={pickerSelected.id} />
+						<span class="pc-label"
+							>{mode === 'swap' ? 'Trocar por' : 'Adicionar'}: <strong>{pickerSelected.name}</strong></span
+						>
+						<div style="display:flex;gap:8px">
+							<Button type="button" variant="ghost" size="sm" onclick={() => (pickerFor = null)}>Cancelar</Button>
+							<Button type="submit" size="sm" disabled={swapping}>{swapping ? 'Salvando…' : 'Confirmar'}</Button>
+						</div>
+					</form>
+				{/if}
+			</div>
+		{/snippet}
+
 		<!-- Sessões de treino -->
 		<div style="font:500 18px var(--font-sans);color:var(--ink-0);margin:8px 0 14px">Sessões de treino</div>
 		{#if sessions.length === 0}
@@ -1034,7 +1296,7 @@
 							style="display:flex;flex-direction:column;{j || blockKey !== firstBlock ? 'border-top:1px solid var(--ink-line)' : ''}"
 						>
 							<div
-								style="padding:14px 20px;display:grid;grid-template-columns:32px 1fr auto auto auto auto auto;gap:14px;align-items:center"
+								style="padding:14px 20px;display:grid;grid-template-columns:32px 1fr auto auto auto auto auto auto;gap:14px;align-items:center"
 							>
 								<div class="num" style="font:500 13px var(--font-mono);color:var(--ink-3)">
 									{String(j + 1).padStart(2, '0')}
@@ -1086,6 +1348,18 @@
 									<span></span>
 								{/if}
 								{#if !isArchived}
+									{@const swapOpen = isPickerOpen(i, blockKey, j, 'swap')}
+									<button
+										type="button"
+										onclick={() => openPicker(i, blockKey, j, 'swap')}
+										title="Trocar por outro exercício do catálogo"
+										style="all:unset;cursor:pointer;font:500 11px var(--font-mono);text-transform:uppercase;letter-spacing:0.06em;padding:3px 10px;border:1px solid var(--ink-line);border-radius:var(--r-pill);color:{swapOpen ? 'var(--accent)' : 'var(--ink-1)'};background:{swapOpen ? 'var(--accent-wash)' : 'transparent'}"
+										aria-expanded={swapOpen}
+									>{swapOpen ? '× fechar' : '⇄ trocar'}</button>
+								{:else}
+									<span></span>
+								{/if}
+								{#if !isArchived}
 									<button
 										type="button"
 										onclick={() => toggleEdit(videoKey)}
@@ -1097,6 +1371,10 @@
 									<span></span>
 								{/if}
 							</div>
+
+							{#if isPickerOpen(i, blockKey, j, 'swap')}
+								{@render exercisePicker(i, blockKey, j, 'swap')}
+							{/if}
 
 							{#if editOpen}
 								<form
@@ -1165,6 +1443,25 @@
 										<Button type="submit" size="sm" disabled={savingEdit}>{savingEdit ? 'Salvando…' : 'Salvar'}</Button>
 									</div>
 								</form>
+								<!-- Remover (form separado — não se aninha ao de edição) -->
+								<form
+									method="POST"
+									action="?/removeExercise"
+									use:enhance={({ cancel }) => {
+										if (!window.confirm(`Remover "${ex.name}" desta sessão?`)) {
+											cancel();
+											return;
+										}
+										savingEdit = true;
+										return exerciseMutationHandler(() => (editKey = null));
+									}}
+									style="padding:0 20px 16px 60px"
+								>
+									<input type="hidden" name="sessionIdx" value={i} />
+									<input type="hidden" name="block" value={blockKey} />
+									<input type="hidden" name="exerciseIdx" value={j} />
+									<button type="submit" class="remove-link" disabled={savingEdit}>🗑 Remover este exercício</button>
+								</form>
 							{/if}
 							{#if catEntry?.videoUrl && videoOpen}
 								<div style="padding:0 20px 16px 60px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
@@ -1185,6 +1482,17 @@
 							{/if}
 						</div>
 					{/each}
+						{#if !isArchived}
+							{@const addOpen = isPickerOpen(i, blockKey, -1, 'add')}
+							<div style="padding:8px 20px 12px 60px;border-top:1px solid var(--ink-line)">
+								<button type="button" class="add-btn" onclick={() => openPicker(i, blockKey, -1, 'add')}>
+									{addOpen ? '× fechar' : `＋ adicionar em ${blockLabel.toLowerCase()}`}
+								</button>
+							</div>
+							{#if addOpen}
+								{@render exercisePicker(i, blockKey, -1, 'add')}
+							{/if}
+						{/if}
 					{/each}
 				</div>
 			{/each}

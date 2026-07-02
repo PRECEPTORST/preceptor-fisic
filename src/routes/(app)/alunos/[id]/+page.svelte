@@ -25,6 +25,23 @@
 		atencao: 'var(--warn)',
 		alto_risco: 'var(--danger)'
 	};
+	// Plano ativo — alvo do CTA "Ajustar carga" quando o ACWR está em risco.
+	const activePlanId = $derived(plans.find((p) => p.isActive)?.id ?? null);
+	const acwrEmRisco = $derived(acwr.level === 'atencao' || acwr.level === 'alto_risco');
+
+	// Histórico de sessões — expõe PSE + observações que hoje só entram no agregado.
+	const recentSessions = $derived(data.recentSessions ?? []);
+	function pseColor(pse: number | null): string {
+		if (pse == null) return 'var(--ink-3)';
+		return pse >= 9 ? 'var(--danger)' : pse >= 7 ? 'var(--warn)' : 'var(--success)';
+	}
+	function fmtSessionDate(iso: string): string {
+		return new Date(iso).toLocaleDateString('pt-BR', {
+			day: '2-digit',
+			month: 'short',
+			weekday: 'short'
+		}).replace('.', '');
+	}
 
 	let tab = $state<'dados' | 'plan' | 'prog'>('dados');
 
@@ -325,6 +342,11 @@
 							ACWR {acwr.ratio.toFixed(2)} · aguda {acwr.acute} / crônica {acwr.chronic} UA
 						</span>
 						<span style="flex:1;min-width:140px;font:var(--body-sm);color:var(--ink-2)">{acwr.hint}</span>
+						{#if acwrEmRisco && activePlanId}
+							<Button variant="secondary" size="sm" onclick={() => goto(`/planos/${activePlanId}`)}>
+								Ajustar carga →
+							</Button>
+						{/if}
 					</div>
 				{/if}
 				<LoadChart weeks={loadEvolution.weeks} externalMetric={loadEvolution.externalMetric} />
@@ -535,6 +557,43 @@
 			</div>
 		{:else}
 			<div style="display:flex;flex-direction:column;gap:16px">
+				<!-- Histórico de treino — o dado que o aluno registra, agora visível.
+				     PSE colorido + observações ("joelho doeu") em destaque. -->
+				{#if recentSessions.length > 0}
+					<div class="card" style="padding:24px">
+						<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+							<div>
+								<Eyebrow>◆ Histórico de treino</Eyebrow>
+								<div style="font:500 16px var(--font-sans);color:var(--ink-0);margin-top:4px">
+									Últimas {recentSessions.length} {recentSessions.length === 1 ? 'sessão registrada' : 'sessões registradas'}
+								</div>
+							</div>
+						</div>
+						<div class="sess-list">
+							{#each recentSessions as s (s.id)}
+								<div class="sess-row">
+									<div class="sess-pse" style="color:{pseColor(s.perceivedEffort)};border-color:{pseColor(s.perceivedEffort)}">
+										<span class="num" style="font:600 15px var(--font-mono)">{s.perceivedEffort ?? '—'}</span>
+										<span style="font:500 8px var(--font-mono);letter-spacing:0.06em">PSE</span>
+									</div>
+									<div class="sess-info">
+										<div class="sess-top">
+											<span style="font:500 14px var(--font-sans);color:var(--ink-0)">{s.label ?? 'Sessão'}</span>
+											<span class="num" style="font:var(--label-mono);color:var(--ink-3)">{fmtSessionDate(s.date)}</span>
+										</div>
+										<div class="sess-meta">
+											{s.doneCount}/{s.totalCount} exercícios{#if s.durationMinutes} · {s.durationMinutes} min{/if}
+										</div>
+										{#if s.observations}
+											<div class="sess-obs">“{s.observations}”</div>
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
 				{#if detail.assessments.length === 0 && lastWeights.length === 0}
 					<div class="card" style="padding:48px;text-align:center">
 						<div style="font:500 16px var(--font-sans);color:var(--ink-0);margin-bottom:8px">Sem dados de avaliação física</div>
@@ -893,5 +952,59 @@
 		.progress-grid {
 			grid-template-columns: repeat(2, 1fr);
 		}
+	}
+
+	/* ─────── Histórico de treino (timeline) ─────── */
+	.sess-list {
+		display: flex;
+		flex-direction: column;
+	}
+	.sess-row {
+		display: flex;
+		gap: 14px;
+		padding: 14px 0;
+		border-top: 1px solid var(--ink-line);
+	}
+	.sess-row:first-child {
+		border-top: 0;
+	}
+	.sess-pse {
+		flex-shrink: 0;
+		width: 46px;
+		height: 46px;
+		border-radius: var(--r-2);
+		border: 1px solid;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		background: var(--bg-2);
+	}
+	.sess-info {
+		flex: 1;
+		min-width: 0;
+	}
+	.sess-top {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 10px;
+	}
+	.sess-meta {
+		font: var(--label-mono);
+		color: var(--ink-2);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		margin-top: 3px;
+	}
+	.sess-obs {
+		margin-top: 8px;
+		padding: 8px 12px;
+		background: var(--bg-2);
+		border-left: 2px solid var(--warn);
+		border-radius: var(--r-1);
+		font: 400 13px/1.5 var(--font-sans);
+		color: var(--ink-1);
+		font-style: italic;
 	}
 </style>

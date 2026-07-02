@@ -8,14 +8,28 @@
 	const students = $derived(data.students);
 	const stats = $derived(data.stats);
 
+	// Fila "Precisa de atenção" — motivo mais grave por aluno (ver $lib/attention).
+	const attention = $derived(data.attention ?? []);
+	const attentionBySid = $derived(new Map(attention.map((a) => [a.studentId, a])));
+	const sevRank = (sid: string) => {
+		const a = attentionBySid.get(sid);
+		return a ? (a.severity === 'alta' ? 0 : 1) : 2;
+	};
+	const sevColor = (sev: 'alta' | 'media') => (sev === 'alta' ? 'var(--danger)' : 'var(--warn)');
+
 	let filter = $state<'all' | 'active' | 'paused'>('all');
 	let goal = $state<string>('all');
 	let hover = $state<string | null>(null);
 
+	// Ordena alunos com atenção pro topo (alta > média > em dia), mantendo
+	// a ordem alfabética do server dentro de cada faixa.
 	const filtered = $derived(
-		students.filter(
-			(s) => (filter === 'all' || s.status === filter) && (goal === 'all' || s.goal === goal)
-		)
+		students
+			.filter(
+				(s) => (filter === 'all' || s.status === filter) && (goal === 'all' || s.goal === goal)
+			)
+			.slice()
+			.sort((a, b) => sevRank(a.id) - sevRank(b.id))
 	);
 
 	const goalsAvailable = $derived(
@@ -152,6 +166,36 @@
 </header>
 
 <div class="dash-main">
+	<!-- Precisa de atenção — fecha o loop: sinais do aluno viram triagem -->
+	{#if attention.length > 0}
+		<div class="card attn-card">
+			<div class="attn-head">
+				<div>
+					<Eyebrow>Precisa de atenção</Eyebrow>
+					<div style="font:var(--title-lg);color:var(--ink-0);margin-top:4px">
+						{attention.length} {attention.length === 1 ? 'aluno' : 'alunos'} pra revisar
+					</div>
+				</div>
+			</div>
+			<div class="attn-list">
+				{#each attention as a (a.studentId)}
+					<div class="attn-row" onclick={() => goto(a.action.href)} role="button" tabindex="0"
+						onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && goto(a.action.href)}>
+						<span class="attn-dot" style="background:{sevColor(a.severity)}"></span>
+						<Avatar name={a.name} size={34} />
+						<div class="attn-info">
+							<div class="attn-name">{a.name}</div>
+							<div class="attn-msg">
+								{a.message}{#if a.detail}<span class="attn-detail"> · “{a.detail}”</span>{/if}
+							</div>
+						</div>
+						<span class="attn-cta">{a.action.label} →</span>
+					</div>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
 	<!-- Stat grid -->
 	<div class="dash-stats">
 		{#each statCards as s (s.label)}
@@ -305,6 +349,10 @@
 											<div style="display:flex;align-items:center;gap:8px;min-width:0">
 												<span class="dash-name">{s.name}</span>
 												<StatusDot variant={s.status === 'active' ? 'success' : 'muted'} />
+												{#if attentionBySid.get(s.id)}
+													{@const a = attentionBySid.get(s.id)!}
+													<span class="attn-dot sm" style="background:{sevColor(a.severity)}" title={a.message}></span>
+												{/if}
 											</div>
 											<div class="dash-sub">
 												{s.age ? s.age + ' anos · ' : ''}{s.goal ?? 'sem objetivo'}
@@ -356,6 +404,10 @@
 										{s.name}
 									</span>
 									<StatusDot variant={s.status === 'active' ? 'success' : 'muted'} />
+									{#if attentionBySid.get(s.id)}
+										{@const a = attentionBySid.get(s.id)!}
+										<span class="attn-dot sm" style="background:{sevColor(a.severity)}" title={a.message}></span>
+									{/if}
 								</div>
 								<div class="student-card__sub">
 									{s.age ? s.age + ' anos · ' : ''}{s.goal ?? 'sem objetivo'}
@@ -436,6 +488,86 @@
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
 		gap: 16px;
+	}
+
+	/* ─────── Fila "Precisa de atenção" ─────── */
+	.attn-card {
+		padding: 20px 20px 8px;
+		border-left: 3px solid var(--warn);
+	}
+	.attn-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 14px;
+	}
+	.attn-list {
+		display: flex;
+		flex-direction: column;
+	}
+	.attn-row {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 12px 0;
+		border-top: 1px solid var(--ink-line);
+		cursor: pointer;
+		transition: background 140ms var(--ease);
+	}
+	.attn-row:first-child {
+		border-top: 0;
+	}
+	.attn-row:hover {
+		background: var(--bg-2);
+	}
+	.attn-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+	.attn-dot.sm {
+		width: 6px;
+		height: 6px;
+	}
+	.attn-info {
+		flex: 1;
+		min-width: 0;
+	}
+	.attn-name {
+		font: 500 14px var(--font-sans);
+		color: var(--ink-0);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.attn-msg {
+		font: var(--body-sm);
+		color: var(--ink-2);
+		margin-top: 2px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.attn-detail {
+		color: var(--ink-1);
+		font-style: italic;
+	}
+	.attn-cta {
+		flex-shrink: 0;
+		font: var(--label-mono);
+		color: var(--accent);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		white-space: nowrap;
+	}
+	@media (max-width: 1023px) {
+		.attn-card {
+			padding: 16px 16px 4px;
+		}
+		.attn-cta {
+			display: none;
+		}
 	}
 	.dash-mid {
 		display: grid;
