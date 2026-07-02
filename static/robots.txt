@@ -13,7 +13,8 @@ Disallow: /mensagens
 Disallow: /agenda
 Disallow: /configuracoes
 Disallow: /onboarding
-Disallow: /aluno-preview
+Disallow: /feedback
+Disallow: /logout
 Disallow: /a/
 Disallow: /recuperar
 Disallow: /api/

@@ -8,7 +8,9 @@
 	const students = $derived(data.students);
 
 	const today = new Date();
-	let date = $state(today.toISOString().slice(0, 10));
+	// en-CA = YYYY-MM-DD na data LOCAL do browser — toISOString (UTC) pré-
+	// preencheria "amanhã" depois das 21h BRT.
+	let date = $state(today.toLocaleDateString('en-CA'));
 	let time = $state('09:00');
 	let studentId = $state('');
 	let type = $state<'treino' | 'avaliacao' | 'reabilitacao' | 'consulta'>('treino');
@@ -24,6 +26,10 @@
 		{ id: 'consulta', label: 'Consulta', color: 'var(--ink-1)' }
 	] as const;
 </script>
+
+<svelte:head>
+	<title>Nova sessão · Preceptor Fisic</title>
+</svelte:head>
 
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">
 	<header

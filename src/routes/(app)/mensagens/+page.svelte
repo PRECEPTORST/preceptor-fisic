@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Chip, Avatar, Eyebrow } from '$lib/components/ui';
+	import { Button, Chip, Avatar, Eyebrow, toast } from '$lib/components/ui';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import { onMount, onDestroy } from 'svelte';
@@ -15,6 +15,8 @@
 	let draft = $state('');
 	let activeFilter = $state('all');
 	let sending = $state(false);
+	let query = $state('');
+	let msgListEl = $state<HTMLDivElement | null>(null);
 
 	// Realtime via Supabase channels — escuta INSERT em messages.
 	// Quando chega novo, invalida load function pra atualizar threads + msgs.
@@ -58,6 +60,25 @@
 	const cur = $derived(threads.find((t) => t.id === activeId));
 	const totalUnread = $derived(threads.reduce((a, t) => a + t.unread, 0));
 
+	// Busca + filtro "Não lidas" aplicados no client, sobre os threads já
+	// carregados. Contadores (totalUnread, chip "Todas") seguem em `threads`.
+	const visibleThreads = $derived(
+		threads.filter((t) => {
+			const q = query.trim().toLocaleLowerCase('pt-BR');
+			const matchQ = !q || t.studentName.toLocaleLowerCase('pt-BR').includes(q);
+			const matchF = activeFilter !== 'unread' || t.unread > 0;
+			return matchQ && matchF;
+		})
+	);
+
+	// Chat ancora na última mensagem: rola pro fim ao abrir/trocar thread e
+	// quando chega mensagem nova (envio ou realtime). Roda após o DOM atualizar.
+	$effect(() => {
+		void messages.length;
+		void activeId;
+		if (msgListEl) msgListEl.scrollTop = msgListEl.scrollHeight;
+	});
+
 	function timeFmt(d: Date | null) {
 		if (!d) return '—';
 		const date = new Date(d);
@@ -73,6 +94,10 @@
 	const quickReplies = ['Bora aumentar 10%', 'Mantém a carga', 'Vou ajustar o plano', 'Manda vídeo'];
 </script>
 
+<svelte:head>
+	<title>Mensagens · Preceptor Fisic</title>
+</svelte:head>
+
 <div class="msg-grid" style="display:grid;grid-template-columns:360px 1fr 320px;height:100vh;overflow:hidden">
 	<!-- Inbox -->
 	<aside class="msg-inbox" class:has-active={Boolean(cur)} style="border-right:1px solid var(--ink-line);display:flex;flex-direction:column;overflow:hidden">
@@ -80,6 +105,7 @@
 			<Eyebrow>Caixa de entrada · {totalUnread} não lidas</Eyebrow>
 			<h1 style="font:var(--display-md);margin:6px 0 14px;letter-spacing:-0.025em">Mensagens</h1>
 			<input
+				bind:value={query}
 				placeholder="⌕  Buscar conversas…"
 				style="width:100%;box-sizing:border-box;padding:10px 14px;background:var(--bg-2);color:var(--ink-0);border:1px solid var(--ink-line);border-radius:var(--r-2);font:var(--body-sm) var(--font-sans);outline:none"
 			/>
@@ -99,8 +125,12 @@
 					<div style="font:var(--body-sm);color:var(--ink-2)">Nenhuma conversa ainda.</div>
 					<div style="font:var(--label-mono);color:var(--ink-3);margin-top:8px">As conversas aparecem aqui quando alunos enviam a primeira mensagem.</div>
 				</div>
+			{:else if visibleThreads.length === 0}
+				<div style="padding:32px;text-align:center">
+					<div style="font:var(--body-sm);color:var(--ink-2)">Nenhuma conversa encontrada.</div>
+				</div>
 			{/if}
-			{#each threads as t (t.id)}
+			{#each visibleThreads as t (t.id)}
 				<button
 					type="button"
 					onclick={() => goto(`/mensagens?t=${t.id}`, { replaceState: true })}
@@ -170,7 +200,7 @@
 				<Button variant="secondary" size="sm" onclick={() => goto(`/alunos/${cur.studentId}`)}>Ver ficha →</Button>
 			</header>
 
-			<div style="flex:1;overflow-y:auto;padding:32px 40px">
+			<div bind:this={msgListEl} style="flex:1;overflow-y:auto;padding:32px 40px">
 				{#if messages.length === 0}
 					<div style="text-align:center;color:var(--ink-2);font:var(--body-sm)">Sem mensagens ainda.</div>
 				{/if}
@@ -205,11 +235,19 @@
 				action="?/send"
 				use:enhance={() => {
 					sending = true;
-					return async ({ update }) => {
+					// Só limpa o rascunho se o envio deu certo — falha mantém o
+					// texto na caixa e avisa via toast.
+					return async ({ result, update }) => {
 						await update();
 						sending = false;
-						draft = '';
-						await invalidateAll();
+						if (result.type === 'success') {
+							draft = '';
+							await invalidateAll();
+						} else if (result.type === 'failure') {
+							toast.error(String((result.data as { error?: string })?.error ?? 'falha ao enviar mensagem'));
+						} else if (result.type === 'error') {
+							toast.error('falha ao enviar mensagem — tente de novo');
+						}
 					};
 				}}
 				style="padding:20px;border-top:1px solid var(--ink-line);background:var(--bg-1)"
@@ -228,6 +266,13 @@
 						bind:value={draft}
 						placeholder="Escreva uma resposta…"
 						rows="1"
+						onkeydown={(e) => {
+							// Enter envia (como promete o rótulo "Enviar ↵"); Shift+Enter quebra linha.
+							if (e.key === 'Enter' && !e.shiftKey) {
+								e.preventDefault();
+								if (!sending && draft.trim()) e.currentTarget.form?.requestSubmit();
+							}
+						}}
 						style="flex:1;padding:10px 12px;background:transparent;color:var(--ink-0);border:0;outline:none;resize:none;font:var(--body) var(--font-sans)"
 					></textarea>
 					<Button type="submit" disabled={sending || !draft.trim()}>

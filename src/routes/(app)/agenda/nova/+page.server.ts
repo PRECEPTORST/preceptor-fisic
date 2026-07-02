@@ -1,6 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
+import { waitUntil } from '@vercel/functions';
 import {
 	getProfessionalByAuthId,
 	getStudentsByProfessional,
@@ -11,6 +12,7 @@ import { students } from '$lib/server/db/schema';
 import { sendAppointmentNotification } from '$lib/server/email';
 import { logger } from '$lib/server/logger';
 import { isUuid } from '$lib/server/validation';
+import { parseLocalDateTime } from '$lib/server/tz';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load = (async ({ parent }) => {
@@ -42,12 +44,19 @@ export const actions: Actions = {
 		const type = TypeEnum.safeParse(typeRaw);
 		if (!type.success) return fail(400, { error: 'tipo inválido' });
 
-		const startsAt = new Date(`${date}T${time}:00`);
-		if (Number.isNaN(startsAt.getTime())) return fail(400, { error: 'data inválida' });
+		// Parse como horário de Brasília — new Date('...T...') no server (Vercel
+		// = UTC) deslocaria tudo em 3h (C29).
+		const startsAt = parseLocalDateTime(`${date}T${time}`);
+		if (!startsAt) return fail(400, { error: 'data inválida' });
 		// NaN passa em (NaN<15 || NaN>240) — ambos false — e vai parar numa
 		// coluna integer NOT NULL (erro do Postgres → 500). Exige número válido.
 		if (!Number.isFinite(duration) || duration < 15 || duration > 240)
 			return fail(400, { error: 'duração inválida' });
+		// Typo de ano (2025 em vez de 2026) criaria sessão invisível na agenda
+		// (load só mostra a semana atual) e dispararia email de sessão passada.
+		// Tolerância de 24h preserva registrar uma sessão feita hoje mais cedo.
+		if (startsAt.getTime() < Date.now() - 24 * 60 * 60 * 1000)
+			return fail(400, { error: 'a data da sessão está no passado — confira o ano e o dia' });
 
 		// Ownership: studentId vem do form — valida que o aluno pertence a
 		// este profissional antes de criar o appointment (e antes de mandar
@@ -82,7 +91,7 @@ export const actions: Actions = {
 					.where(eq(students.id, studentId))
 					.limit(1);
 				if (student?.email) {
-					sendAppointmentNotification({
+					const emailPromise = sendAppointmentNotification({
 						to: student.email,
 						studentName: student.name,
 						professionalName: professional.name,
@@ -92,17 +101,19 @@ export const actions: Actions = {
 						label,
 						studentId
 					}).catch((err) =>
-						logger.error(
-							{ err: String(err).slice(0, 200) },
-							'appointment.notify.send_failed'
-						)
+						logger.error({ err: String(err).slice(0, 200) }, 'appointment.notify.send_failed')
 					);
+					// Sem waitUntil a serverless function congela no redirect e a
+					// Promise órfã pode nunca enviar o email (C09).
+					try {
+						waitUntil(emailPromise);
+					} catch {
+						// Fora do contexto Vercel (ex: dev local): waitUntil lança.
+						// Promise continua rodando porque Node não termina.
+					}
 				}
 			} catch (err) {
-				logger.error(
-					{ err: String(err).slice(0, 200) },
-					'appointment.notify.lookup_failed'
-				);
+				logger.error({ err: String(err).slice(0, 200) }, 'appointment.notify.lookup_failed');
 			}
 		}
 

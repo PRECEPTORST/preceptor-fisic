@@ -29,13 +29,20 @@ export const actions: Actions = {
 		const fd = await request.formData();
 		const category = String(fd.get('category') ?? 'outro') as FeedbackCategory;
 		const message = String(fd.get('message') ?? '').trim();
-		const page = String(fd.get('page') ?? '').trim() || null;
+		// page entra no corpus do resumo IA e na lista do admin — cap de 200 chars.
+		const page = (String(fd.get('page') ?? '').trim() || null)?.slice(0, 200) ?? null;
 
 		if (!VALID_CATEGORIES.includes(category)) return fail(400, { error: 'categoria inválida' });
 		if (message.length < 3)
-			return fail(400, { error: 'Escreva um pouco mais no feedback.', values: { category, message } });
+			return fail(400, {
+				error: 'Escreva um pouco mais no feedback.',
+				values: { category, message }
+			});
 		if (message.length > 4000)
-			return fail(400, { error: 'Feedback muito longo (máx 4000 caracteres).', values: { category, message } });
+			return fail(400, {
+				error: 'Feedback muito longo (máx 4000 caracteres).',
+				values: { category, message }
+			});
 
 		await createFeedback({
 			professionalId: pro.id,

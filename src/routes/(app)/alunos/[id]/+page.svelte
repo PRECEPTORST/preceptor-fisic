@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button, Chip, Sparkline, LoadChart, Eyebrow, toast } from '$lib/components/ui';
 	import { goto } from '$app/navigation';
+	import { enhance } from '$app/forms';
 	import { computeAcwr } from '$lib/training-metrics';
 	import type { PageData } from './$types';
 
@@ -28,6 +29,18 @@
 	let tab = $state<'dados' | 'plan' | 'prog'>('dados');
 
 	let showLinkModal = $state(false);
+	let resending = $state(false);
+
+	// Rótulo do card de plano pelo status real — plano gerando ou com falha
+	// não pode aparecer como "Encerrado".
+	const planChip = (p: { isActive: boolean; status: string }) =>
+		p.isActive
+			? { label: '● Ativo', variant: 'active' as const }
+			: p.status === 'pending' || p.status === 'generating'
+				? { label: '⟳ Gerando…', variant: 'warn' as const }
+				: p.status === 'failed'
+					? { label: 'Falhou', variant: 'danger' as const }
+					: { label: 'Encerrado', variant: 'default' as const };
 
 	async function copyLinkToClipboard() {
 		try {
@@ -51,9 +64,17 @@
 	const linkPitch = $derived(
 		`Olá ${student.name.split(' ')[0]}, esse é o link do seu app de treinos. Sem login — clique e já abre:\n${alunoUrl}`
 	);
+	// wa.me exige formato internacional completo: 10-11 dígitos = formato
+	// local BR (DDD + número) → prefixa 55. Decisão por comprimento (não
+	// startsWith('55')) pra não quebrar DDD 55 (RS).
+	const whatsappPhone = $derived.by(() => {
+		if (!student.phone) return null;
+		const d = student.phone.replace(/\D/g, '');
+		return d.length === 10 || d.length === 11 ? `55${d}` : d;
+	});
 	const whatsappUrl = $derived(
-		student.phone
-			? `https://wa.me/${student.phone.replace(/\D/g, '')}?text=${encodeURIComponent(linkPitch)}`
+		whatsappPhone
+			? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(linkPitch)}`
 			: `https://wa.me/?text=${encodeURIComponent(linkPitch)}`
 	);
 	const mailtoUrl = $derived(
@@ -171,6 +192,10 @@
 		new Date(student.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace('.', '')
 	);
 </script>
+
+<svelte:head>
+	<title>{student?.name ?? 'Aluno'} · Preceptor Fisic</title>
+</svelte:head>
 
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">
 	<!-- Breadcrumb -->
@@ -477,6 +502,7 @@
 				{:else}
 					<div style="display:flex;flex-direction:column;gap:12px">
 						{#each plans as p (p.id)}
+							{@const chip = planChip(p)}
 							<button
 								type="button"
 								onclick={() => goto(`/planos/${p.id}`)}
@@ -492,7 +518,7 @@
 								>
 									<div>
 										<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-											<Chip variant={p.isActive ? 'active' : 'default'}>{p.isActive ? '● Ativo' : 'Encerrado'}</Chip>
+											<Chip variant={chip.variant}>{chip.label}</Chip>
 											<span style="font:var(--label-mono);color:var(--ink-2)">{p.sessionsTotal} {p.sessionsTotal === 1 ? 'sessão' : 'sessões'}</span>
 										</div>
 										<div style="font:500 16px var(--font-sans);color:var(--ink-0);margin-bottom:6px;line-height:1.4">{p.title}</div>
@@ -637,6 +663,34 @@
 					<a class="link-action" href={mailtoUrl}>
 						<span>✉</span> E-mail ({student.email})
 					</a>
+				{/if}
+				{#if student.email}
+					<!-- Reenvio server-side via Resend — não depende de client de email no desktop -->
+					<form
+						method="POST"
+						action="?/resendMagicLink"
+						style="display:contents"
+						use:enhance={() => {
+							resending = true;
+							return async ({ result, update }) => {
+								resending = false;
+								if (result.type === 'error') {
+									toast.error('Falha ao reenviar. Tente de novo.');
+									return;
+								}
+								if (result.type === 'success') {
+									toast.success(`Link reenviado pra ${(result.data as { sentTo?: string })?.sentTo ?? student.email}`);
+								} else if (result.type === 'failure') {
+									toast.error(String((result.data as { error?: string })?.error ?? 'Falha ao reenviar.'));
+								}
+								await update({ reset: false });
+							};
+						}}
+					>
+						<button type="submit" class="link-action" disabled={resending}>
+							<span>✉</span> {resending ? 'Enviando…' : 'Reenviar por e-mail'}
+						</button>
+					</form>
 				{/if}
 			</div>
 

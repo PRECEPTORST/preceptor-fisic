@@ -28,6 +28,10 @@
 	];
 </script>
 
+<svelte:head>
+	<title>Configurações · Preceptor Fisic</title>
+</svelte:head>
+
 <div class="cfg-page" style="flex:1;overflow-y:auto;background:var(--bg-0)">
 	<div class="cfg-pagehead" style="padding:32px 40px;border-bottom:1px solid var(--ink-line)">
 		<div class="eyebrow" style="margin-bottom:6px">Configurações</div>
@@ -90,7 +94,7 @@
 
 						<div style="display:grid;grid-template-columns:180px 1fr;gap:24px;padding:14px 0;border-top:1px solid var(--ink-line)">
 							<label class="lbl" for="cfg-name">Nome</label>
-							<input id="cfg-name" class="settings-inp" name="name" required value={pro?.name ?? ''} />
+							<input id="cfg-name" class="settings-inp" name="name" required maxlength="120" value={pro?.name ?? ''} />
 						</div>
 						<div style="display:grid;grid-template-columns:180px 1fr;gap:24px;padding:14px 0;border-top:1px solid var(--ink-line)">
 							<div>
@@ -104,7 +108,7 @@
 								<label class="lbl" for="cfg-cref">CREF / CREFITO</label>
 								<div style="font:var(--label-mono);color:var(--ink-3);margin-top:4px">Aparece pra alunos</div>
 							</div>
-							<input id="cfg-cref" class="settings-inp" name="cref" placeholder="CREF 123456-G" value={pro?.cref ?? ''} />
+							<input id="cfg-cref" class="settings-inp" name="cref" placeholder="CREF 123456-G" maxlength="40" value={pro?.cref ?? ''} />
 						</div>
 						<div style="display:grid;grid-template-columns:180px 1fr;gap:24px;padding:14px 0;border-top:1px solid var(--ink-line)">
 							<label class="lbl" for="cfg-spec">Especialidade</label>

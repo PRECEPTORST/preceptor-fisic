@@ -36,7 +36,10 @@
 		<button onclick={() => goto(`/a/${studentId}${tq}`)} class="back-btn">←</button>
 		<div style="flex:1;text-align:center">
 			<div class="eyebrow">Histórico</div>
-			<div style="font:500 16px var(--font-sans)">{sessions.length} sessões registradas</div>
+			<div style="font:500 16px var(--font-sans)">{data.total} sessões registradas</div>
+			{#if data.total > sessions.length}
+				<div class="eyebrow" style="margin-top:2px">mostrando as {sessions.length} mais recentes</div>
+			{/if}
 		</div>
 		<div style="width:40px"></div>
 	</header>

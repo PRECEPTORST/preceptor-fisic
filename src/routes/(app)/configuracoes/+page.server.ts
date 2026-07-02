@@ -29,6 +29,10 @@ export const actions: Actions = {
 		const specialtyRaw = String(fd.get('specialty') ?? 'prescricao_clinica');
 
 		if (name.length < 2) return fail(400, { error: 'nome obrigatório' });
+		if (name.length > 120) return fail(400, { error: 'nome muito longo (máx 120 caracteres)' });
+		// cref aparece pra alunos na área pública — cap de tamanho, sem regex de formato.
+		if (cref && cref.length > 40)
+			return fail(400, { error: 'CREF/CREFITO muito longo (máx 40 caracteres)' });
 		const specialty = SpecialtyEnum.safeParse(specialtyRaw);
 		if (!specialty.success) return fail(400, { error: 'especialidade inválida' });
 

@@ -9,7 +9,9 @@
 	const students = $derived(data.students);
 
 	const startDate = $derived(new Date(a.startsAt));
-	let date = $state(startDate.toISOString().slice(0, 10));
+	// date e time da MESMA base local do browser — misturar toISOString (UTC)
+	// com toTimeString (local) corrompia o horário a cada salvar (C14).
+	let date = $state(startDate.toLocaleDateString('en-CA'));
 	let time = $state(startDate.toTimeString().slice(0, 5));
 	let studentId = $state(a.studentId ?? '');
 	type AgendaType = 'treino' | 'avaliacao' | 'reabilitacao' | 'consulta';
@@ -34,6 +36,10 @@
 		{ id: 'cancelled' as const, label: '✗ Cancelada' }
 	];
 </script>
+
+<svelte:head>
+	<title>Editar sessão · Preceptor Fisic</title>
+</svelte:head>
 
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">
 	<header

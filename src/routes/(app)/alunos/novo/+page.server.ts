@@ -1,6 +1,9 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { getProfessionalByAuthId, createStudentTx } from '$lib/server/queries';
+import { parseDateISO, parseDecimalBR } from '$lib/server/form-utils';
+import { localDateKey } from '$lib/server/tz';
+import { audit, clientFingerprint } from '$lib/server/audit';
 import { signStudentToken } from '$lib/server/aluno-token';
 import { sendStudentMagicLink, sendStudentFillLink } from '$lib/server/email';
 import { env as pubEnv } from '$env/dynamic/public';
@@ -23,8 +26,18 @@ const fullSchema = z.object({
 	name: z.string().min(2).max(160),
 	birthDate: z.string().optional().nullable(),
 	sex: SexEnum,
-	weightKg: z.number().positive().nullable().optional(),
-	heightCm: z.number().positive().nullable().optional(),
+	weightKg: z
+		.number()
+		.min(20, 'peso deve estar entre 20 e 400 kg')
+		.max(400, 'peso deve estar entre 20 e 400 kg')
+		.nullable()
+		.optional(),
+	heightCm: z
+		.number()
+		.min(100, 'altura deve estar entre 100 e 250 cm — informe em centímetros (ex.: 175)')
+		.max(250, 'altura deve estar entre 100 e 250 cm')
+		.nullable()
+		.optional(),
 	phone: z.string().optional().nullable(),
 	email: z.string().email().optional().nullable().or(z.literal('')),
 	cardiovascularRisk: RiskEnum,
@@ -57,7 +70,7 @@ function appBaseUrl(origin: string): string {
 }
 
 export const actions: Actions = {
-	default: async ({ request, locals, url }) => {
+	default: async ({ request, locals, url, getClientAddress }) => {
 		if (!locals.user) return fail(401, { error: 'não autenticado' });
 		const professional = await getProfessionalByAuthId(locals.user.id);
 		if (!professional) return fail(401, { error: 'professional não encontrado' });
@@ -82,22 +95,53 @@ export const actions: Actions = {
 				});
 			}
 
-			const id = await createStudentTx({
+			// Sem isso, data BR (dd/mm/aaaa) ia crua pra coluna date do Postgres
+			// e a transação estourava um 500, perdendo o form inteiro.
+			const birthDate = parseDateISO(parsed.data.birthDate);
+			if (!birthDate)
+				return fail(400, {
+					error: 'data de nascimento inválida (use AAAA-MM-DD ou DD/MM/AAAA)',
+					mode,
+					values: raw
+				});
+			if (birthDate > localDateKey(new Date()))
+				return fail(400, { error: 'data de nascimento não pode ser no futuro', mode, values: raw });
+
+			let id: string;
+			try {
+				id = await createStudentTx({
+					professionalId: professional.id,
+					name: parsed.data.name,
+					birthDate,
+					sex: 'nao_informado',
+					email: parsed.data.email,
+					// LGPD art. 11: no modo link quem consente é o titular, em
+					// /a/[id]/completar (coalesce carimba lá). Não carimbar aqui.
+					consentAcceptedAt: null,
+					diagnoses: [],
+					medications: [],
+					cardiovascularRisk: 'baixo',
+					experienceLevel: 'iniciante',
+					prescribedDifficulty: 'media',
+					weeklySessions: 3,
+					minutesPerSession: 60,
+					goals: [],
+					profileComplete: false
+				});
+			} catch (e) {
+				return fail(400, {
+					error: 'erro ao salvar aluno: ' + (e as Error).message,
+					mode,
+					values: raw
+				});
+			}
+
+			audit({
+				action: 'student.create',
 				professionalId: professional.id,
-				name: parsed.data.name,
-				birthDate: parsed.data.birthDate,
-				sex: 'nao_informado',
-				email: parsed.data.email,
-				consentAcceptedAt: new Date(),
-				diagnoses: [],
-				medications: [],
-				cardiovascularRisk: 'baixo',
-				experienceLevel: 'iniciante',
-				prescribedDifficulty: 'media',
-				weeklySessions: 3,
-				minutesPerSession: 60,
-				goals: [],
-				profileComplete: false
+				entityType: 'student',
+				entityId: id,
+				...clientFingerprint(request, getClientAddress)
 			});
 
 			const token = signStudentToken(id);
@@ -126,8 +170,8 @@ export const actions: Actions = {
 			name: String(fd.get('name') ?? '').trim(),
 			birthDate: String(fd.get('birthDate') ?? '').trim() || null,
 			sex: String(fd.get('sex') ?? 'nao_informado'),
-			weightKg: fd.get('weightKg') ? Number(fd.get('weightKg')) : null,
-			heightCm: fd.get('heightCm') ? Number(fd.get('heightCm')) : null,
+			weightKg: parseDecimalBR(fd.get('weightKg')),
+			heightCm: parseDecimalBR(fd.get('heightCm')),
 			phone: String(fd.get('phone') ?? '').trim() || null,
 			email: String(fd.get('email') ?? '').trim() || null,
 			cardiovascularRisk: String(fd.get('cardiovascularRisk') ?? 'baixo'),
@@ -142,6 +186,36 @@ export const actions: Actions = {
 			trainingSplit: String(fd.get('trainingSplit') ?? 'auto')
 		};
 
+		// parseDecimalBR devolve null pra texto não-parseável — distingue de
+		// vazio pra não silenciar "70,5abc" digitado num campo agora type=text.
+		if (String(fd.get('weightKg') ?? '').trim() && raw.weightKg == null)
+			return fail(400, {
+				error: 'peso inválido — use apenas números (ex.: 72,5)',
+				mode,
+				values: raw
+			});
+		if (String(fd.get('heightCm') ?? '').trim() && raw.heightCm == null)
+			return fail(400, {
+				error: 'altura inválida — use apenas números (ex.: 175)',
+				mode,
+				values: raw
+			});
+
+		// Sem isso, data BR (dd/mm/aaaa) ia crua pra coluna date do Postgres
+		// e a transação estourava um 500, perdendo o form inteiro.
+		let birthDate: string | null = null;
+		if (raw.birthDate) {
+			birthDate = parseDateISO(raw.birthDate);
+			if (!birthDate)
+				return fail(400, {
+					error: 'data de nascimento inválida (use AAAA-MM-DD ou DD/MM/AAAA)',
+					mode,
+					values: raw
+				});
+			if (birthDate > localDateKey(new Date()))
+				return fail(400, { error: 'data de nascimento não pode ser no futuro', mode, values: raw });
+		}
+
 		const parsed = fullSchema.safeParse(raw);
 		if (!parsed.success) {
 			return fail(400, {
@@ -152,27 +226,44 @@ export const actions: Actions = {
 			});
 		}
 
-		const id = await createStudentTx({
+		let id: string;
+		try {
+			id = await createStudentTx({
+				professionalId: professional.id,
+				name: parsed.data.name,
+				birthDate,
+				sex: parsed.data.sex,
+				weightKg: parsed.data.weightKg ?? null,
+				heightCm: parsed.data.heightCm ?? null,
+				phone: parsed.data.phone,
+				email: parsed.data.email || null,
+				consentAcceptedAt: new Date(),
+				diagnoses: parseList(parsed.data.diagnoses).map((label) => ({ label })),
+				medications: parseList(parsed.data.medications).map((name) => ({ name })),
+				injuries: parseList(parsed.data.limitations).map((region) => ({ region })),
+				cardiovascularRisk: parsed.data.cardiovascularRisk,
+				experienceLevel: parsed.data.experienceLevel,
+				prescribedDifficulty: parsed.data.prescribedDifficulty,
+				trainingSplit: parsed.data.trainingSplit,
+				weeklySessions: parsed.data.weeklySessions,
+				minutesPerSession: parsed.data.minutesPerSession,
+				goals: parsed.data.goals,
+				profileComplete: true
+			});
+		} catch (e) {
+			return fail(400, {
+				error: 'erro ao salvar aluno: ' + (e as Error).message,
+				mode,
+				values: raw
+			});
+		}
+
+		audit({
+			action: 'student.create',
 			professionalId: professional.id,
-			name: parsed.data.name,
-			birthDate: parsed.data.birthDate,
-			sex: parsed.data.sex,
-			weightKg: parsed.data.weightKg ?? null,
-			heightCm: parsed.data.heightCm ?? null,
-			phone: parsed.data.phone,
-			email: parsed.data.email || null,
-			consentAcceptedAt: new Date(),
-			diagnoses: parseList(parsed.data.diagnoses).map((label) => ({ label })),
-			medications: parseList(parsed.data.medications).map((name) => ({ name })),
-			injuries: parseList(parsed.data.limitations).map((region) => ({ region })),
-			cardiovascularRisk: parsed.data.cardiovascularRisk,
-			experienceLevel: parsed.data.experienceLevel,
-			prescribedDifficulty: parsed.data.prescribedDifficulty,
-			trainingSplit: parsed.data.trainingSplit,
-			weeklySessions: parsed.data.weeklySessions,
-			minutesPerSession: parsed.data.minutesPerSession,
-			goals: parsed.data.goals,
-			profileComplete: true
+			entityType: 'student',
+			entityId: id,
+			...clientFingerprint(request, getClientAddress)
 		});
 
 		// Se o aluno tem email cadastrado, dispara o magic-link automaticamente.

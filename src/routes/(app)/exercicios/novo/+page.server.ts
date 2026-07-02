@@ -17,7 +17,8 @@ export const actions: Actions = {
 		const fd = await request.formData();
 		const name = String(fd.get('name') ?? '').trim();
 		const muscleGroup = String(fd.get('muscleGroup') ?? '').trim();
-		if (!name || !muscleGroup) return fail(400, { error: 'nome e grupo muscular são obrigatórios' });
+		if (!name || !muscleGroup)
+			return fail(400, { error: 'nome e grupo muscular são obrigatórios' });
 
 		const contraindications = String(fd.get('contraindications') ?? '')
 			.split(/[,\n;]+/)

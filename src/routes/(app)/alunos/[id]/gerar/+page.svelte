@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Avatar, Eyebrow } from '$lib/components/ui';
+	import { Button, Avatar, Eyebrow, toast } from '$lib/components/ui';
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import type { PageData } from './$types';
@@ -22,6 +22,22 @@
 	let phase = $state<'idle' | 'generating'>('idle');
 	let notes = $state('');
 	let msgIdx = $state(0);
+
+	// Equipamento disponível — valores EN (mesmos do exercise_catalog),
+	// labels PT. Pré-populado das preferências e persistido na action.
+	const EQUIPMENT_OPTIONS: { value: string; label: string }[] = [
+		{ value: 'body weight', label: 'Peso corporal' },
+		{ value: 'dumbbell', label: 'Halteres' },
+		{ value: 'barbell', label: 'Barra' },
+		{ value: 'band', label: 'Elástico' },
+		{ value: 'kettlebell', label: 'Kettlebell' },
+		{ value: 'cable', label: 'Polia (cabo)' },
+		{ value: 'leverage machine', label: 'Máquinas' },
+		{ value: 'smith machine', label: 'Smith' },
+		{ value: 'stability ball', label: 'Bola suíça' },
+		{ value: 'bench', label: 'Banco' }
+	];
+	let equipment = $state<string[]>([...(data.detail.preferences?.equipmentAvailable ?? [])]);
 
 	const messages = [
 		'Carregando contexto clínico…',
@@ -67,6 +83,10 @@
 		return () => clearInterval(id);
 	});
 </script>
+
+<svelte:head>
+	<title>Gerar plano · Preceptor Fisic</title>
+</svelte:head>
 
 {#if phase === 'generating'}
 	<div style="flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg-0)">
@@ -188,6 +208,14 @@
 				use:enhance={() => {
 					phase = 'generating';
 					return async ({ update, result }) => {
+						// Exceção não tratada (DB fora, rede): trata ANTES do update(),
+						// senão o applyAction default renderiza a página de erro e o
+						// usuário perde as notas — ou fica preso no spinner.
+						if (result.type === 'error') {
+							phase = 'idle';
+							toast.error('Falha inesperada ao gerar o plano. Tente de novo.');
+							return;
+						}
 						await update();
 						// Se falhou (ex: rate limit), volta pra idle
 						if (result.type === 'failure') phase = 'idle';
@@ -219,14 +247,50 @@
 					</div>
 				{/if}
 
+				<div class="card" style="padding:24px;margin-bottom:16px">
+					<Eyebrow>Equipamento disponível</Eyebrow>
+					<div style="font:var(--body-sm);color:var(--ink-2);margin-top:6px">
+						O PreceptorFISIC só prescreve exercícios com o que o aluno tem à disposição.
+					</div>
+					<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">
+						{#each EQUIPMENT_OPTIONS as opt (opt.value)}
+							{@const checked = equipment.includes(opt.value)}
+							<label
+								style="display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:var(--r-pill);cursor:pointer;font:500 13px var(--font-sans);background:{checked
+									? 'var(--accent-wash)'
+									: 'var(--bg-3)'};color:{checked
+									? 'var(--accent-2)'
+									: 'var(--ink-1)'};border:1px solid {checked ? 'var(--accent)' : 'var(--ink-line-2)'}"
+							>
+								<input
+									type="checkbox"
+									name="equipment"
+									value={opt.value}
+									bind:group={equipment}
+									style="accent-color:var(--accent);margin:0"
+								/>
+								{opt.label}
+							</label>
+						{/each}
+					</div>
+				</div>
+
 				<div class="card" style="padding:24px;margin-bottom:20px">
 					<Eyebrow>Observações profissionais (opcional)</Eyebrow>
 					<textarea
 						name="notes"
 						bind:value={notes}
+						maxlength="2000"
 						placeholder="Adicione notas que o PreceptorFISIC deve considerar ao gerar o treino…"
 						style="width:100%;margin-top:10px;min-height:100px;padding:14px;background:var(--bg-2);border:1px solid var(--ink-line-2);border-radius:var(--r-2);color:var(--ink-0);font:14px var(--font-sans);resize:vertical;outline:none;box-sizing:border-box"
 					></textarea>
+					<div
+						style="margin-top:6px;text-align:right;font:var(--label-mono);color:{notes.length >= 2000
+							? 'var(--warn)'
+							: 'var(--ink-3)'}"
+					>
+						{notes.length}/2000
+					</div>
 				</div>
 
 				<Button type="submit" style="width:100%;justify-content:center">⚡ Gerar plano personalizado</Button>

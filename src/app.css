@@ -212,7 +212,6 @@ body {
 	background: var(--ink-line-2);
 }
 
-
 /* ─────────────────────────────────────────────
    Mobile responsive fallbacks — pega páginas
    que usam inline-style grids e padding fixo.
@@ -224,56 +223,69 @@ body {
 	}
 
 	/* Grids 4-col viram 2-col */
-	[style*="grid-template-columns:repeat(4,1fr)"],
-	[style*="grid-template-columns: repeat(4, 1fr)"],
-	[style*="grid-template-columns:repeat(4, 1fr)"] {
+	[style*='grid-template-columns:repeat(4,1fr)'],
+	[style*='grid-template-columns: repeat(4, 1fr)'],
+	[style*='grid-template-columns:repeat(4, 1fr)'] {
 		grid-template-columns: repeat(2, 1fr) !important;
 	}
 	/* Grids 3-col viram 1-col */
-	[style*="grid-template-columns:repeat(3,1fr)"],
-	[style*="grid-template-columns: repeat(3, 1fr)"] {
+	[style*='grid-template-columns:repeat(3,1fr)'],
+	[style*='grid-template-columns: repeat(3, 1fr)'] {
 		grid-template-columns: 1fr !important;
 	}
 	/* Grids 2fr 1fr stack */
-	[style*="grid-template-columns:2fr 1fr"],
-	[style*="grid-template-columns: 2fr 1fr"],
-	[style*="grid-template-columns:1fr 2fr"] {
+	[style*='grid-template-columns:2fr 1fr'],
+	[style*='grid-template-columns: 2fr 1fr'],
+	[style*='grid-template-columns:1fr 2fr'] {
 		grid-template-columns: 1fr !important;
+	}
+	/* Strip de 5 stats (alunos/[id]) vira 2-col */
+	[style*='grid-template-columns:repeat(5,1fr)'],
+	[style*='grid-template-columns: repeat(5, 1fr)'] {
+		grid-template-columns: repeat(2, 1fr) !important;
+	}
+	/* Grid 1.4fr 1fr (dados clínicos) stack — prefixo completo evita casar
+	   substrings de grids maiores (ex.: 90px 2fr 1.4fr 1fr 1fr 80px) */
+	[style*='grid-template-columns:1.4fr 1fr'] {
+		grid-template-columns: 1fr !important;
+	}
+	/* Linha de 4 inputs (peso/altura/telefone/email) vira 2-col */
+	[style*='grid-template-columns:1fr 1fr 1fr 1fr'] {
+		grid-template-columns: 1fr 1fr !important;
 	}
 
 	/* Headers sticky com padding 32px → 16px */
-	header[style*="padding:20px 32px"],
-	header[style*="padding: 20px 32px"] {
+	header[style*='padding:20px 32px'],
+	header[style*='padding: 20px 32px'] {
 		padding: 14px 16px !important;
 	}
 
 	/* Containers principais com padding:32px → 14px */
-	[style*="padding:32px"]:not(.gen-frame):not(.onb-frame) {
+	[style*='padding:32px']:not(.gen-frame):not(.onb-frame) {
 		padding: 16px !important;
 	}
-	[style*="padding:24px 32px"] {
+	[style*='padding:24px 32px'] {
 		padding: 16px !important;
 	}
 
 	/* Inline grids de tabela com columnas fixas e largura > viewport viram block */
-	[style*="grid-template-columns:40px 2fr 1fr 1fr"] {
+	[style*='grid-template-columns:40px 2fr 1fr 1fr'] {
 		grid-template-columns: 1fr !important;
 		gap: 6px !important;
 		padding: 12px !important;
 	}
 
 	/* Min-widths que quebram (search bars etc) */
-	[style*="min-width:240px"],
-	[style*="min-width:280px"],
-	[style*="min-width: 240px"],
-	[style*="min-width: 280px"] {
+	[style*='min-width:240px'],
+	[style*='min-width:280px'],
+	[style*='min-width: 240px'],
+	[style*='min-width: 280px'] {
 		min-width: 0 !important;
 		width: 100% !important;
 	}
 
 	/* Wrapping em headers que tem flex side-by-side */
-	header [style*="display:flex"][style*="gap:12px"]:not(.dash-actions):not(.al-actions) {
+	header [style*='display:flex'][style*='gap:12px']:not(.dash-actions):not(.al-actions) {
 		flex-wrap: wrap;
 	}
 }
-

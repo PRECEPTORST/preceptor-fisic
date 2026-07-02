@@ -25,6 +25,13 @@
 		openVideoKey = openVideoKey === key ? null : key;
 	}
 
+	// #M14 — revisão exibe os 3 blocos da sessão (warmup/main/cooldown), não só main.
+	const BLOCKS = [
+		['warmup', 'Aquecimento'],
+		['main', 'Principal'],
+		['cooldown', 'Volta à calma']
+	] as const;
+
 	// #5 — edição de exercício pelo profissional (inline).
 	let editKey = $state<string | null>(null);
 	let savingEdit = $state(false);
@@ -72,10 +79,34 @@
 	const isPublished = $derived(plan.status === 'published');
 	const isArchived = $derived(plan.status === 'archived');
 
-	const redCount = $derived(restrictions.filter((r) => r.level === 'red').length);
+	// resolved_* vive no JSON mas não no tipo PlanRestriction — leitura via cast.
+	type Resolvable = { resolved_at?: string; resolved_by?: string; resolution?: string };
+	// Espelha o gate do servidor (publishPlan): red RESOLVIDA não bloqueia.
+	const redCount = $derived(
+		restrictions.filter((r) => r.level === 'red' && !(r as Resolvable).resolved_at).length
+	);
 	const canPublish = $derived(isGenerated && redCount === 0);
 
+	// Label PT-BR do status (evita 'Generated'/'Published' cru na UI).
+	function planStatusLabel(s: string): string {
+		return (
+			(
+				{
+					pending: 'Na fila',
+					generating: 'Gerando…',
+					generated: 'Rascunho',
+					published: 'Publicado',
+					failed: 'Falhou',
+					archived: 'Arquivado'
+				} as Record<string, string>
+			)[s] ?? s
+		);
+	}
+
 	let publishing = $state(false);
+	let deleting = $state(false);
+	// Índice da restrição sendo liberada (override clínico #C02).
+	let resolvingIdx = $state<number | null>(null);
 
 	type PartialPlan = {
 		summary?: string;
@@ -128,7 +159,9 @@
 				livePhase = s.phase ?? livePhase;
 				liveProgress = s.progress;
 				livePartial = s.partial;
-				if (s.streamText) liveStreamText = s.streamText;
+				// ?? '' (não if): o fallback Pro LIMPA streamText no server — a UI
+				// precisa refletir o clear, senão mostra restos do stream do Flash.
+				liveStreamText = s.streamText ?? '';
 				if (s.generated || s.failed) {
 					if (pollInterval) clearInterval(pollInterval);
 					await invalidateAll();
@@ -157,6 +190,10 @@
 		return l === 'red' ? 'CRÍTICO' : l === 'yellow' ? 'CUIDADO' : 'OK';
 	}
 </script>
+
+<svelte:head>
+	<title>Plano · {plan.studentName} · Preceptor Fisic</title>
+</svelte:head>
 
 {#if isGenerating}
 	<div class="gen-shell">
@@ -647,7 +684,31 @@
 				<h1 style="font:500 22px var(--font-sans);margin:0 0 8px;color:var(--ink-0)">Geração falhou</h1>
 				<div style="font:var(--body-sm);color:var(--ink-2)">O PreceptorFISIC não conseguiu produzir um plano válido. Tente novamente.</div>
 			</div>
-			<Button onclick={() => goto(`/alunos/${plan.studentId}/gerar`)}>↻ Tentar de novo</Button>
+			<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+				<Button onclick={() => goto(`/alunos/${plan.studentId}/gerar`)}>↻ Tentar de novo</Button>
+				<form
+					method="POST"
+					action="?/delete"
+					use:enhance={({ cancel }) => {
+						if (!window.confirm('Excluir este plano com falha? Isso não pode ser desfeito.')) {
+							cancel();
+							return;
+						}
+						deleting = true;
+						return async ({ update, result }) => {
+							deleting = false;
+							if (result.type === 'failure') {
+								toast.error(String((result.data as any)?.error ?? 'Não foi possível excluir.'));
+							}
+							await update();
+						};
+					}}
+				>
+					<Button variant="secondary" type="submit" disabled={deleting}>
+						{deleting ? 'Excluindo…' : 'Excluir plano'}
+					</Button>
+				</form>
+			</div>
 		</div>
 	</div>
 {:else}
@@ -703,16 +764,37 @@
 				<form
 					method="POST"
 					action="?/archive"
-					use:enhance={() => async ({ update, result }) => {
-						await update();
-						if (result.type === 'success') toast.info('Plano arquivado.');
-						await invalidateAll();
+					use:enhance={({ cancel }) => {
+						if (!window.confirm('Arquivar este plano? O aluno perde o acesso a ele.')) {
+							cancel();
+							return;
+						}
+						return async ({ update, result }) => {
+							await update();
+							if (result.type === 'success') toast.info('Plano arquivado.');
+							await invalidateAll();
+						};
 					}}
 				>
 					<Button variant="secondary" type="submit">Arquivar</Button>
 				</form>
 			{:else if isArchived}
 				<Chip>○ Arquivado</Chip>
+				<form
+					method="POST"
+					action="?/unarchive"
+					use:enhance={() => async ({ update, result }) => {
+						await update();
+						if (result.type === 'success') {
+							toast.success('Plano reativado · visível pro aluno novamente.');
+						} else if (result.type === 'failure') {
+							toast.error(String((result.data as any)?.error ?? 'Falha ao reativar.'));
+						}
+						await invalidateAll();
+					}}
+				>
+					<Button variant="secondary" type="submit">Reativar</Button>
+				</form>
 			{/if}
 			{#if !isGenerating && !hasFailed}
 				<form
@@ -721,7 +803,7 @@
 					use:enhance={() => async ({ update, result }) => {
 						await update();
 						if (result.type === 'success') {
-							const v = (result.data as any)?.[0]?.validation;
+							const v = (result.data as any)?.validation;
 							const n = (v?.violations as number) ?? 0;
 							if (n === 0) toast.success('Validação clínica · 0 violações detectadas.');
 							else
@@ -783,7 +865,7 @@
 				</div>
 				<div>
 					<Eyebrow>Status</Eyebrow>
-					<div style="font:500 14px var(--font-sans);color:var(--ink-0);margin-top:6px;text-transform:capitalize">{plan.status}</div>
+					<div style="font:500 14px var(--font-sans);color:var(--ink-0);margin-top:6px">{planStatusLabel(plan.status)}</div>
 				</div>
 				<div>
 					<Eyebrow>Gerado em</Eyebrow>
@@ -799,15 +881,26 @@
 			<div style="font:500 18px var(--font-sans);color:var(--ink-0);margin:20px 0 14px">Restrições e cuidados clínicos</div>
 			<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
 				{#each restrictions as r, i (r.title + i)}
+					{@const resolved = (r as Resolvable).resolved_at}
 					<div
 						class="card"
-						style="padding:18px;background:{levelBg(r.level)};border:1px solid {levelColor(r.level)};border-left:4px solid {levelColor(r.level)}"
+						style="padding:18px;background:{levelBg(r.level)};border:1px solid {levelColor(r.level)};border-left:4px solid {levelColor(r.level)}{resolved
+							? ';opacity:0.6'
+							: ''}"
 					>
-						<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+						<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
 							<span
 								style="font:var(--label-mono);color:{levelColor(r.level)};text-transform:uppercase;letter-spacing:0.08em;padding:2px 8px;background:rgba(0,0,0,0.25);border-radius:var(--r-pill)"
 								>{levelLabel(r.level)}</span
 							>
+							{#if resolved}
+								<span
+									style="font:var(--label-mono);color:var(--success);padding:2px 8px;border:1px solid var(--success);border-radius:var(--r-pill);background:var(--success-dim)"
+									>✓ resolvida ({(r as Resolvable).resolution === 'dismissed'
+										? 'dispensada'
+										: 'responsabilidade assumida'}) em {new Date(resolved).toLocaleDateString('pt-BR')}</span
+								>
+							{/if}
 							{#if citationLabel(r.source as SrcRef)}
 								<span style="font:var(--label-mono);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px"
 									>{citationBadge(r.source as SrcRef)} {citationLabel(r.source as SrcRef)}</span
@@ -838,6 +931,42 @@
 									>"{src.excerpt ?? ''}{(src.excerpt?.length ?? 0) >= 280 ? '…' : ''}"</blockquote
 								>
 							</details>
+						{/if}
+						<!-- #C02 — override clínico: só em red não-resolvida de plano em rascunho -->
+						{#if r.level === 'red' && !resolved && isGenerated}
+							<form
+								method="POST"
+								action="?/resolveRestriction"
+								use:enhance={({ cancel }) => {
+									if (
+										!window.confirm(
+											'Assumir responsabilidade clínica por esta restrição e liberar a publicação do plano?'
+										)
+									) {
+										cancel();
+										return;
+									}
+									resolvingIdx = i;
+									return async ({ update, result }) => {
+										resolvingIdx = null;
+										if (result.type === 'success') {
+											toast.info('Restrição liberada sob responsabilidade do profissional.');
+											await invalidateAll();
+										} else if (result.type === 'failure') {
+											toast.error(String((result.data as any)?.error ?? 'Falha ao liberar restrição.'));
+										} else {
+											await update();
+										}
+									};
+								}}
+								style="margin-top:14px;display:flex;justify-content:flex-end"
+							>
+								<input type="hidden" name="index" value={i} />
+								<input type="hidden" name="resolution" value="overridden" />
+								<Button variant="secondary" size="sm" type="submit" disabled={resolvingIdx === i}>
+									{resolvingIdx === i ? 'Liberando…' : 'Assumir responsabilidade e liberar'}
+								</Button>
+							</form>
 						{/if}
 					</div>
 				{/each}
@@ -879,6 +1008,7 @@
 			</div>
 		{:else}
 			{#each sessions as s, i (i)}
+				{@const firstBlock = BLOCKS.map((b) => b[0]).find((b) => (s[b]?.length ?? 0) > 0)}
 				<div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
 					<button
 						type="button"
@@ -889,18 +1019,19 @@
 							<div style="font:500 15px var(--font-sans);color:var(--ink-0)">{s.label ?? `Sessão ${i + 1}`}</div>
 							<div
 								style="font:var(--label-mono);color:var(--ink-2);text-transform:uppercase;letter-spacing:0.08em;margin-top:3px"
-							>{s.main?.length ?? 0} exercícios{s.duration_minutes ? ` · ${s.duration_minutes} min` : ''}{s.focus ? ` · ${s.focus}` : ''}</div>
+							>{(s.warmup?.length ?? 0) + (s.main?.length ?? 0) + (s.cooldown?.length ?? 0)} exercícios{s.duration_minutes ? ` · ${s.duration_minutes} min` : ''}{s.focus ? ` · ${s.focus}` : ''}</div>
 						</div>
-						<span style="color:var(--accent);font:500 13px var(--font-sans)">▶ Iniciar</span>
+						<span style="color:var(--accent);font:500 13px var(--font-sans)">▶ Ver sessão</span>
 					</button>
 
-					{#each (s.main ?? []) as ex, j (ex.name + j)}
+					{#each BLOCKS as [blockKey, blockLabel] (blockKey)}
+					{#each (s[blockKey] ?? []) as ex, j (ex.name + j)}
 						{@const catEntry = ex.catalog_id ? catalogMap[ex.catalog_id] : null}
-						{@const videoKey = `${i}-main-${j}`}
+						{@const videoKey = `${i}-${blockKey}-${j}`}
 						{@const videoOpen = openVideoKey === videoKey}
 						{@const editOpen = editKey === videoKey}
 						<div
-							style="display:flex;flex-direction:column;{j ? 'border-top:1px solid var(--ink-line)' : ''}"
+							style="display:flex;flex-direction:column;{j || blockKey !== firstBlock ? 'border-top:1px solid var(--ink-line)' : ''}"
 						>
 							<div
 								style="padding:14px 20px;display:grid;grid-template-columns:32px 1fr auto auto auto auto auto;gap:14px;align-items:center"
@@ -909,7 +1040,15 @@
 									{String(j + 1).padStart(2, '0')}
 								</div>
 								<div>
-									<div style="font:500 14px var(--font-sans);color:var(--ink-0)">{ex.name}</div>
+									<div style="font:500 14px var(--font-sans);color:var(--ink-0)">
+										{ex.name}
+										{#if blockKey !== 'main'}
+											<span
+												style="font:var(--label-mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:0.06em;padding:2px 7px;border:1px solid var(--ink-line);border-radius:var(--r-pill);margin-left:6px;vertical-align:middle"
+												>{blockLabel}</span
+											>
+										{/if}
+									</div>
 									{#if ex.muscle_groups && ex.muscle_groups.length > 0}
 										<div style="font:var(--label-mono);color:var(--ink-3);margin-top:2px">
 											{ex.muscle_groups.join(' · ')}
@@ -968,7 +1107,15 @@
 										return async ({ result, update }) => {
 											savingEdit = false;
 											if (result.type === 'success') {
-												toast.success('Exercício atualizado.');
+												// #C04 — revalidação automática pós-edição: avisa se surgiram violações.
+												const v = (result.data as any)?.validation;
+												const n = (v?.violations as number) ?? 0;
+												if (v && n > 0)
+													toast.warn(
+														`Exercício atualizado · ${n} violaç${n === 1 ? 'ão' : 'ões'} clínica${n === 1 ? '' : 's'} detectada${n === 1 ? '' : 's'}.`
+													);
+												else if (v) toast.success('Exercício atualizado · 0 violações clínicas.');
+												else toast.success('Exercício atualizado.');
 												editKey = null;
 												await invalidateAll();
 											} else if (result.type === 'failure') {
@@ -981,7 +1128,7 @@
 									style="padding:4px 20px 18px 60px;display:flex;flex-direction:column;gap:10px;background:var(--bg-1)"
 								>
 									<input type="hidden" name="sessionIdx" value={i} />
-									<input type="hidden" name="block" value="main" />
+									<input type="hidden" name="block" value={blockKey} />
 									<input type="hidden" name="exerciseIdx" value={j} />
 									<div>
 										<span class="edit-lbl">Nome do exercício</span>
@@ -1037,6 +1184,7 @@
 								</div>
 							{/if}
 						</div>
+					{/each}
 					{/each}
 				</div>
 			{/each}

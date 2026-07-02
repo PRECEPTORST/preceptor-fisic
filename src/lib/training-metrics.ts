@@ -26,7 +26,10 @@ const ACWR_LABEL: Record<AcwrLevel, { label: string; hint: string }> = {
 	baixa: { label: 'Subcarga', hint: 'Carga abaixo do habitual — pode progredir com segurança.' },
 	otima: { label: 'Zona ideal', hint: 'Progressão de carga dentro da faixa segura.' },
 	atencao: { label: 'Atenção', hint: 'Carga subindo rápido — monitore sinais de fadiga.' },
-	alto_risco: { label: 'Alto risco', hint: 'Pico de carga — risco de lesão elevado. Reduza o volume.' }
+	alto_risco: {
+		label: 'Alto risco',
+		hint: 'Pico de carga — risco de lesão elevado. Reduza o volume.'
+	}
 };
 
 /**

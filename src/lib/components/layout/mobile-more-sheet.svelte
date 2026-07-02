@@ -43,8 +43,7 @@
 		{ id: 'exer', label: 'Exercícios', sub: 'Catálogo + cadastro', icon: 'exer', href: '/exercicios' },
 		{ id: 'msgs', label: 'Mensagens', sub: 'Conversas com alunos', icon: 'msgs', href: '/mensagens' },
 		{ id: 'feedback', label: 'Feedback', sub: 'Reporte bugs e ideias', icon: 'feedback', href: '/feedback' },
-		{ id: 'config', label: 'Configurações', sub: 'Perfil e preferências', icon: 'config', href: '/configuracoes' },
-		{ id: 'logout', label: 'Sair', sub: 'Encerrar sessão', icon: 'logout', href: '/logout', danger: true }
+		{ id: 'config', label: 'Configurações', sub: 'Perfil e preferências', icon: 'config', href: '/configuracoes' }
 	]);
 
 	const isActive = (href: string) => page.url.pathname.startsWith(href);
@@ -94,6 +93,26 @@
 					</svg>
 				</a>
 			{/each}
+			<!-- Logout via POST (anti-CSRF) — GET /logout foi removido -->
+			<form method="POST" action="/logout" style="display:contents">
+				<button
+					class="m-sheet__item danger"
+					type="submit"
+					onclick={onClose}
+					style="width:100%;text-align:left;background:transparent;border:0;cursor:pointer;font:inherit"
+				>
+					<span class="m-sheet__ico">
+						<NavIcon name="logout" size={20} />
+					</span>
+					<div style="flex:1;min-width:0">
+						<div class="m-sheet__lbl">Sair</div>
+						<div class="m-sheet__sub">Encerrar sessão</div>
+					</div>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--ink-3)">
+						<path d="M9 18l6-6-6-6" />
+					</svg>
+				</button>
+			</form>
 		</nav>
 
 		<div class="m-sheet__footer">

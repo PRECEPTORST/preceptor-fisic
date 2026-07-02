@@ -7,7 +7,24 @@
 	const weekStart = $derived(new Date(data.weekStart));
 	const appointments = $derived(data.appointments);
 
-	const HOURS = Array.from({ length: 13 }, (_, i) => 7 + i);
+	// Grid 07–19h por padrão; expande pra cobrir sessões fora da janela —
+	// sem isso uma sessão às 05:30 desenhava colada no topo como se fosse
+	// 07:00 e uma às 21:00 flutuava abaixo da última linha.
+	const hourBounds = $derived.by(() => {
+		let minH = 7;
+		let maxH = 19;
+		for (const a of appointments) {
+			const d = new Date(a.startsAt);
+			const startH = d.getHours();
+			const endH = Math.ceil(d.getHours() + d.getMinutes() / 60 + a.durationMinutes / 60) - 1;
+			if (startH < minH) minH = startH;
+			if (endH > maxH) maxH = endH;
+		}
+		return { minH, maxH };
+	});
+	const HOURS = $derived(
+		Array.from({ length: hourBounds.maxH - hourBounds.minH + 1 }, (_, i) => hourBounds.minH + i)
+	);
 	const slot = 60;
 
 	const days = $derived(
@@ -26,10 +43,40 @@
 	function eventsForDay(idx: number) {
 		const day = days[idx];
 		if (!day) return [];
-		return appointments.filter((a) => {
-			const at = new Date(a.startsAt);
-			return at.toDateString() === day.toDateString();
-		});
+		// Sobreposições lado a lado: anota col/cols por cluster de eventos que
+		// se cruzam — empilhados com fundo opaco, o de baixo sumia e ficava
+		// inclicável (double-booking invisível).
+		const evs = appointments
+			.filter((a) => new Date(a.startsAt).toDateString() === day.toDateString())
+			.sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt))
+			.map((a) => ({ ...a, col: 0, cols: 1 }));
+		let cluster: typeof evs = [];
+		let clusterEnd = -Infinity;
+		const close = () => {
+			const n = Math.max(...cluster.map((c) => c.col)) + 1;
+			for (const c of cluster) c.cols = n;
+		};
+		for (const ev of evs) {
+			const start = +new Date(ev.startsAt);
+			const end = start + ev.durationMinutes * 60000;
+			if (cluster.length && start >= clusterEnd) {
+				close();
+				cluster = [];
+				clusterEnd = -Infinity;
+			}
+			const used = new Set(
+				cluster
+					.filter((c) => +new Date(c.startsAt) + c.durationMinutes * 60000 > start)
+					.map((c) => c.col)
+			);
+			let col = 0;
+			while (used.has(col)) col++;
+			ev.col = col;
+			cluster.push(ev);
+			clusterEnd = Math.max(clusterEnd, end);
+		}
+		if (cluster.length) close();
+		return evs;
 	}
 
 	function topPx(at: string) {
@@ -41,14 +88,21 @@
 	function colorForType(t: string) {
 		if (t === 'avaliacao') return 'var(--info)';
 		if (t === 'reabilitacao') return 'var(--warn)';
+		if (t === 'consulta') return 'var(--ink-1)';
 		return 'var(--accent)';
 	}
 
+	// Canceladas fora das contagens — só sessões ativas valem no resumo.
+	const active = $derived(appointments.filter((a) => a.status !== 'cancelled'));
 	const summaryItems = $derived([
-		{ l: 'Sessões agendadas', v: String(appointments.length) },
-		{ l: 'Avaliações', v: String(appointments.filter((a) => a.type === 'avaliacao').length) },
-		{ l: 'Reabilitação', v: String(appointments.filter((a) => a.type === 'reabilitacao').length) },
-		{ l: 'Treinos', v: String(appointments.filter((a) => a.type === 'treino').length) }
+		{ l: 'Sessões agendadas', v: String(active.length) },
+		{ l: 'Avaliações', v: String(active.filter((a) => a.type === 'avaliacao').length) },
+		{ l: 'Reabilitação', v: String(active.filter((a) => a.type === 'reabilitacao').length) },
+		{ l: 'Treinos', v: String(active.filter((a) => a.type === 'treino').length) },
+		{ l: 'Consultas', v: String(active.filter((a) => a.type === 'consulta').length) },
+		...(appointments.length > active.length
+			? [{ l: 'Canceladas', v: String(appointments.length - active.length) }]
+			: [])
 	]);
 
 	let view = $state<'day' | 'week' | 'month'>('week');
@@ -57,6 +111,10 @@
 		`${weekStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')} — ${days[6]?.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '')}`
 	);
 </script>
+
+<svelte:head>
+	<title>Agenda · Preceptor Fisic</title>
+</svelte:head>
 
 <div class="ag-shell" style="overflow:hidden;height:100vh;display:flex;flex-direction:column">
 	<header
@@ -108,7 +166,7 @@
 			<div style="margin-top:24px">
 				<Eyebrow>Tipos</Eyebrow>
 				<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
-					{#each [{ c: 'var(--accent)', l: 'Treino' }, { c: 'var(--info)', l: 'Avaliação' }, { c: 'var(--warn)', l: 'Reabilitação' }] as x (x.l)}
+					{#each [{ c: 'var(--accent)', l: 'Treino' }, { c: 'var(--info)', l: 'Avaliação' }, { c: 'var(--warn)', l: 'Reabilitação' }, { c: 'var(--ink-1)', l: 'Consulta' }] as x (x.l)}
 						<div style="display:flex;align-items:center;gap:10px">
 							<span style="width:10px;height:10px;background:{x.c};border-radius:2px"></span>
 							<span style="flex:1;font:var(--body-sm);color:var(--ink-1)">{x.l}</span>
@@ -163,18 +221,19 @@
 						{#each events as e (e.id)}
 							{@const top = topPx(e.startsAt)}
 							{@const height = (e.durationMinutes / 60) * slot - 4}
-							{@const color = colorForType(e.type)}
+							{@const cancelled = e.status === 'cancelled'}
+							{@const color = cancelled ? 'var(--ink-3)' : colorForType(e.type)}
 							<button
 								type="button"
 								onclick={() => goto(`/agenda/${e.id}/editar`)}
-								style="all:unset;cursor:pointer;position:absolute;left:4px;right:4px;top:{top + 2}px;height:{height}px;background:var(--bg-2);border:1px solid {color};border-left:3px solid {color};border-radius:6px;padding:6px 8px;overflow:hidden;box-sizing:border-box"
+								style="all:unset;cursor:pointer;position:absolute;left:calc({(e.col / e.cols) * 100}% + 4px);width:calc({100 / e.cols}% - 8px);top:{top + 2}px;height:{height}px;background:var(--bg-2);border:1px solid {color};border-left:3px solid {color};border-radius:6px;padding:6px 8px;overflow:hidden;box-sizing:border-box;{cancelled ? 'opacity:0.45' : ''}"
 							>
 								<div class="num" style="font:500 11px var(--font-mono);color:{color}">
 									{new Date(e.startsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
 								</div>
 								<div
-									style="font:600 12px var(--font-sans);color:var(--ink-0);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
-								>{e.studentName ?? e.label ?? 'Sessão'}</div>
+									style="font:600 12px var(--font-sans);color:var(--ink-0);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;{cancelled ? 'text-decoration:line-through' : ''}"
+								>{e.status === 'completed' ? '✓ ' : ''}{e.studentName ?? e.label ?? 'Sessão'}</div>
 								{#if height > 50 && e.label}
 									<div
 										style="font:var(--body-sm);color:var(--ink-2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"

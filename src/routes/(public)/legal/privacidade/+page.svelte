@@ -20,7 +20,7 @@
 	encarregado conforme art. 41 da LGPD.
 </p>
 <ul>
-	<li>Encarregado (DPO): <a href="mailto:dpo@preceptorfisic.com">dpo@preceptorfisic.com</a></li>
+	<li>Encarregado (DPO): <a href="mailto:castroomath7@gmail.com">castroomath7@gmail.com</a></li>
 	<li>Razão social: a definir</li>
 </ul>
 
@@ -114,7 +114,7 @@
 </ul>
 <p>
 	Para exercer qualquer direito, escreva para
-	<a href="mailto:dpo@preceptorfisic.com">dpo@preceptorfisic.com</a>. Respondemos em até
+	<a href="mailto:castroomath7@gmail.com">castroomath7@gmail.com</a>. Respondemos em até
 	15 dias úteis (art. 19, §1º).
 </p>
 
@@ -150,14 +150,14 @@
 <h2>10. Alterações</h2>
 <p>
 	Mudanças materiais são comunicadas por email com 30 dias de antecedência. A versão atual
-	está sempre disponível em <a href="/legal/privacidade">preceptorfisic.com/legal/privacidade</a>.
+	está sempre disponível <a href="/legal/privacidade">nesta página</a>.
 </p>
 
 <hr />
 
 <p>
 	<strong>Encarregado (DPO)</strong>:
-	<a href="mailto:dpo@preceptorfisic.com">dpo@preceptorfisic.com</a><br />
+	<a href="mailto:castroomath7@gmail.com">castroomath7@gmail.com</a><br />
 	<strong>Reclamação à ANPD</strong>:
 	<a href="https://www.gov.br/anpd" target="_blank" rel="noopener">gov.br/anpd</a>
 </p>

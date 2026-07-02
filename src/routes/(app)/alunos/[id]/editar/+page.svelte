@@ -10,12 +10,15 @@
 	const hp = $derived(detail.healthProfile);
 	const prefs = $derived(detail.preferences);
 
+	// Só a chave de identidade vai pro textarea — campos ricos (severity, dose,
+	// frequency, notes) ficam no jsonb e são preservados pelo merge do server.
+	// Concatenar dose/notes aqui poluía a chave e destruía esses campos ao salvar.
 	const initialDiagnoses = ((hp?.diagnoses as { label: string }[] | null) ?? []).map((d) => d.label).join(', ');
-	const initialLimitations = ((hp?.injuries as { region: string; notes?: string }[] | null) ?? [])
-		.map((i) => i.region + (i.notes ? ' · ' + i.notes : ''))
+	const initialLimitations = ((hp?.injuries as { region: string }[] | null) ?? [])
+		.map((i) => i.region)
 		.join(', ');
-	const initialMeds = ((hp?.medications as { name: string; dose?: string; frequency?: string }[] | null) ?? [])
-		.map((m) => m.name + (m.dose ? ' ' + m.dose : ''))
+	const initialMeds = ((hp?.medications as { name: string }[] | null) ?? [])
+		.map((m) => m.name)
 		.join(', ');
 	const initialGoals = ((prefs?.goals as string[] | null) ?? []) as string[];
 
@@ -37,6 +40,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Editar aluno · Preceptor Fisic</title>
+</svelte:head>
+
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">
 	<header
 		style="display:flex;align-items:center;gap:16px;padding:20px 32px;border-bottom:1px solid var(--ink-line);background:var(--bg-1);position:sticky;top:0;z-index:10"
@@ -57,7 +64,8 @@
 		use:enhance={() => {
 			submitting = true;
 			return async ({ update }) => {
-				await update();
+				// reset:false preserva o que foi digitado quando a action falha
+				await update({ reset: false });
 				submitting = false;
 			};
 		}}
@@ -93,11 +101,12 @@
 			<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-top:14px">
 				<div>
 					<label class="lbl">Peso (kg)</label>
-					<input class="inp" name="weightKg" type="number" step="0.1" value={student.weightKg ?? ''} />
+					<!-- type=text: com type=number o browser sanitiza "70,5" pra "" e o servidor nunca vê a vírgula -->
+					<input class="inp" name="weightKg" type="text" inputmode="decimal" value={student.weightKg ?? ''} />
 				</div>
 				<div>
 					<label class="lbl">Altura (cm)</label>
-					<input class="inp" name="heightCm" type="number" value={student.heightCm ?? ''} />
+					<input class="inp" name="heightCm" type="text" inputmode="decimal" value={student.heightCm ?? ''} />
 				</div>
 				<div>
 					<label class="lbl">Telefone</label>

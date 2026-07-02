@@ -1,11 +1,15 @@
 <script lang="ts">
 	import { Button, Eyebrow } from '$lib/components/ui';
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import type { ActionData } from './$types';
 
 	let { form }: { form: ActionData } = $props();
 
-	let mode = $state<'login' | 'signup'>('login');
+	// ?mode=signup abre direto na aba de cadastro (CTAs "Criar conta" da landing).
+	let mode = $state<'login' | 'signup'>(
+		page.url.searchParams.get('mode') === 'signup' ? 'signup' : 'login'
+	);
 	let email = $state(form?.email ?? '');
 	let pass = $state('');
 	let name = $state('');
@@ -13,6 +17,21 @@
 	let acceptedTerms = $state(false);
 	let focused = $state<string | null>(null);
 	let submitting = $state(false);
+
+	// Deep link preservado pelo authGuard — repassado via hidden input
+	// (action="?/{mode}" descarta a query da URL no POST).
+	const next = $derived(page.url.searchParams.get('next') ?? '');
+	// Banner pós-redefinição de senha (/recuperar/redefinir → /login?reset=ok)
+	const resetOk = $derived(page.url.searchParams.get('reset') === 'ok');
+
+	// Fallback do signup (conta criada, auto-login falhou): volta pra aba
+	// Entrar com o email preenchido.
+	$effect(() => {
+		if ((form as any)?.success) {
+			mode = 'login';
+			if ((form as any)?.email) email = (form as any).email;
+		}
+	});
 
 	// Propostas de valor reais — sem métricas fabricadas (risco CDC/CONFEF
 	// exibir números de usuários/aderência que não temos como comprovar).
@@ -27,6 +46,10 @@
 		return `width:100%;height:44px;box-sizing:border-box;background:var(--bg-2);border:1px solid ${isFocused ? 'var(--accent)' : 'var(--ink-line-2)'};border-radius:var(--r-2);padding:0 14px;font:400 14px var(--font-sans);color:var(--ink-0);outline:none;transition:all 140ms var(--ease);${isFocused ? 'box-shadow:0 0 0 3px var(--accent-wash)' : ''}`;
 	}
 </script>
+
+<svelte:head>
+	<title>Entrar · Preceptor Fisic</title>
+</svelte:head>
 
 <div class="login-grid">
 	<!-- Esquerda — marca + ambient -->
@@ -87,17 +110,21 @@
 				use:enhance={() => {
 					submitting = true;
 					return async ({ update }) => {
-						await update();
+						await update({ reset: false });
 						submitting = false;
 					};
 				}}
 			>
+				{#if next}
+					<input type="hidden" name="next" value={next} />
+				{/if}
 				{#if mode === 'signup'}
 					<div>
 						<div class="eyebrow" style="margin-bottom:6px">Nome completo</div>
 						<input
 							name="name"
 							type="text"
+							autocomplete="name"
 							bind:value={name}
 							placeholder="Matheus Castro"
 							onfocus={() => (focused = 'name')}
@@ -111,6 +138,7 @@
 					<input
 						name="email"
 						type="email"
+						autocomplete="email"
 						bind:value={email}
 						onfocus={() => (focused = 'email')}
 						onblur={() => (focused = null)}
@@ -137,6 +165,7 @@
 					<input
 						name="password"
 						type="password"
+						autocomplete={mode === 'login' ? 'current-password' : 'new-password'}
 						bind:value={pass}
 						onfocus={() => (focused = 'pass')}
 						onblur={() => (focused = null)}
@@ -158,13 +187,19 @@
 					</label>
 				{/if}
 
+				{#if resetOk && !form}
+					<div
+						style="padding:12px 14px;border-radius:var(--r-2);background:var(--success-dim);border:1px solid var(--success);color:var(--success);font:var(--body-sm);line-height:1.5"
+					>✓ Senha redefinida — entre com a nova senha.</div>
+				{/if}
+
 				{#if form?.error}
 					<div
 						style="padding:10px 12px;border-radius:var(--r-2);background:var(--danger-dim);border:1px solid var(--danger);color:var(--danger);font:var(--body-sm)"
 					>{form.error}</div>
 				{/if}
 
-				{#if (form as any)?.confirmEmail}
+				{#if (form as any)?.success && (form as any)?.message}
 					<div
 						style="padding:12px 14px;border-radius:var(--r-2);background:var(--success-dim);border:1px solid var(--success);color:var(--success);font:var(--body-sm);line-height:1.5"
 					>✓ {(form as any).message}</div>

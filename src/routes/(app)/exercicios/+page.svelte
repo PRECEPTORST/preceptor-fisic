@@ -172,12 +172,14 @@
 	{/if}
 </div>
 
+<!-- Esc fecha o modal — no window, porque o backdrop (div sem foco) nunca recebe keydown -->
+<svelte:window onkeydown={(e) => e.key === 'Escape' && selected && (selected = null)} />
+
 <!-- Modal de detalhe -->
 {#if selected}
 	<div
 		class="cat-modal-backdrop"
 		onclick={() => (selected = null)}
-		onkeydown={(e) => e.key === 'Escape' && (selected = null)}
 		role="presentation"
 	></div>
 	<div class="cat-modal" role="dialog" aria-modal="true" aria-label={selected.name}>

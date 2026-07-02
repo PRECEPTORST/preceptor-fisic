@@ -6,17 +6,17 @@ import { describe, it, expect, vi } from 'vitest';
 
 // Mock do $env antes de importar o módulo
 vi.mock('$env/dynamic/private', () => ({
-	env: { SUPABASE_SERVICE_ROLE_KEY: 'a'.repeat(40) } // 40 chars > 32 do slice
+	env: { ALUNO_LINK_SECRET: 'f'.repeat(64) } // secret dedicado (openssl rand -hex 32)
 }));
 
 const { signStudentToken, verifyStudentToken } = await import('./aluno-token');
 
 describe('signStudentToken', () => {
-	it('produz token determinístico de 16 hex chars', () => {
+	it('produz token determinístico de 24 hex chars', () => {
 		const t1 = signStudentToken('student-123');
 		const t2 = signStudentToken('student-123');
 		expect(t1).toBe(t2);
-		expect(t1).toMatch(/^[a-f0-9]{16}$/);
+		expect(t1).toMatch(/^[a-f0-9]{24}$/);
 	});
 
 	it('produz tokens diferentes pra studentIds diferentes', () => {
@@ -54,7 +54,7 @@ describe('verifyStudentToken', () => {
 		// Smoke test — apenas confirma que tokens com mesmo length retornam false
 		// sem crashar (não testa timing real, mas garante o code path)
 		const valid = signStudentToken('id');
-		const same_length_wrong = '0'.repeat(16);
+		const same_length_wrong = '0'.repeat(24);
 		expect(verifyStudentToken('id', same_length_wrong)).toBe(false);
 	});
 });

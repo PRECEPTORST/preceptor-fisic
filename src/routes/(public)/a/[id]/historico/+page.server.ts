@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, isNull, count } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { trainingSessions, students } from '$lib/server/db/schema';
 import { verifyStudentToken } from '$lib/server/aluno-token';
@@ -12,10 +12,12 @@ export const load = (async ({ params, url }) => {
 		error(403, 'link inválido.');
 	}
 
+	// isNull(deletedAt): aluno soft-deletado não pode continuar acessível
+	// pelo link antigo (LGPD) — mesmo filtro de getAlunoAppData.
 	const [s] = await db
 		.select({ id: students.id, name: students.name })
 		.from(students)
-		.where(eq(students.id, params.id))
+		.where(and(eq(students.id, params.id), isNull(students.deletedAt)))
 		.limit(1);
 	if (!s) error(404, 'aluno não encontrado');
 
@@ -26,8 +28,15 @@ export const load = (async ({ params, url }) => {
 		.orderBy(desc(trainingSessions.sessionDate))
 		.limit(50);
 
+	// Total real (a lista acima é limitada às 50 mais recentes).
+	const [countRow] = await db
+		.select({ total: count() })
+		.from(trainingSessions)
+		.where(eq(trainingSessions.studentId, params.id));
+
 	return {
 		student: s,
+		total: countRow?.total ?? sessions.length,
 		sessions: sessions.map((row) => ({
 			...row,
 			sessionDate: row.sessionDate.toISOString()

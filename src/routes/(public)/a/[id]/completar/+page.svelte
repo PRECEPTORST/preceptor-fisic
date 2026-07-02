@@ -35,6 +35,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Completar cadastro</title>
+</svelte:head>
+
 <div class="wrap">
 	<header class="hd">
 		<div class="eyebrow">Preceptor Fisic</div>
@@ -65,9 +69,14 @@
 		method="POST"
 		use:enhance={() => {
 			submitting = true;
-			return async ({ update }) => {
+			return async ({ result, update }) => {
 				await update();
 				submitting = false;
+				// Banner de erro fica no topo do form longo — sem scroll o aluno
+				// no mobile clica em Concluir e "nada acontece".
+				if (result.type === 'failure') {
+					document.querySelector('.note.err')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				}
 			};
 		}}
 	>
@@ -160,9 +169,12 @@
 			</span>
 		</label>
 
-		<button class="submit" type="submit" disabled={submitting}>
+		<button class="submit" type="submit" disabled={submitting || goals.length === 0}>
 			{submitting ? 'Salvando…' : 'Concluir cadastro →'}
 		</button>
+		{#if goals.length === 0}
+			<p class="hint" style="text-align:center">Selecione ao menos 1 objetivo acima pra concluir.</p>
+		{/if}
 	</form>
 </div>
 

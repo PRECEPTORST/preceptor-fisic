@@ -39,6 +39,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Novo aluno · Preceptor Fisic</title>
+</svelte:head>
+
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">
 	<header
 		style="display:flex;align-items:center;gap:16px;padding:20px 32px;border-bottom:1px solid var(--ink-line);background:var(--bg-1);position:sticky;top:0;z-index:10"
@@ -169,11 +173,12 @@
 					<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px;margin-top:14px">
 						<div>
 							<label class="lbl">Peso (kg)</label>
-							<input class="inp" name="weightKg" type="number" step="0.1" placeholder="62.4" value={v.weightKg ?? ''} />
+							<!-- type=text: com type=number o browser sanitiza "70,5" pra "" e o servidor nunca vê a vírgula -->
+							<input class="inp" name="weightKg" type="text" inputmode="decimal" placeholder="62,4" value={v.weightKg ?? ''} />
 						</div>
 						<div>
 							<label class="lbl">Altura (cm)</label>
-							<input class="inp" name="heightCm" type="number" placeholder="165" value={v.heightCm ?? ''} />
+							<input class="inp" name="heightCm" type="text" inputmode="decimal" placeholder="165" value={v.heightCm ?? ''} />
 						</div>
 						<div>
 							<label class="lbl">Telefone</label>

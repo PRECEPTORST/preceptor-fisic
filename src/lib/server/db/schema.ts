@@ -796,10 +796,9 @@ export const leads = pgTable(
 		 * Quando o lead já é um usuário cadastrado do Preceptor Fisic,
 		 * aponta pro record dele. NULL pra leads externos (landing/manual).
 		 */
-		subjectProfessionalId: uuid('subject_professional_id').references(
-			() => professionals.id,
-			{ onDelete: 'cascade' }
-		),
+		subjectProfessionalId: uuid('subject_professional_id').references(() => professionals.id, {
+			onDelete: 'cascade'
+		}),
 		name: text('name').notNull(),
 		phone: text('phone'),
 		email: text('email'),

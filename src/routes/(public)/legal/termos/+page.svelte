@@ -129,5 +129,5 @@
 <hr />
 
 <p>
-	Dúvidas: <a href="mailto:legal@preceptorfisic.com">legal@preceptorfisic.com</a>
+	Dúvidas: <a href="mailto:castroomath7@gmail.com">castroomath7@gmail.com</a>
 </p>

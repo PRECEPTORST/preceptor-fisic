@@ -46,6 +46,10 @@
 	);
 </script>
 
+<svelte:head>
+	<title>Avaliação física · Preceptor Fisic</title>
+</svelte:head>
+
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">
 	<header
 		style="display:flex;align-items:center;gap:16px;padding:20px 32px;border-bottom:1px solid var(--ink-line);background:var(--bg-1);position:sticky;top:0;z-index:10"
@@ -65,7 +69,8 @@
 		use:enhance={() => {
 			submitting = true;
 			return async ({ update }) => {
-				await update();
+				// reset:false preserva o que foi digitado quando a action falha
+				await update({ reset: false });
 				submitting = false;
 			};
 		}}
@@ -108,9 +113,9 @@
 		<div class="card" style="padding:24px;margin-bottom:16px">
 			<Eyebrow>Cardiovascular</Eyebrow>
 			<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:14px">
-				<NumField label="FC repouso" unit="bpm" name="restingHr" bind:value={restingHr} />
-				<NumField label="PA sistólica" unit="mmHg" name="bpSys" bind:value={bpSys} />
-				<NumField label="PA diastólica" unit="mmHg" name="bpDia" bind:value={bpDia} />
+				<NumField label="FC repouso" unit="bpm" name="restingHr" inputmode="numeric" bind:value={restingHr} />
+				<NumField label="PA sistólica" unit="mmHg" name="bpSys" inputmode="numeric" bind:value={bpSys} />
+				<NumField label="PA diastólica" unit="mmHg" name="bpDia" inputmode="numeric" bind:value={bpDia} />
 			</div>
 		</div>
 

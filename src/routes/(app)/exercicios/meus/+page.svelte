@@ -25,7 +25,11 @@
 	);
 </script>
 
-<div style="display:grid;grid-template-columns:1fr 420px;height:100vh;overflow:hidden">
+<svelte:head>
+	<title>Meus exercícios · Preceptor Fisic</title>
+</svelte:head>
+
+<div class="mx-wrap">
 	<div style="overflow-y:auto;padding:28px 40px 64px;border-right:1px solid var(--ink-line)">
 		<div class="ex-tabs">
 			<a href="/exercicios" class="ex-tab" data-sveltekit-noscroll>Catálogo</a>
@@ -79,16 +83,19 @@
 
 			<div class="card" style="padding:0">
 				<div
+					class="mx-row"
 					style="display:grid;grid-template-columns:90px 2fr 1.4fr 1fr 1fr 80px;gap:12px;padding:10px 18px;border-bottom:1px solid var(--ink-line-2);background:var(--bg-3)"
 				>
-					{#each ['ID', 'Nome', 'Grupo', 'Equip.', 'Padrão', 'Usos'] as h (h)}
-						<div class="eyebrow">{h}</div>
+					{#each ['ID', 'Nome', 'Grupo', 'Equip.', 'Padrão', 'Usos'] as h, hi (h)}
+						<!-- ID/Equip./Padrão somem em < 1024px (colunas 1, 4 e 5) -->
+						<div class="eyebrow" class:mx-hide={hi === 0 || hi === 3 || hi === 4}>{h}</div>
 					{/each}
 				</div>
 				{#each filt as x, i (x.id)}
 					{@const active = sel?.id === x.id}
 					<button
 						type="button"
+						class="mx-row"
 						onclick={() => (sel = x)}
 						style="all:unset;cursor:pointer;display:grid;grid-template-columns:90px 2fr 1.4fr 1fr 1fr 80px;gap:12px;padding:12px 18px;align-items:center;width:100%;box-sizing:border-box;{i <
 						filt.length - 1
@@ -100,11 +107,11 @@
 						{#if active}
 							<span style="position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent)"></span>
 						{/if}
-						<div class="num" style="font:var(--label-mono);color:var(--ink-3)">{x.code ?? '—'}</div>
+						<div class="num mx-hide" style="font:var(--label-mono);color:var(--ink-3)">{x.code ?? '—'}</div>
 						<div style="font:500 14px var(--font-sans);color:var(--ink-0)">{x.name}</div>
 						<div style="font:var(--body-sm);color:var(--ink-1)">{x.muscleGroup}</div>
-						<div style="font:var(--body-sm);color:var(--ink-2)">{x.equipment ?? '—'}</div>
-						<div style="font:var(--label-mono);color:var(--accent)">{x.pattern?.toUpperCase() ?? '—'}</div>
+						<div class="mx-hide" style="font:var(--body-sm);color:var(--ink-2)">{x.equipment ?? '—'}</div>
+						<div class="mx-hide" style="font:var(--label-mono);color:var(--accent)">{x.pattern?.toUpperCase() ?? '—'}</div>
 						<div class="num" style="font:500 14px var(--font-mono);color:var(--ink-1);text-align:right">{x.uses}</div>
 					</button>
 				{/each}
@@ -113,7 +120,7 @@
 	</div>
 
 	{#if sel}
-		<aside style="overflow-y:auto;padding:32px 28px 64px;background:var(--bg-1)">
+		<aside class="mx-aside" style="overflow-y:auto;padding:32px 28px 64px;background:var(--bg-1)">
 			<div style="font:var(--label-mono);color:var(--ink-3);margin-bottom:8px">{sel.code ?? sel.id.slice(0, 8)} · PRÉ-VISUALIZAÇÃO</div>
 			<h2 style="font:var(--display-md);margin:0 0 8px;letter-spacing:-0.02em;line-height:1.05">{sel.name}</h2>
 			<div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
@@ -169,6 +176,31 @@
 </div>
 
 <style>
+	/* Layout lista + preview; empilha em telas < 1024px */
+	.mx-wrap {
+		display: grid;
+		grid-template-columns: 1fr 420px;
+		height: 100vh;
+		overflow: hidden;
+	}
+	@media (max-width: 1023px) {
+		.mx-wrap {
+			display: flex;
+			flex-direction: column;
+			height: auto;
+			overflow: visible;
+		}
+		.mx-aside {
+			border-top: 1px solid var(--ink-line);
+		}
+		/* Sobrescreve o grid inline de 6 colunas: só Nome, Grupo e Usos */
+		.mx-row {
+			grid-template-columns: 2fr 1.2fr 64px !important;
+		}
+		.mx-hide {
+			display: none;
+		}
+	}
 	.ex-tabs {
 		display: flex;
 		gap: 4px;

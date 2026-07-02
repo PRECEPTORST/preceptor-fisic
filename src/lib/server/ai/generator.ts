@@ -34,7 +34,8 @@ import {
 import { env } from '$env/dynamic/private';
 import { logger } from '$lib/server/logger';
 import { trainingPlanSchema, type TrainingPlanOutput } from '$lib/schemas/training-plan';
-import { retrieveRelevantChunks, formatContextForPrompt } from './rag';
+import { retrieveRelevantChunks, formatContextForPrompt, type RetrievedChunk } from './rag';
+import { deriveTagsFromDiagnosisLabels } from './condition-tags';
 import { SYSTEM_PROMPT_PT_BR, SYSTEM_PROMPT_VERSION } from './system-prompt';
 import {
 	validatePlan,
@@ -175,7 +176,48 @@ function filterCatalog(
 		}
 	}
 	const out = [...exact, ...bodyweight];
-	return out.length > CATALOG_PROMPT_CAP ? out.slice(0, CATALOG_PROMPT_CAP) : out;
+	if (out.length <= CATALOG_PROMPT_CAP) return out;
+
+	// Cap estourou: estratifica por bodyPart em round-robin em vez de slice
+	// cego — o slice concentrava poucos grupos musculares e cortava os body
+	// weight (sempre apendados por último) justamente no cenário home.
+	const roundRobin = (items: CatalogPromptItem[], cap: number): CatalogPromptItem[] => {
+		const groups = new Map<string, CatalogPromptItem[]>();
+		for (const item of items) {
+			const key = item.bodyPart ?? 'outro';
+			const g = groups.get(key);
+			if (g) g.push(item);
+			else groups.set(key, [item]);
+		}
+		const lists = Array.from(groups.values());
+		const result: CatalogPromptItem[] = [];
+		for (let idx = 0; result.length < cap; idx++) {
+			let took = false;
+			for (const list of lists) {
+				const item = list[idx];
+				if (!item) continue;
+				result.push(item);
+				took = true;
+				if (result.length >= cap) break;
+			}
+			if (!took) break;
+		}
+		return result;
+	};
+
+	// Cota mínima reservada pro body weight (universal — cenário home).
+	const bwQuota = Math.min(20, bodyweight.length);
+	const picked = roundRobin(exact, CATALOG_PROMPT_CAP - bwQuota);
+	picked.push(...roundRobin(bodyweight, CATALOG_PROMPT_CAP - picked.length));
+	if (picked.length < CATALOG_PROMPT_CAP) {
+		// body weight não encheu a cota — completa com o restante do exact.
+		const chosen = new Set(picked.map((i) => i.externalId));
+		for (const item of exact) {
+			if (picked.length >= CATALOG_PROMPT_CAP) break;
+			if (!chosen.has(item.externalId)) picked.push(item);
+		}
+	}
+	return picked;
 }
 
 async function fetchCatalogSubset(
@@ -193,7 +235,10 @@ async function fetchCatalogSubset(
 			targetMuscle: exerciseCatalog.targetMuscle,
 			difficulty: exerciseCatalog.difficulty
 		})
-		.from(exerciseCatalog);
+		.from(exerciseCatalog)
+		// Sem orderBy a ordem era a de heap do Postgres — catálogo diferente a
+		// cada geração. Ordena por grupo/nível pra estratificação determinística.
+		.orderBy(exerciseCatalog.bodyPart, exerciseCatalog.difficulty);
 	return filterCatalog(all, studentEquipment, experienceLevel, prescribedDifficulty);
 }
 
@@ -212,6 +257,12 @@ function formatCatalogForPrompt(items: CatalogPromptItem[]): string {
 		.join('\n');
 }
 
+/**
+ * Wrapper sobre o módulo compartilhado condition-tags — extrai os labels dos
+ * diagnósticos (severidade embutida, pro "grave" virar estágio 2) e delega os
+ * regexes pra deriveTagsFromDiagnosisLabels. Fonte única: qualquer ajuste de
+ * derivação vai em condition-tags.ts (revalidação de planos usa o mesmo).
+ */
 function deriveConditionTags(health: HealthProfile | null): string[] {
 	if (!health || (health.diagnoses ?? []).length === 0) return ['populacao_geral'];
 
@@ -219,39 +270,10 @@ function deriveConditionTags(health: HealthProfile | null): string[] {
 	if (Array.isArray(health.conditionTags)) {
 		for (const t of health.conditionTags) tags.add(t);
 	}
-
-	for (const d of health.diagnoses) {
-		const label = (d.label ?? '').toLowerCase();
-		if (/hipertens|press[aã]o alta|has/.test(label)) {
-			tags.add(d.severity === 'grave' ? 'hipertensao_estagio_2' : 'hipertensao_estagio_1');
-		}
-		// Um label genérico "diabetes" casava nas DUAS regras → marcava o aluno
-		// como tipo 1 E tipo 2 ao mesmo tempo (contraindicações conflitantes).
-		// Agora: tipo só quando explícito; diabetes genérico → tipo 2 (~90% dos casos).
-		if (/diabetes|diabet|\bdm\b|dm[12]|dm [12]/.test(label)) {
-			const isDm1 = /dm1|dm 1|tipo 1|tipo i\b/.test(label);
-			const isDm2 = /dm2|dm 2|tipo 2|tipo ii\b/.test(label);
-			if (isDm1) tags.add('diabetes_tipo_1');
-			if (isDm2 || !isDm1) tags.add('diabetes_tipo_2');
-		}
-		if (/cardiopat|coronar|iam|infarto|dac/.test(label)) tags.add('cardiopatia_isquemica');
-		if (/insufici[eê]ncia card|icc/.test(label)) tags.add('ic_compensada');
-		if (/dpoc|enfisema|bronquite|pulmona/.test(label)) tags.add('dpoc_moderada');
-		if (/avc|acidente vascular/.test(label)) tags.add('pos_avc');
-		if (/parkinson/.test(label)) tags.add('parkinson_leve');
-		if (/esclerose m/.test(label)) tags.add('esclerose_multipla');
-		if (/gestante|gravida|gr[aá]vida/.test(label)) tags.add('gestante_segundo_trimestre');
-		if (/idoso|fr[aá]gil|sarcopen/.test(label)) tags.add('idoso_fragil');
-		if (/lca|cruzado/.test(label)) tags.add('lca_pos_cirurgico');
-		if (/osteoartr|artrose joelho/.test(label)) tags.add('osteoartrite_joelho');
-		if (/osteoartr.*quadril|artrose quadril/.test(label)) tags.add('osteoartrite_quadril');
-		if (/dor lombar|lombalgia/.test(label)) tags.add('dor_lombar_cronica');
-		if (/obesidade.*iii|grau 3|m[oó]rbida/.test(label)) tags.add('obesidade_grau_3');
-		if (/obesidade/.test(label)) tags.add('obesidade_grau_1');
-		if (/c[aâ]ncer|oncolog/.test(label)) tags.add('cancer_em_tratamento');
-		if (/dislipid|colesterol/.test(label)) tags.add('dislipidemia');
-		if (/dhgna|hep[aá]ti/.test(label)) tags.add('doenca_hepatica_compensada');
-	}
+	const labels = health.diagnoses.map(
+		(d) => `${d.label ?? ''}${d.severity ? ` (${d.severity})` : ''}`
+	);
+	for (const t of deriveTagsFromDiagnosisLabels(labels)) tags.add(t);
 	if (tags.size === 0) tags.add('populacao_geral');
 	return Array.from(tags);
 }
@@ -270,11 +292,11 @@ const CONDITION_TEXT_PATTERNS: { re: RegExp; family: string }[] = [
 	{ re: /hipertens|press[aã]o alta|\bhas\b/i, family: 'hipertensao' },
 	{ re: /diabet|\bdm\b|\bdm[12]\b/i, family: 'diabetes' },
 	{
-		re: /cardiopat|cardiomiopat|coronar|\biam\b|infarto|isqu[eê]mi|\bdac\b/i,
+		re: /cardiopat|cardiomiopat|coronar|\biam\b|infarto|isqu[eê]mi|angina|arritmia|\bdac\b/i,
 		family: 'cardiopatia'
 	},
 	{ re: /insufici[eê]ncia card|\bicc\b/i, family: 'ic_' },
-	{ re: /dpoc|enfisema|bronquite|pulmonar/i, family: 'dpoc' },
+	{ re: /dpoc|enfisema|bronquite|pulmonar|asma|broncoespasmo|respirat[óo]ri/i, family: 'dpoc' },
 	{ re: /\bavc\b|acidente vascular/i, family: 'avc' },
 	{ re: /parkinson/i, family: 'parkinson' },
 	{ re: /esclerose m[uú]ltipla/i, family: 'esclerose' },
@@ -289,16 +311,76 @@ const CONDITION_TEXT_PATTERNS: { re: RegExp; family: string }[] = [
 ];
 
 /**
- * Retorna o nome da primeira condição "órfã" citada no texto (presente no texto
- * mas SEM tag correspondente no perfil do aluno), ou null se tudo confere.
+ * Métricas que implicam patologia — monitorings alucinados costumam vir
+ * fraseados pela MÉTRICA ("Glicemia capilar pré-treino") em vez do nome da
+ * doença, escapando de CONDITION_TEXT_PATTERNS. Usada SÓ no filtro de
+ * monitoring_parameters: em restrição, "saturação" pode aparecer em contexto
+ * não-patológico; em monitoring, a métrica implica a patologia.
  */
-function mentionsAbsentCondition(text: string, conditionTags: string[]): string | null {
+const METRIC_TEXT_PATTERNS: { re: RegExp; family: string }[] = [
+	{ re: /glicemia|glicose capilar/i, family: 'diabetes' },
+	{ re: /\bspo2\b|oximetr|satura[çc][ãa]o de ox/i, family: 'dpoc' },
+	{ re: /\bderrame\b/i, family: 'avc' }
+];
+
+/**
+ * Texto livre do perfil (labels/notas de diagnósticos + lesões), lowercased.
+ * Segunda fonte de verdade do guard: condição real registrada no perfil mas
+ * SEM tag mapeada (ex.: asma, fibromialgia) NÃO pode ser tratada como
+ * alucinação — dropar o aviso seria remover camada de segurança legítima.
+ */
+function buildProfileFreeText(health: HealthProfile | null): string {
+	if (!health) return '';
+	const parts: string[] = [];
+	for (const d of health.diagnoses ?? []) parts.push(d.label ?? '', d.notes ?? '');
+	const inj = (health.injuries as Array<{ region?: string; notes?: string }> | null) ?? [];
+	for (const i of inj) parts.push(i.region ?? '', i.notes ?? '');
+	return parts.filter(Boolean).join(' ').toLowerCase();
+}
+
+/**
+ * Retorna o nome da primeira condição "órfã" citada no texto (presente no texto
+ * mas SEM tag correspondente no perfil E sem menção no texto livre do perfil),
+ * ou null se tudo confere.
+ */
+function mentionsAbsentCondition(
+	text: string,
+	conditionTags: string[],
+	profileFreeText: string
+): string | null {
 	if (!text) return null;
 	for (const { re, family } of CONDITION_TEXT_PATTERNS) {
 		if (re.test(text)) {
 			const present = conditionTags.some((t) => t.includes(family));
-			if (!present) return family;
+			if (present) continue;
+			// Condição sem tag mapeada mas registrada no perfil não é alucinação.
+			if (profileFreeText && re.test(profileFreeText)) continue;
+			return family;
 		}
+	}
+	return null;
+}
+
+/**
+ * mentionsAbsentCondition + métricas de patologia (glicemia→diabetes,
+ * SpO2→dpoc, derrame→avc). Mesmo critério: só é órfã se a família não está
+ * nas tags NEM aparece (por nome ou métrica) no texto livre do perfil.
+ */
+function mentionsAbsentConditionOrMetric(
+	text: string,
+	conditionTags: string[],
+	profileFreeText: string
+): string | null {
+	const byName = mentionsAbsentCondition(text, conditionTags, profileFreeText);
+	if (byName) return byName;
+	if (!text) return null;
+	for (const { re, family } of METRIC_TEXT_PATTERNS) {
+		if (!re.test(text)) continue;
+		const present = conditionTags.some((t) => t.includes(family));
+		if (present) continue;
+		const condRe = CONDITION_TEXT_PATTERNS.find((p) => p.family === family)?.re;
+		if (profileFreeText && (re.test(profileFreeText) || condRe?.test(profileFreeText))) continue;
+		return family;
 	}
 	return null;
 }
@@ -498,7 +580,7 @@ function buildUserPrompt(ctx: StudentContext, ragContext: string, notes?: string
 	};
 	const suggestedDays = DAY_DIST[N]?.join(', ') ?? 'seg, qua, sex';
 	lines.push(
-		`4. SESSÕES SEMANAIS: gere EXATAMENTE ${N} sessões — esse é o número que o aluno definiu na frequência alvo dele. OBRIGATÓRIO preencher \`day_of_week\` de CADA sessão (valores válidos: "seg" | "ter" | "qua" | "qui" | "sex" | "sab" | "dom"). Distribua os treinos pela semana com descanso entre eles — sugestão de distribuição pra ${N} sessões: ${suggestedDays}. CONCISÃO EXTREMA (o tempo de geração é limitado): \`execution_notes\` = UMA frase de no máximo 12 palavras; \`summary\` = 2-3 frases; \`progression_strategy\` = 3-4 frases; monitoring_parameters: no máximo 3 itens; assessment_protocols: no máximo 2; restrictions: só red flag real; warmup: no máximo 2 exercícios; cooldown: no máximo 1.`
+		`4. SESSÕES SEMANAIS: gere EXATAMENTE ${N} sessões — esse é o número que o aluno definiu na frequência alvo dele. OBRIGATÓRIO preencher \`day_of_week\` de CADA sessão (valores válidos: "seg" | "ter" | "qua" | "qui" | "sex" | "sab" | "dom"). Distribua os treinos pela semana com descanso entre eles — sugestão de distribuição pra ${N} sessões: ${suggestedDays}. CONCISÃO (o tempo de geração é limitado): \`execution_notes\` curto conforme o formato definido no system prompt (1-2 frases, 40-120 chars); \`summary\` = 2-3 frases; \`progression_strategy\` = 3-4 frases; monitoring_parameters: no máximo 3 itens; assessment_protocols: no máximo 2; restrictions: red/yellow só com red flag real — greens de alinhamento com diretriz continuam permitidas (1-2 num plano baixo-risco); warmup: no máximo 2 exercícios; cooldown: no máximo 1.`
 	);
 	lines.push(
 		'5. RESPEITE a Dificuldade-alvo dos exercícios definida nas PREFERÊNCIAS. A escolha dos exercícios deve refletir esse nível de complexidade técnica, independente do nível de experiência informado.'
@@ -544,18 +626,33 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 			.where(eq(trainingPlans.id, planId));
 
 		const ctx = await loadStudentContext(opts.studentId, opts.professionalId);
+		// Texto livre do perfil pro guard anti-alucinação (condições sem tag mapeada).
+		const profileFreeText = buildProfileFreeText(ctx.health);
 
 		await db
 			.update(trainingPlans)
 			.set({ progressPct: 35, progressPhase: 'recuperando RAG (preferência ACSM)' })
 			.where(eq(trainingPlans.id, planId));
 
-		const chunks = await retrieveRelevantChunks({
-			conditionTags: ctx.conditionTags,
-			goals: (ctx.preferences?.goals ?? []) as string[],
-			freeText: opts.notes,
-			topK: 8
-		});
+		// RAG é subsistema OPCIONAL: falha transitória (429/timeout do embedding)
+		// não pode derrubar a geração — formatContextForPrompt([]) já instrui a
+		// gerar com source:inference.
+		let chunks: RetrievedChunk[] = [];
+		let ragFailed = false;
+		try {
+			chunks = await retrieveRelevantChunks({
+				conditionTags: ctx.conditionTags,
+				goals: (ctx.preferences?.goals ?? []) as string[],
+				freeText: opts.notes,
+				topK: 8
+			});
+		} catch (ragErr) {
+			ragFailed = true;
+			log.warn(
+				{ err: String(ragErr).slice(0, 200) },
+				'rag.retrieve.failed_continuing_without_context'
+			);
+		}
 		const ragContext = formatContextForPrompt(chunks);
 		const chunkIds = chunks.map((c) => c.chunk_id);
 		const orgDistribution = chunks.reduce<Record<string, number>>((acc, c) => {
@@ -581,6 +678,27 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 		// Se Flash der quota, fallback pra Pro com generateObject (não-streaming).
 		let plan: TrainingPlanOutput;
 		let usage: { inputTokens?: number; outputTokens?: number } | undefined;
+		/** Preenchido quando o plano veio do salvage de partial (stream abortado). */
+		let salvaged: { kept: number; of: number } | undefined;
+
+		// Timer de progresso — garante movimento visual mesmo se o stream não
+		// emitir incrementalmente (caso comum: o modelo entrega tudo no fim).
+		// Aproxima de 88 de forma assintótica (ease-out): avança rápido no
+		// começo e vai diminuindo o passo, então a barra NUNCA parece travada
+		// mesmo numa geração longa (Pro pode levar minutos). Cap em 88 pra os
+		// passos pós-geração (91/95/100) sempre irem pra frente. Compartilhado
+		// entre o stream primário e o fallback Pro (que também leva minutos).
+		const startProgressTimer = (startPct: number) => {
+			let pct = startPct;
+			return setInterval(() => {
+				const step = Math.max(1, Math.round((88 - pct) / 10));
+				pct = Math.min(88, pct + step);
+				db.update(trainingPlans)
+					.set({ progressPct: pct, updatedAt: new Date() })
+					.where(eq(trainingPlans.id, planId))
+					.catch(() => {});
+			}, 4000);
+		};
 
 		const streamPlan = async (model: string) => {
 			let lastWriteAt = 0;
@@ -589,22 +707,7 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 			 *  se o stream abortar antes de terminar. */
 			let lastPartial: unknown = null;
 
-			// Timer de progresso — garante movimento visual mesmo se o
-			// partialObjectStream do Gemini não emitir incrementalmente
-			// (caso comum: o modelo entrega tudo de uma vez no fim).
-			// Aproxima de 88 de forma assintótica (ease-out): avança rápido no
-			// começo e vai diminuindo o passo, então a barra NUNCA parece travada
-			// mesmo numa geração longa (Pro pode levar minutos). Cap em 88 pra os
-			// passos pós-geração (91/95/100) sempre irem pra frente.
-			let simulatedPct = 55;
-			const progressTimer = setInterval(() => {
-				const step = Math.max(1, Math.round((88 - simulatedPct) / 10));
-				simulatedPct = Math.min(88, simulatedPct + step);
-				db.update(trainingPlans)
-					.set({ progressPct: simulatedPct, updatedAt: new Date() })
-					.where(eq(trainingPlans.id, planId))
-					.catch(() => {});
-			}, 4000);
+			const progressTimer = startProgressTimer(55);
 
 			// Texto bruto acumulado do stream (alimenta UI "Gemini escrevendo").
 			// Truncado em sliding window pra não bloar o DB row.
@@ -665,7 +768,8 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 						lastWriteAt = now;
 						lastSessionsCount = sessionsCount;
 
-						const targetSessions = 3;
+						// Nº real de sessões pedidas — mesmo clamp do prompt (regra 4).
+						const targetSessions = Math.max(1, Math.min(7, ctx.preferences?.weeklySessions ?? 3));
 						const phase =
 							sessionsCount === 0
 								? 'estruturando plano clínico'
@@ -695,8 +799,11 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 						.catch(() => {});
 				}
 
-				return { object: await result.object, usage: await result.usage };
+				return { object: await result.object, usage: await result.usage, salvaged: undefined };
 			} catch (streamErr) {
+				// Quota relança direto pro catch externo: o fallback Pro gera o
+				// plano COMPLETO — salvar truncado aqui desperdiçaria essa rota.
+				if (isQuotaError(streamErr)) throw streamErr;
 				// Salvamento: tenta aproveitar o último partial SEMPRE que existir
 				// — não só em timeout/abort. Dois cenários levam aqui:
 				//   1) abort do nosso timeout (corta no meio de uma sessão);
@@ -735,7 +842,11 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 								{ kept: keep, of: sessions.length, reason: msg.slice(0, 120) },
 								'plan.generate.salvaged_partial'
 							);
-							return { object: parsed.data, usage: undefined };
+							return {
+								object: parsed.data,
+								usage: undefined,
+								salvaged: { kept: keep, of: sessions.length }
+							};
 						}
 					}
 					log.warn({ msg: msg.slice(0, 150) }, 'plan.generate.salvage_failed_partial_invalid');
@@ -750,39 +861,94 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 			const r = await streamPlan(PRIMARY_MODEL);
 			plan = r.object;
 			usage = r.usage;
+			salvaged = r.salvaged;
 		} catch (primaryErr) {
 			if (!isQuotaError(primaryErr)) throw primaryErr;
 			log.warn({ err: String(primaryErr).slice(0, 200) }, 'plan.generate.primary_quota_fallback');
+			// Limpa o streamText do Flash abortado — sem isso a UI "escrevendo"
+			// exibe texto morto da tentativa anterior enquanto o Pro gera.
 			await db
 				.update(trainingPlans)
 				.set({
-					progressPhase: 'PreceptorFISIC saturado — tentando rota alternativa'
+					progressPhase: 'PreceptorFISIC saturado — tentando rota alternativa',
+					streamText: null,
+					updatedAt: new Date()
 				})
 				.where(eq(trainingPlans.id, planId));
 			// Fallback NÃO streaming pra simplicidade — Pro raramente é tocado.
 			// 120s: o erro de quota geralmente vem cedo, então sobra tempo no
 			// maxDuration (300s) pro Pro gerar o plano completo e ainda validar.
-			const fallbackGen = await generateObject({
-				model: google(FALLBACK_MODEL),
-				schema: trainingPlanSchema,
-				schemaName: 'TrainingPlan',
-				schemaDescription:
-					'Plano de treino clínico com sessões semanais, monitoramento, restrições e citações',
-				system: SYSTEM_PROMPT_PT_BR,
-				prompt: userPrompt,
-				maxRetries: 1,
-				abortSignal: AbortSignal.timeout(120_000)
-			});
-			plan = fallbackGen.object;
-			usage = fallbackGen.usage;
+			// Timer próprio: sem ele a barra congelava por até 2 min no Pro.
+			const fbTimer = startProgressTimer(58);
+			try {
+				const fallbackGen = await generateObject({
+					model: google(FALLBACK_MODEL),
+					schema: trainingPlanSchema,
+					schemaName: 'TrainingPlan',
+					schemaDescription:
+						'Plano de treino clínico com sessões semanais, monitoramento, restrições e citações',
+					system: SYSTEM_PROMPT_PT_BR,
+					prompt: userPrompt,
+					maxRetries: 1,
+					abortSignal: AbortSignal.timeout(120_000)
+				});
+				plan = fallbackGen.object;
+				usage = fallbackGen.usage;
+			} finally {
+				clearInterval(fbTimer);
+			}
 			modelUsed = FALLBACK_MODEL;
 		}
 		const genElapsed = Date.now() - genStartMs;
+
+		// Plano salvo parcialmente: avisa o profissional na revisão — sem isso o
+		// plano truncado fica idêntico a um completo (status 'generated').
+		if (salvaged) {
+			const targetN = Math.max(1, Math.min(7, ctx.preferences?.weeklySessions ?? 3));
+			if (plan.weekly_sessions.length < targetN) {
+				plan = {
+					...plan,
+					summary: `⚠ Geração parcial: ${plan.weekly_sessions.length} de ${targetN} sessões geradas. Revise e gere novamente se necessário. ${plan.summary}`
+				};
+			}
+		}
 
 		await db
 			.update(trainingPlans)
 			.set({ progressPct: 91, progressPhase: 'validando e persistindo' })
 			.where(eq(trainingPlans.id, planId));
+
+		// Citações rag_chunk precisam apontar pra chunks REALMENTE recuperados
+		// nesta geração — UUID fabricado/truncado vira inference com note
+		// automática, em vez de renderizar autoridade falsa (ou citação órfã).
+		const validChunkIds = new Set(chunkIds);
+		let invalidCitations = 0;
+		type PlanSourceRef = TrainingPlanOutput['restrictions'][number]['source'];
+		const sanitizeRef = (ref: PlanSourceRef): PlanSourceRef => {
+			if (ref.type !== 'rag_chunk') return ref;
+			if (ref.chunk_id && validChunkIds.has(ref.chunk_id)) return ref;
+			invalidCitations++;
+			return {
+				...ref,
+				type: 'inference',
+				chunk_id: undefined,
+				note: `Citação não verificada nesta geração (chunk ${ref.chunk_id?.slice(0, 8) ?? '?'} não recuperado)`
+			};
+		};
+		for (const r of plan.restrictions) r.source = sanitizeRef(r.source);
+		for (const m of plan.monitoring_parameters) m.source_refs = m.source_refs.map(sanitizeRef);
+		for (const a of plan.assessment_protocols) a.source_refs = a.source_refs.map(sanitizeRef);
+		for (const s of plan.weekly_sessions) {
+			for (const ex of [...s.warmup, ...s.main, ...s.cooldown]) {
+				ex.source_refs = ex.source_refs.map(sanitizeRef);
+			}
+		}
+		if (invalidCitations > 0) {
+			log.warn(
+				{ invalid_citations: invalidCitations },
+				'plan.guard.downgraded_unverified_citations'
+			);
+		}
 
 		// Guard anti-alucinação clínica. Dois filtros sobre as restrições da IA:
 		//   1) source.type='rule' é reservado ao engine de validação — a IA não
@@ -798,7 +964,11 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					return false;
 				}
 				if (r.level !== 'green') {
-					const orphan = mentionsAbsentCondition(`${r.title} ${r.description}`, ctx.conditionTags);
+					const orphan = mentionsAbsentCondition(
+						`${r.title} ${r.description}`,
+						ctx.conditionTags,
+						profileFreeText
+					);
 					if (orphan) {
 						droppedRestrictions.push(`${r.title} [condição ausente: ${orphan}]`);
 						return false;
@@ -821,8 +991,10 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 				}
 			}));
 		if (droppedRestrictions.length > 0) {
+			// Só o count no log — títulos/tags citam condição clínica e iriam pros
+			// logs da Vercel (fora do controle LGPD). Detalhe fica em ai_runs.input.
 			log.warn(
-				{ dropped: droppedRestrictions, condition_tags: ctx.conditionTags },
+				{ dropped_count: droppedRestrictions.length },
 				'plan.guard.dropped_hallucinated_restrictions'
 			);
 		}
@@ -850,18 +1022,18 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 			'plan.validate.done'
 		);
 		// Mesmo guard nos monitoring_parameters — descarta monitoramento de
-		// patologia que o aluno não tem (ex.: "FC contínua por cardiopatia").
+		// patologia que o aluno não tem (ex.: "FC contínua por cardiopatia"),
+		// incluindo os fraseados pela métrica (glicemia/SpO2/derrame).
+		const droppedMonitoring: string[] = [];
 		const monitoringNotes: MonitoringNote[] = plan.monitoring_parameters
 			.filter((m) => {
-				const orphan = mentionsAbsentCondition(
+				const orphan = mentionsAbsentConditionOrMetric(
 					`${m.parameter} ${m.frequency} ${m.alert_threshold ?? ''}`,
-					ctx.conditionTags
+					ctx.conditionTags,
+					profileFreeText
 				);
 				if (orphan) {
-					log.warn(
-						{ parameter: m.parameter, condition: orphan, condition_tags: ctx.conditionTags },
-						'plan.guard.dropped_hallucinated_monitoring'
-					);
+					droppedMonitoring.push(`${m.parameter} [condição ausente: ${orphan}]`);
 					return false;
 				}
 				return true;
@@ -874,6 +1046,13 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					.map((s) => s.chunk_id ?? s.source_id ?? s.note ?? '')
 					.filter(Boolean)
 			}));
+		if (droppedMonitoring.length > 0) {
+			// Count-only pelo mesmo motivo LGPD do log de restrições.
+			log.warn(
+				{ dropped_count: droppedMonitoring.length },
+				'plan.guard.dropped_hallucinated_monitoring'
+			);
+		}
 		const assessmentProtocols: AssessmentProtocol[] = plan.assessment_protocols.map((a) => ({
 			test_name: a.test_name,
 			when: a.when,
@@ -896,8 +1075,16 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					user_prompt: userPrompt,
 					rag_chunk_ids: chunkIds,
 					rag_org_distribution: orgDistribution,
+					rag_failed: ragFailed,
 					condition_tags: ctx.conditionTags,
-					notes: opts.notes ?? null
+					notes: opts.notes ?? null,
+					// Detalhe dos drops do guard fica AQUI (banco, sob controle LGPD)
+					// — os logs de plataforma só recebem counts.
+					guard_dropped: {
+						restrictions: droppedRestrictions,
+						monitoring: droppedMonitoring,
+						invalid_citations: invalidCitations
+					}
 				},
 				output: plan,
 				tokensInput: usage?.inputTokens ?? null,

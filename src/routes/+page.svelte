@@ -22,6 +22,17 @@
 		const b = videoB;
 		if (!a || !b) return;
 
+		// Reduced-motion / Save-Data: não baixa vídeo nenhum. O CSS já esconde
+		// o <video> no reduced-motion, mas display:none não impede o download —
+		// por isso o gate fica aqui, antes de qualquer load()/play().
+		const skipVideo =
+			window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+			(navigator as unknown as { connection?: { saveData?: boolean } }).connection?.saveData ===
+				true;
+		if (skipVideo) {
+			return () => window.removeEventListener('scroll', onScroll);
+		}
+
 		// Inicia A. B fica pausado até precisar fazer crossfade.
 		const tryPlay = (v: HTMLVideoElement) =>
 			v.play().catch(() => {
@@ -31,6 +42,9 @@
 				};
 				document.addEventListener('pointerdown', unlock, { once: true });
 			});
+		// preload="none" no markup: o download de A só dispara aqui,
+		// quando o JS decidiu tocar.
+		a.load();
 		tryPlay(a);
 
 		// Lógica do crossfade: monitora timeupdate em ambos os videos.
@@ -41,6 +55,14 @@
 			const isA = target === a;
 			const other = isA ? b : a;
 			const remaining = target.duration - target.currentTime;
+
+			// Warm-up de B: com preload="none" nada baixa até aqui. ~1s depois
+			// de A começar a tocar, B inicia o download e chega bufferizado
+			// ao crossfade de 0,5s.
+			if (isA && other.preload === 'none' && target.currentTime > 1) {
+				other.preload = 'auto';
+				other.load();
+			}
 
 			// Está perto do fim?
 			if (remaining <= FADE_LEAD_S && remaining > 0) {
@@ -129,7 +151,9 @@
 
 	const METRICS = [
 		{ v: '15-30s', l: 'tempo de geração' },
-		{ v: '94%', l: 'aderência média' },
+		// Só métricas compriváveis — sem números de aderência/usuários fabricados
+		// (mesma política do /login; risco CDC/CONFEF)
+		{ v: '1.324', l: 'exercícios com vídeo' },
 		{ v: 'sa-east-1', l: 'região BR · LGPD' },
 		{ v: 'ACSM ★', l: 'preferência RAG' }
 	];
@@ -212,7 +236,8 @@
 
 		<div class="lp-cta">
 			<a href="/login" class="lp-btn lp-btn--ghost">Entrar</a>
-			<a href="/login" class="lp-btn lp-btn--primary">Começar grátis</a>
+			<!-- CTAs de cadastro abrem /login já na aba "Criar conta" -->
+			<a href="/login?mode=signup" class="lp-btn lp-btn--primary">Começar grátis</a>
 		</div>
 	</header>
 
@@ -222,14 +247,16 @@
 		     A e B são idênticos, defasados, alternam via opacity.
 		     Quando A está nos últimos 500ms, B começa do zero + fade.
 		     Loop infinito sem rebuffer visível. -->
+		<!-- preload="none": nada baixa antes do JS decidir tocar (onMount).
+		     Poster JPEG leve (~55KB, frame 0) cobre o vão até o 1º frame. -->
 		<video
 			bind:this={videoA}
 			class="hero-video"
 			class:on={activeVideo === 'A'}
 			muted
 			playsinline
-			preload="auto"
-			poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='9'%3E%3Crect width='16' height='9' fill='%23050505'/%3E%3C/svg%3E"
+			preload="none"
+			poster="/hero-poster.jpg"
 		>
 			<source src="/hero.webm" type="video/webm" />
 			<source src="/hero-1080.mp4" type="video/mp4" />
@@ -240,7 +267,8 @@
 			class:on={activeVideo === 'B'}
 			muted
 			playsinline
-			preload="auto"
+			preload="none"
+			poster="/hero-poster.jpg"
 		>
 			<source src="/hero.webm" type="video/webm" />
 			<source src="/hero-1080.mp4" type="video/mp4" />
@@ -272,7 +300,7 @@
 			</p>
 
 			<div class="hero-actions">
-				<a href="/login" class="lp-btn lp-btn--primary lp-btn--lg">
+				<a href="/login?mode=signup" class="lp-btn lp-btn--primary lp-btn--lg">
 					Começar agora
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M5 12h14M13 5l7 7-7 7" />
@@ -453,8 +481,9 @@
 				clínicas detectadas e citações reais.
 			</p>
 			<div class="cta-actions">
-				<a href="/login" class="lp-btn lp-btn--primary lp-btn--lg">Começar grátis →</a>
-				<a href="mailto:hello@preceptorfisic.com" class="lp-btn lp-btn--secondary lp-btn--lg">
+				<a href="/login?mode=signup" class="lp-btn lp-btn--primary lp-btn--lg">Começar grátis →</a>
+				<!-- Email real do time — preceptorfisic.com não está registrado (bounce) -->
+				<a href="mailto:castroomath7@gmail.com" class="lp-btn lp-btn--secondary lp-btn--lg">
 					Falar com um humano
 				</a>
 			</div>
@@ -484,7 +513,7 @@
 				<div>
 					<div class="footer-col-h">Acesso</div>
 					<a href="/login">Entrar</a>
-					<a href="/login">Cadastrar</a>
+					<a href="/login?mode=signup">Cadastrar</a>
 				</div>
 				<div>
 					<div class="footer-col-h">Conformidade</div>
@@ -511,6 +540,10 @@
 		color: var(--ink-0);
 		min-height: 100vh;
 		overflow-x: hidden;
+	}
+	/* Âncoras do nav (#features/#how/#metrics) param abaixo do header fixo (~70px) */
+	section[id] {
+		scroll-margin-top: 84px;
 	}
 
 	/* ───── HEADER ───── */

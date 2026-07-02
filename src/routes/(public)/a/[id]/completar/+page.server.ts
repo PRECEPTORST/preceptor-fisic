@@ -1,6 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { getAlunoSelfFillData, completeStudentSelfFillTx } from '$lib/server/queries';
+import { parseDecimalBR, clamp } from '$lib/server/form-utils';
 import { verifyStudentToken } from '$lib/server/aluno-token';
 import { dev } from '$app/environment';
 import type { Actions, PageServerLoad } from './$types';
@@ -72,8 +73,10 @@ export const actions: Actions = {
 
 		const raw = {
 			birthDate: String(fd.get('birthDate') ?? '').trim() || null,
-			weightKg: fd.get('weightKg') ? Number(fd.get('weightKg')) : null,
-			heightCm: fd.get('heightCm') ? Number(fd.get('heightCm')) : null,
+			// parseDecimalBR: aluno digita "72,5" no celular — Number() cru
+			// rejeitava a vírgula e o campo virava null silenciosamente.
+			weightKg: clamp(parseDecimalBR(fd.get('weightKg')), 20, 400),
+			heightCm: clamp(parseDecimalBR(fd.get('heightCm')), 100, 250),
 			phone: String(fd.get('phone') ?? '').trim() || null,
 			cardiovascularRisk: String(fd.get('cardiovascularRisk') ?? 'baixo'),
 			diagnoses: String(fd.get('diagnoses') ?? ''),

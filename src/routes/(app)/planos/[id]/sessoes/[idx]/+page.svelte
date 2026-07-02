@@ -55,27 +55,60 @@
 		return null;
 	});
 
-	// Extrai cargas usadas pelo aluno na execução do exercício ativo,
-	// na ÚLTIMA sessão registrada. Em vez de hardcoded.
-	const log = $derived.by(() => {
+	// set_logs existe no JSON mas não no tipo SessionLogEntry — leitura via cast.
+	type LoggedSets = { set_logs?: { weight: number; reps: number }[] };
+
+	// Última execução REGISTRADA do exercício ativo (sessão + entry do exercício).
+	const exLogEntry = $derived.by(() => {
 		const exName = exercises[activeEx]?.name;
-		if (!exName || recentLogs.length === 0) return [] as number[];
-		// Última execução desse exercício
+		if (!exName) return null;
 		for (const sessionLog of recentLogs) {
 			const found = sessionLog.exercisesDone.find((e) => e.name === exName);
-			if (found?.load_used) {
-				// Extrai número da string "60kg" → 60
-				const match = String(found.load_used).match(/(\d+(?:[.,]\d+)?)/);
-				if (match && match[1]) {
-					const n = Number(match[1].replace(',', '.'));
-					if (Number.isFinite(n) && found.sets_done) {
-						return Array(found.sets_done).fill(n);
-					}
-				}
-			}
+			if (found) return { session: sessionLog, entry: found };
 		}
-		return [];
+		return null;
 	});
+
+	// Séries REAIS registradas pelo aluno: set_logs (peso+reps por série) quando
+	// existe; fallback: sets_done com carga extraída de load_used + reps_done.
+	// Nada é fabricado — sem registro, a UI mostra '—'.
+	type SetView = { weight: number | null; reps: number | string | null };
+	const log = $derived.by((): SetView[] => {
+		const entry = exLogEntry?.entry;
+		if (!entry) return [];
+		const setLogs = (entry as LoggedSets).set_logs;
+		if (setLogs && setLogs.length > 0)
+			return setLogs.map((s) => ({ weight: s.weight, reps: s.reps }));
+		if (!entry.sets_done) return [];
+		// Extrai número da string "60kg" → 60
+		const match = String(entry.load_used ?? '').match(/(\d+(?:[.,]\d+)?)/);
+		const w = match?.[1] ? Number(match[1].replace(',', '.')) : NaN;
+		return Array.from({ length: entry.sets_done }, () => ({
+			weight: Number.isFinite(w) ? w : null,
+			reps: entry.reps_done ?? null
+		}));
+	});
+
+	// Exercício concluído = registrado pelo aluno em alguma execução recente.
+	function isDone(name: string | undefined): boolean {
+		if (!name) return false;
+		return recentLogs.some((sl) =>
+			sl.exercisesDone.some((e) => e.name === name && e.completed !== false)
+		);
+	}
+	// Nº de séries registradas (set_logs > sets_done) — null sem registro.
+	function setsDoneOf(name: string | undefined): number | null {
+		if (!name) return null;
+		for (const sl of recentLogs) {
+			const found = sl.exercisesDone.find((e) => e.name === name);
+			if (found) return (found as LoggedSets).set_logs?.length ?? found.sets_done ?? null;
+		}
+		return null;
+	}
+
+	const lastExecutionDate = $derived(
+		recentLogs[0] ? new Date(recentLogs[0].sessionDate).toLocaleDateString('pt-BR') : null
+	);
 
 	const ex = $derived(exercises[activeEx]);
 
@@ -88,6 +121,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>{session.label ?? 'Sessão'} · {studentName} · Preceptor Fisic</title>
+</svelte:head>
+
 <div style="flex:1;display:flex;flex-direction:column;background:var(--bg-0);height:100vh;overflow:hidden">
 	<div
 		class="sd-header"
@@ -98,16 +135,14 @@
 			style="background:var(--bg-3);border:1px solid var(--ink-line-2);cursor:pointer;width:36px;height:36px;border-radius:var(--r-1);color:var(--ink-1);font-size:18px"
 		>←</button>
 		<div style="flex:1">
-			<div class="eyebrow" style="margin-bottom:4px">Sessão em andamento · {studentName}</div>
+			<div class="eyebrow" style="margin-bottom:4px">Detalhe da sessão · {studentName}</div>
 			<div style="font:500 18px var(--font-sans);color:var(--ink-0)">{session.label ?? `Sessão ${data.idx + 1}`}</div>
 		</div>
-		<div style="display:flex;align-items:center;gap:14px">
-			<div style="text-align:right">
-				<div class="eyebrow">Tempo</div>
-				<div class="num" style="font:var(--num-md);color:var(--accent)">00:00</div>
+		<div style="text-align:right">
+			<div class="eyebrow">Última execução</div>
+			<div class="num" style="font:500 16px var(--font-mono);color:{lastExecutionDate ? 'var(--accent)' : 'var(--ink-3)'}">
+				{lastExecutionDate ?? '—'}
 			</div>
-			<Button variant="secondary">⏸ Pausar</Button>
-			<Button>✓ Finalizar</Button>
 		</div>
 	</div>
 
@@ -116,16 +151,16 @@
 			Sessão sem exercícios definidos.
 		</div>
 	{:else}
-		<div style="display:grid;grid-template-columns:320px 1fr;flex:1;overflow:hidden">
+		<div class="sd-grid" style="display:grid;grid-template-columns:320px 1fr;flex:1;overflow:hidden">
 			<!-- Sidebar lista de exercícios -->
 			<div
 				style="border-right:1px solid var(--ink-line);background:var(--bg-1);overflow-y:auto;padding:20px 0"
 			>
 				<div class="eyebrow" style="padding:0 20px 12px">Exercícios · {exercises.length} total</div>
 				{#each exercises as exItem, i (exItem.name + i)}
-					{@const done = i < activeEx}
+					{@const done = isDone(exItem.name)}
 					{@const active = i === activeEx}
-					{@const completedSets = done ? (exItem.sets ?? 0) : active ? log.length : 0}
+					{@const completedSets = setsDoneOf(exItem.name)}
 					<button
 						type="button"
 						onclick={() => (activeEx = i)}
@@ -163,7 +198,7 @@
 							</div>
 						</div>
 						<span class="num" style="font:var(--label-mono);color:var(--ink-2)">
-							{completedSets}/{exItem.sets ?? '—'}
+							{completedSets ?? '—'}/{exItem.sets ?? '—'}
 						</span>
 					</button>
 				{/each}
@@ -288,52 +323,46 @@
 							</div>
 						{/if}
 
-						<!-- Set logger -->
+						<!-- Registro de séries — só dados REAIS da última execução do aluno.
+							 O registro em si é feito pelo aluno em /a/[id]/treino/[idx]. -->
 						<div class="card" style="padding:0;overflow:hidden">
 							<div
-								style="padding:14px 20px;background:var(--bg-1);border-bottom:1px solid var(--ink-line);display:flex;justify-content:space-between;align-items:center"
+								style="padding:14px 20px;background:var(--bg-1);border-bottom:1px solid var(--ink-line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"
 							>
-								<div style="font:500 14px var(--font-sans);color:var(--ink-0)">Registro de séries</div>
+								<div style="font:500 14px var(--font-sans);color:var(--ink-0)">Registro de séries do aluno</div>
 								<span class="num" style="font:var(--label-mono);color:var(--ink-2)">
-									{log.length}/{ex.sets ?? '—'} concluídas
+									{#if exLogEntry}
+										{log.length}/{ex.sets ?? '—'} registradas
+										{#if exLogEntry.session.perceivedEffort != null}· PSE da sessão {exLogEntry.session.perceivedEffort}{/if}
+										· {new Date(exLogEntry.session.sessionDate).toLocaleDateString('pt-BR')}
+									{:else}
+										sem registro
+									{/if}
 								</span>
 							</div>
-							{#each Array(ex.sets ?? 0) as _, i (i)}
-								{@const value = log[i]}
-								{@const done = value != null}
-								<div
-									style="padding:14px 20px;{i ? 'border-top:1px solid var(--ink-line)' : ''};display:grid;grid-template-columns:40px 1fr 1fr 1fr 100px;gap:16px;align-items:center"
-								>
-									<div
-										class="num"
-										style="font:500 13px var(--font-mono);color:{done ? 'var(--success)' : 'var(--ink-3)'}"
-									>{done ? '✓' : '○'} {i + 1}</div>
-									<div>
-										<div style="font:var(--label-mono);color:var(--ink-2);margin-bottom:4px">Carga</div>
-										<div
-											class="num"
-											style="font:500 16px var(--font-mono);color:{done ? 'var(--ink-0)' : 'var(--ink-3)'}"
-										>{done ? value : '—'} <span style="font:var(--label-mono);color:var(--ink-2)">kg</span></div>
-									</div>
-									<div>
-										<div style="font:var(--label-mono);color:var(--ink-2);margin-bottom:4px">Reps</div>
-										<div
-											class="num"
-											style="font:500 16px var(--font-mono);color:{done ? 'var(--ink-0)' : 'var(--ink-3)'}"
-										>{done ? (i === 3 ? 8 : 10) : '—'}</div>
-									</div>
-									<div>
-										<div style="font:var(--label-mono);color:var(--ink-2);margin-bottom:4px">PSE</div>
-										<div
-											class="num"
-											style="font:500 16px var(--font-mono);color:{done ? 'var(--ink-0)' : 'var(--ink-3)'}"
-										>{done ? 7 + i * 0.5 : '—'}</div>
-									</div>
-									<Button variant={done ? 'ghost' : 'primary'} size="sm">
-										{done ? 'Editar' : 'Registrar'}
-									</Button>
+							{#if log.length === 0}
+								<div style="padding:22px 20px;font:var(--body-sm);color:var(--ink-2)">
+									O aluno ainda não registrou este exercício — os dados aparecem aqui quando ele executar a sessão pelo link do treino.
 								</div>
-							{/each}
+							{:else}
+								{#each log as set, i (i)}
+									<div
+										style="padding:14px 20px;{i ? 'border-top:1px solid var(--ink-line)' : ''};display:grid;grid-template-columns:40px 1fr 1fr;gap:16px;align-items:center"
+									>
+										<div class="num" style="font:500 13px var(--font-mono);color:var(--success)">✓ {i + 1}</div>
+										<div>
+											<div style="font:var(--label-mono);color:var(--ink-2);margin-bottom:4px">Carga</div>
+											<div class="num" style="font:500 16px var(--font-mono);color:var(--ink-0)">
+												{set.weight ?? '—'} <span style="font:var(--label-mono);color:var(--ink-2)">kg</span>
+											</div>
+										</div>
+										<div>
+											<div style="font:var(--label-mono);color:var(--ink-2);margin-bottom:4px">Reps</div>
+											<div class="num" style="font:500 16px var(--font-mono);color:var(--ink-0)">{set.reps ?? '—'}</div>
+										</div>
+									</div>
+								{/each}
+							{/if}
 						</div>
 
 						<div style="display:flex;justify-content:space-between;margin-top:24px">
@@ -363,8 +392,18 @@
 		.sd-body {
 			padding: 16px 14px 48px !important;
 		}
-		/* Exercise rows: 5-col grid → empilha tudo */
-		.sd-body :global(div[style*="grid-template-columns:40px 1fr 1fr 1fr 100px"]) {
+		/* Grid 320px+1fr não cabe no mobile → empilha lista sobre o detalhe
+		   (stylesheet !important vence o estilo inline). */
+		.sd-grid {
+			grid-template-columns: 1fr !important;
+			grid-template-rows: minmax(0, 40vh) 1fr;
+		}
+		.sd-grid > :global(div:first-child) {
+			border-right: 0 !important;
+			border-bottom: 1px solid var(--ink-line);
+		}
+		/* Linhas do registro de séries: 3-col grid → empilha tudo */
+		.sd-body :global(div[style*="grid-template-columns:40px 1fr 1fr"]) {
 			grid-template-columns: 36px 1fr !important;
 			row-gap: 4px;
 		}

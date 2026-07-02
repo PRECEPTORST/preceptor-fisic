@@ -62,7 +62,15 @@ export const actions: Actions = {
 				specialty: specialty.data
 			});
 		} catch (e) {
-			return fail(500, { error: (e as Error).message });
+			// Duplo submit: dois POSTs passam no check e o 2º insert estoura a
+			// unique de auth_user_id. Se o perfil já existe, é sucesso — não
+			// vaza erro cru do Postgres pro usuário.
+			const raced = await getProfessionalByAuthId(locals.user.id);
+			if (raced) {
+				return { success: true, name: raced.name };
+			}
+			logger.error({ err: String(e).slice(0, 300) }, 'onboarding.create_professional.failed');
+			return fail(500, { error: 'Não foi possível criar seu perfil. Tente de novo.' });
 		}
 
 		// Sincroniza no CRM admin — cria/atualiza lead no stage 'cadastrou'.

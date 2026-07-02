@@ -1,18 +1,22 @@
 <script lang="ts">
 	import { Button, Eyebrow } from '$lib/components/ui';
 	import { enhance } from '$app/forms';
-	import type { ActionData } from './$types';
+	import type { PageData, ActionData } from './$types';
 
-	let { form }: { form: ActionData } = $props();
+	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let password = $state('');
 	let confirm = $state('');
 	let submitting = $state(false);
 
-	// Validação da sessão de recovery é server-side: se o user chegar aqui
-	// sem token válido (hash já consumido ou link expirado), a action
-	// updateUser falha e o erro aparece no banner — sem redirect prematuro
-	// que quebraria o fluxo legítimo onde o Supabase já consumiu o hash.
+	// O load do server consome o token (?token_hash ou ?code) e cria a sessão
+	// de recovery. Se falhou, data.tokenError desabilita o form — sem sessão
+	// o updateUser da action falharia de qualquer jeito.
+	const disabled = $derived(Boolean(data.tokenError));
 </script>
+
+<svelte:head>
+	<title>Redefinir senha · Preceptor Fisic</title>
+</svelte:head>
 
 <div class="rec-shell">
 	<div class="rec-glow"></div>
@@ -43,7 +47,12 @@
 			}}
 			style="margin-top:24px"
 		>
-			{#if form?.error}
+			{#if data.tokenError}
+				<div class="err-banner">
+					⚠ {data.tokenError}
+					<a href="/recuperar" style="color:inherit">Solicitar novo link</a>
+				</div>
+			{:else if form?.error}
 				<div class="err-banner">⚠ {form.error}</div>
 			{/if}
 
@@ -60,6 +69,7 @@
 					placeholder="Mínimo 8 caracteres"
 					autocomplete="new-password"
 					autofocus
+					disabled={disabled}
 				/>
 			</div>
 
@@ -75,13 +85,14 @@
 					minlength="8"
 					placeholder="Digite de novo"
 					autocomplete="new-password"
+					disabled={disabled}
 				/>
 			</div>
 
 			<Button
 				type="submit"
 				size="lg"
-				disabled={submitting}
+				disabled={submitting || disabled}
 				style="width:100%;margin-top:18px;justify-content:center"
 			>
 				{submitting ? 'Salvando…' : 'Redefinir senha →'}

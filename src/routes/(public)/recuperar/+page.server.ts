@@ -9,13 +9,7 @@ import { fail } from '@sveltejs/kit';
 import { env } from '$env/dynamic/public';
 import { checkAndAudit } from '$lib/server/rate-limit';
 import { audit, clientFingerprint } from '$lib/server/audit';
-import type { Actions, PageServerLoad } from './$types';
-
-export const load = (async () => {
-	return {
-		appUrl: env.PUBLIC_APP_URL ?? 'https://preceptor-fisic.vercel.app'
-	};
-}) satisfies PageServerLoad;
+import type { Actions } from './$types';
 
 export const actions: Actions = {
 	default: async ({ request, locals, url, getClientAddress }) => {
@@ -34,7 +28,10 @@ export const actions: Actions = {
 			return fail(400, { email, error: 'Informe um email válido.' });
 		}
 
-		const redirectTo = `${url.origin}/recuperar/redefinir`;
+		// PUBLIC_APP_URL garante destino estável (previews/*.vercel.app não
+		// estão na allowlist de Redirect URLs do Supabase); fallback url.origin.
+		const base = env.PUBLIC_APP_URL?.replace(/\/$/, '') || url.origin;
+		const redirectTo = `${base}/recuperar/redefinir`;
 		await locals.supabase.auth.resetPasswordForEmail(email, { redirectTo });
 
 		// Audita o request (não revela se email existe ou não — sempre 'success')

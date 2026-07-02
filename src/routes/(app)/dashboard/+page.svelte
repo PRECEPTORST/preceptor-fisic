@@ -24,10 +24,13 @@
 
 	const statCards = $derived([
 		{
-			label: 'Alunos ativos',
+			// "Alunos" (não "ativos"): o contador inclui todos os não-excluídos,
+			// diferente do filtro Ativos da tela de alunos.
+			label: 'Alunos',
 			value: String(stats?.activeStudents ?? 0),
 			unit: '',
-			delta: stats?.activeStudents ? '+0' : null,
+			// Sem delta hardcoded — só exibir quando houver variação real calculada
+			delta: null,
 			deltaPositive: true,
 			spark: undefined as number[] | undefined,
 			sparkColor: 'var(--accent)'
@@ -132,6 +135,10 @@
 	const dateStr = today.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
 </script>
 
+<svelte:head>
+	<title>Dashboard · Preceptor Fisic</title>
+</svelte:head>
+
 <header class="dash-header">
 	<div>
 		<h1 class="dash-h1">Visão geral</h1>
@@ -140,11 +147,6 @@
 		</div>
 	</div>
 	<div class="dash-actions">
-		<div class="dash-search">
-			<span>⌕</span>
-			<span>Buscar aluno, exercício, plano…</span>
-			<span class="num dash-kbd">⌘K</span>
-		</div>
 		<Button onclick={() => goto('/alunos/novo')}>+ Novo aluno</Button>
 	</div>
 </header>
@@ -423,28 +425,6 @@
 		align-items: center;
 		gap: 12px;
 	}
-	.dash-search {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 0 14px;
-		height: 38px;
-		background: var(--bg-2);
-		border: 1px solid var(--ink-line);
-		border-radius: var(--r-2);
-		font: var(--body-sm);
-		color: var(--ink-2);
-		min-width: 240px;
-	}
-	.dash-kbd {
-		margin-left: auto;
-		font: var(--label-mono);
-		padding: 2px 6px;
-		background: var(--bg-3);
-		border-radius: 4px;
-		border: 1px solid var(--ink-line-2);
-	}
-
 	.dash-main {
 		padding: 32px;
 		display: flex;
@@ -574,9 +554,6 @@
 		.dash-actions {
 			width: 100%;
 			gap: 8px;
-		}
-		.dash-search {
-			display: none; /* removido em mobile — usa search dedicado depois */
 		}
 		.dash-actions :global(.pf-btn) {
 			flex: 1;

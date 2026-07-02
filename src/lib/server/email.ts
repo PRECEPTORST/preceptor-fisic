@@ -15,6 +15,7 @@ import { env } from '$env/dynamic/private';
 import { env as pubEnv } from '$env/dynamic/public';
 import { logger } from './logger';
 import { signStudentToken } from './aluno-token';
+import { APP_TZ } from './tz';
 
 const RESEND_API_KEY = env.RESEND_API_KEY;
 const FROM = env.RESEND_FROM ?? 'Preceptor Fisic <onboarding@resend.dev>';
@@ -59,8 +60,19 @@ async function send(opts: {
 	}
 }
 
-const APP_URL =
-	pubEnv.PUBLIC_APP_URL?.replace(/\/$/, '') ?? 'https://preceptor-fisic.vercel.app';
+const APP_URL = pubEnv.PUBLIC_APP_URL?.replace(/\/$/, '') ?? 'https://preceptor-fisic.vercel.app';
+
+// Escape de HTML pra TODO dado de usuário interpolado nos templates —
+// sem isso, nome de aluno/profissional vira vetor de injeção de HTML
+// (phishing enviado pelo nosso domínio verificado no Resend).
+function escapeHtml(s: string): string {
+	return String(s)
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
+}
 
 const baseTemplate = (heading: string, body: string, ctaUrl?: string, ctaLabel?: string) => `
 <!DOCTYPE html>
@@ -110,11 +122,12 @@ export async function sendStudentMagicLink(opts: {
 	professionalName: string;
 	magicLinkUrl: string;
 }): Promise<EmailResult> {
-	const firstName = opts.studentName.split(' ')[0] || 'aluno';
+	const firstName = escapeHtml(opts.studentName.split(' ')[0] || 'aluno');
+	const professionalName = escapeHtml(opts.professionalName);
 	const subject = `${opts.professionalName} liberou seu acesso ao Preceptor Fisic`;
 	const body = `
 <p style="margin:0 0 14px;">Olá <strong style="color:#fafafa;">${firstName}</strong>,</p>
-<p style="margin:0 0 14px;"><strong style="color:#fafafa;">${opts.professionalName}</strong> cadastrou você no Preceptor Fisic — sua plataforma pra acompanhar treinos prescritos.</p>
+<p style="margin:0 0 14px;"><strong style="color:#fafafa;">${professionalName}</strong> cadastrou você no Preceptor Fisic — sua plataforma pra acompanhar treinos prescritos.</p>
 <p style="margin:0;">Clique no botão abaixo pra abrir seu app no celular. <strong style="color:#fafafa;">Não precisa criar conta nem baixar nada</strong>: o link é seu acesso direto.</p>
 `;
 	return send({
@@ -136,11 +149,12 @@ export async function sendStudentFillLink(opts: {
 	professionalName: string;
 	fillUrl: string;
 }): Promise<EmailResult> {
-	const firstName = opts.studentName.split(' ')[0] || 'aluno';
+	const firstName = escapeHtml(opts.studentName.split(' ')[0] || 'aluno');
+	const professionalName = escapeHtml(opts.professionalName);
 	const subject = `${opts.professionalName} pediu pra você completar seu cadastro`;
 	const body = `
 <p style="margin:0 0 14px;">Olá <strong style="color:#fafafa;">${firstName}</strong>,</p>
-<p style="margin:0 0 14px;"><strong style="color:#fafafa;">${opts.professionalName}</strong> começou seu cadastro no Preceptor Fisic. Pra montar seus treinos sob medida, falta você preencher alguns dados.</p>
+<p style="margin:0 0 14px;"><strong style="color:#fafafa;">${professionalName}</strong> começou seu cadastro no Preceptor Fisic. Pra montar seus treinos sob medida, falta você preencher alguns dados.</p>
 <p style="margin:0;">Leva 2 minutos. <strong style="color:#fafafa;">Não precisa criar conta nem baixar nada</strong> — é só clicar.</p>
 `;
 	return send({
@@ -159,7 +173,7 @@ export async function sendProfessionalWelcome(opts: {
 	to: string;
 	name: string;
 }): Promise<EmailResult> {
-	const firstName = opts.name.split(' ')[0] || 'profissional';
+	const firstName = escapeHtml(opts.name.split(' ')[0] || 'profissional');
 	const subject = 'Bem-vindo(a) ao Preceptor Fisic';
 	const body = `
 <p style="margin:0 0 14px;">Olá <strong style="color:#fafafa;">${firstName}</strong>,</p>
@@ -169,13 +183,18 @@ export async function sendProfessionalWelcome(opts: {
 	return send({
 		to: opts.to,
 		subject,
-		html: baseTemplate('Bem-vindo a bordo.', body, `${APP_URL}/alunos/novo`, 'Cadastrar primeiro aluno →'),
+		html: baseTemplate(
+			'Bem-vindo a bordo.',
+			body,
+			`${APP_URL}/alunos/novo`,
+			'Cadastrar primeiro aluno →'
+		),
 		tag: 'professional.welcome'
 	});
 }
 
 /**
- * Notifica aluno sobre novo agendamento.
+ * Notifica aluno sobre agendamento (novo, remarcado ou cancelado).
  */
 export async function sendAppointmentNotification(opts: {
 	to: string;
@@ -186,16 +205,23 @@ export async function sendAppointmentNotification(opts: {
 	type: string;
 	label?: string | null;
 	studentId: string;
+	/** 'agendada' (default) | 'remarcada' | 'cancelada' — muda assunto e corpo. */
+	variant?: 'agendada' | 'remarcada' | 'cancelada';
 }): Promise<EmailResult> {
-	const firstName = opts.studentName.split(' ')[0] || 'aluno';
+	const variant = opts.variant ?? 'agendada';
+	const firstName = escapeHtml(opts.studentName.split(' ')[0] || 'aluno');
+	// timeZone explícito: o server (Vercel) roda em UTC — sem isso o email
+	// sairia com o horário deslocado em 3h pro aluno.
 	const dateStr = opts.startsAt.toLocaleDateString('pt-BR', {
 		weekday: 'long',
 		day: '2-digit',
-		month: 'long'
+		month: 'long',
+		timeZone: APP_TZ
 	});
 	const timeStr = opts.startsAt.toLocaleTimeString('pt-BR', {
 		hour: '2-digit',
-		minute: '2-digit'
+		minute: '2-digit',
+		timeZone: APP_TZ
 	});
 	const typeLabel: Record<string, string> = {
 		treino: 'Sessão de treino',
@@ -204,22 +230,42 @@ export async function sendAppointmentNotification(opts: {
 		consulta: 'Consulta'
 	};
 	const sessionLabel = opts.label ?? typeLabel[opts.type] ?? 'Sessão';
-	const subject = `${sessionLabel} agendada · ${dateStr.split(',')[0]} ${timeStr}`;
+	const safeLabel = escapeHtml(sessionLabel);
+	const professionalName = escapeHtml(opts.professionalName);
+	const action: Record<typeof variant, { subj: string; lead: string; foot: string }> = {
+		agendada: {
+			subj: 'agendada',
+			lead: 'agendou uma sessão pra você.',
+			foot: 'Confira seu treino completo no app.'
+		},
+		remarcada: {
+			subj: 'remarcada',
+			lead: 'remarcou sua sessão. Novo horário:',
+			foot: 'Se o novo horário não funcionar pra você, avise seu treinador.'
+		},
+		cancelada: {
+			subj: 'cancelada',
+			lead: 'cancelou a sessão abaixo.',
+			foot: 'Qualquer dúvida, fale com seu treinador pelo app.'
+		}
+	};
+	const a = action[variant];
+	const subject = `${sessionLabel} ${a.subj} · ${dateStr.split(',')[0]} ${timeStr}`;
 	const body = `
 <p style="margin:0 0 14px;">Olá <strong style="color:#fafafa;">${firstName}</strong>,</p>
-<p style="margin:0 0 14px;"><strong style="color:#fafafa;">${opts.professionalName}</strong> agendou uma sessão pra você.</p>
-<div style="margin:18px 0;padding:14px 18px;background:#0a0a0a;border:1px solid #2a2a2a;border-radius:8px;">
-  <div style="font:500 11px monospace;color:#7a7a7a;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">${sessionLabel}</div>
+<p style="margin:0 0 14px;"><strong style="color:#fafafa;">${professionalName}</strong> ${a.lead}</p>
+<div style="margin:18px 0;padding:14px 18px;background:#0a0a0a;border:1px solid #2a2a2a;border-radius:8px;${variant === 'cancelada' ? 'opacity:.75;' : ''}">
+  <div style="font:500 11px monospace;color:#7a7a7a;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">${safeLabel}${variant === 'cancelada' ? ' · CANCELADA' : ''}</div>
   <div style="font:500 16px sans-serif;color:#fafafa;margin-bottom:4px;">${dateStr} · ${timeStr}</div>
   <div style="font:400 13px sans-serif;color:#b8b8b8;">${opts.durationMinutes} minutos</div>
 </div>
-<p style="margin:0;">Confira seu treino completo no app.</p>
+<p style="margin:0;">${a.foot}</p>
 `;
 	return send({
 		to: opts.to,
 		subject,
 		html: baseTemplate(
-			'Sessão agendada.',
+			`Sessão ${a.subj}.`,
 			body,
 			// Link do app do aluno é token-gated: sem ?t=, o /a/[id] responde 403.
 			`${APP_URL}/a/${opts.studentId}?t=${signStudentToken(opts.studentId)}`,
@@ -238,11 +284,12 @@ export async function sendPlanReady(opts: {
 	studentName: string;
 	planId: string;
 }): Promise<EmailResult> {
-	const firstName = opts.professionalName.split(' ')[0];
+	const firstName = escapeHtml(opts.professionalName.split(' ')[0] || 'profissional');
+	const studentName = escapeHtml(opts.studentName);
 	const subject = `Plano de ${opts.studentName} está pronto`;
 	const body = `
 <p style="margin:0 0 14px;">Olá <strong style="color:#fafafa;">${firstName}</strong>,</p>
-<p style="margin:0 0 14px;">O PreceptorFISIC terminou de gerar o plano clínico de <strong style="color:#fafafa;">${opts.studentName}</strong> com fundamentação em diretrizes.</p>
+<p style="margin:0 0 14px;">O PreceptorFISIC terminou de gerar o plano clínico de <strong style="color:#fafafa;">${studentName}</strong> com fundamentação em diretrizes.</p>
 <p style="margin:0;">Revise as restrições, valide a prescrição e publique pro aluno acessar pelo app.</p>
 `;
 	return send({

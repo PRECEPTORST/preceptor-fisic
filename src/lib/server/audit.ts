@@ -24,6 +24,8 @@ export type AuditAction =
 	| 'plan.create'
 	| 'plan.publish'
 	| 'plan.archive'
+	| 'plan.unarchive'
+	| 'plan.restriction_override'
 	| 'plan.delete'
 	| 'plan.rate_limited'
 	| 'professional.create'
@@ -66,10 +68,7 @@ export async function audit(opts: AuditOpts): Promise<void> {
 			correlationId: opts.correlationId ?? null
 		});
 	} catch (err) {
-		logger.error(
-			{ err: String(err).slice(0, 200), action: opts.action },
-			'audit.write_failed'
-		);
+		logger.error({ err: String(err).slice(0, 200), action: opts.action }, 'audit.write_failed');
 	}
 }
 

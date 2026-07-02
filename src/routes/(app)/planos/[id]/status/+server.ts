@@ -34,9 +34,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			updatedAt: trainingPlans.updatedAt
 		})
 		.from(trainingPlans)
-		.where(
-			and(eq(trainingPlans.id, params.id!), eq(trainingPlans.professionalId, professional.id))
-		)
+		.where(and(eq(trainingPlans.id, params.id!), eq(trainingPlans.professionalId, professional.id)))
 		.limit(1);
 
 	if (!row) error(404, 'plano não encontrado');

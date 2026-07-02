@@ -26,7 +26,8 @@ export const actions: Actions = {
 		const fd = await request.formData();
 		const name = String(fd.get('name') ?? '').trim();
 		const muscleGroup = String(fd.get('muscleGroup') ?? '').trim();
-		if (!name || !muscleGroup) return fail(400, { error: 'nome e grupo muscular são obrigatórios' });
+		if (!name || !muscleGroup)
+			return fail(400, { error: 'nome e grupo muscular são obrigatórios' });
 
 		const contraindications = String(fd.get('contraindications') ?? '')
 			.split(/[,\n;]+/)
@@ -36,13 +37,15 @@ export const actions: Actions = {
 		await updateExercise({
 			exerciseId: params.id!,
 			professionalId: professional.id,
-			code: String(fd.get('code') ?? '').trim() || undefined,
+			// null (não undefined) permite LIMPAR o campo na edição — undefined
+			// faz o Drizzle pular a coluna e o valor antigo nunca sai.
+			code: String(fd.get('code') ?? '').trim() || null,
 			name,
 			muscleGroup,
-			equipment: String(fd.get('equipment') ?? '').trim() || undefined,
-			level: String(fd.get('level') ?? '').trim() || undefined,
-			pattern: String(fd.get('pattern') ?? '').trim() || undefined,
-			executionNotes: String(fd.get('executionNotes') ?? '').trim() || undefined,
+			equipment: String(fd.get('equipment') ?? '').trim() || null,
+			level: String(fd.get('level') ?? '').trim() || null,
+			pattern: String(fd.get('pattern') ?? '').trim() || null,
+			executionNotes: String(fd.get('executionNotes') ?? '').trim() || null,
 			contraindications
 		});
 

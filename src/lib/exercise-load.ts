@@ -17,9 +17,13 @@
  */
 export type ExerciseKind = 'weight' | 'bodyweight' | 'time';
 
-const TIME_REGEX = /\b(prancha|isometr|isometric|plank|caminha|caminhad|corrida|bicicleta|el[íi]ptic|ergom[ée]tr|esteira|step ?mill|skierg|ski erg|cardio|aer[óo]bic|jumping ?jack|polichinelo)\b/i;
+// Sem \b no fim: sufixos PT ("Caminhada", "Elíptico", "aeróbica") quebravam
+// o match com fronteira final — usa raízes (caminh|corrid|isometr...).
+const TIME_REGEX =
+	/\b(prancha|isometr|plank|caminh|corrid|bicicleta|el[íi]ptic|ergom[ée]tr|esteira|transport|step ?mill|skierg|ski erg|cardio|aer[óo]bic|jumping ?jack|polichinelo)/i;
 const BODYWEIGHT_EQUIP_REGEX = /^body ?weight$/i;
-const BODYWEIGHT_NAME_REGEX = /\b(flex[ãa]o de bra[çc]o|push.?up|burpee|prancha|abdominal|sit.?up|barra fixa|pull.?up|chin.?up|mergulho|dip|salto|jumping ?jack|polichinelo|agachamento livre sem|airSquat|air ?squat|crunch)\b/i;
+const BODYWEIGHT_NAME_REGEX =
+	/\b(flex[ãa]o de bra[çc]o|push.?up|burpee|prancha|abdominal|sit.?up|barra fixa|pull.?up|chin.?up|mergulho|dip|salto|jumping ?jack|polichinelo|agachamento livre sem|airSquat|air ?squat|crunch)\b/i;
 
 export type ClassifyInput = {
 	name?: string | null;

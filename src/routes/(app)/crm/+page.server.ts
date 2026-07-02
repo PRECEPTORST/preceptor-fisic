@@ -94,7 +94,7 @@ export const actions: Actions = {
 		const corpus = all
 			.map(
 				(f, i) =>
-					`${i + 1}. [${f.category}]${f.page ? ` (em: ${f.page})` : ''} — ${f.authorName ?? 'anônimo'}: ${f.message}`
+					`${i + 1}. [${f.category}]${f.page ? ` (em: ${f.page.slice(0, 200)})` : ''} — ${f.authorName ?? 'anônimo'}: ${f.message}`
 			)
 			.join('\n');
 
@@ -106,7 +106,12 @@ export const actions: Actions = {
 				prompt: `Abaixo estão ${all.length} feedbacks dos beta testers. Gere um resumo executivo curto com estas seções:\n\n1. **Temas principais** — agrupe feedbacks parecidos e diga quantos mencionaram cada tema.\n2. **Bugs reportados** — lista priorizada por gravidade/frequência.\n3. **Sugestões mais pedidas**.\n4. **Top 3 ações recomendadas** pra próxima sprint.\n\nNão invente nada que não esteja nos feedbacks.\n\nFEEDBACKS:\n${corpus}`,
 				abortSignal: AbortSignal.timeout(60_000)
 			});
-			return { success: true, action: 'summarizeFeedback', summary: text, summarizedCount: all.length };
+			return {
+				success: true,
+				action: 'summarizeFeedback',
+				summary: text,
+				summarizedCount: all.length
+			};
 		} catch (err) {
 			return fail(500, { error: 'Falha ao gerar resumo: ' + String(err).slice(0, 150) });
 		}

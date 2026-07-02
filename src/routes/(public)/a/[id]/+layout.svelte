@@ -1,7 +1,21 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { page } from '$app/state';
 	let { children }: { children: Snippet } = $props();
+
+	// Manifest PWA do aluno (start_url = link tokenizado) — substitui o
+	// global de app.html, cujo start_url /dashboard mandava o aluno pro login.
+	const token = $derived(page.url.searchParams.get('t'));
+	const manifestHref = $derived(
+		token ? `/a/${page.params.id}/manifest.webmanifest?t=${token}` : null
+	);
 </script>
+
+<svelte:head>
+	{#if manifestHref}
+		<link rel="manifest" href={manifestHref} />
+	{/if}
+</svelte:head>
 
 <div class="aluno-shell">
 	<div class="aluno-frame">

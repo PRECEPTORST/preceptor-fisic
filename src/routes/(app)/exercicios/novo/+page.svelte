@@ -18,6 +18,10 @@
 	let submitting = $state(false);
 </script>
 
+<svelte:head>
+	<title>Novo exercício · Preceptor Fisic</title>
+</svelte:head>
+
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">
 	<header
 		style="display:flex;align-items:center;gap:16px;padding:20px 32px;border-bottom:1px solid var(--ink-line);background:var(--bg-1);position:sticky;top:0;z-index:10"

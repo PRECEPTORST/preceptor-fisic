@@ -79,17 +79,31 @@ function buildQueryText(q: RetrievalQuery): string {
 }
 
 async function embedQuery(text: string): Promise<number[]> {
-	const { embedding } = await embed({
-		model: google.textEmbeddingModel(EMBED_MODEL),
-		value: text,
-		// Embed costuma ser <2s. Abort em 20s pra impedir que o RAG trave a
-		// função e consuma o orçamento de tempo sem nem chegar na geração.
-		abortSignal: AbortSignal.timeout(20_000),
-		providerOptions: {
-			google: { outputDimensionality: EMBED_DIMS, taskType: 'RETRIEVAL_QUERY' }
+	// 1 retry com backoff curto — 429/erro transitório do embedding é comum e
+	// não deve custar a geração (o caller ainda degrada pra contexto vazio).
+	let lastErr: unknown;
+	for (let attempt = 0; attempt < 2; attempt++) {
+		try {
+			const { embedding } = await embed({
+				model: google.textEmbeddingModel(EMBED_MODEL),
+				value: text,
+				// Embed costuma ser <2s. Abort em 20s pra impedir que o RAG trave a
+				// função e consuma o orçamento de tempo sem nem chegar na geração.
+				abortSignal: AbortSignal.timeout(20_000),
+				providerOptions: {
+					google: { outputDimensionality: EMBED_DIMS, taskType: 'RETRIEVAL_QUERY' }
+				}
+			});
+			return embedding;
+		} catch (err) {
+			lastErr = err;
+			if (attempt === 0) {
+				logger.warn({ err: String(err).slice(0, 200) }, 'rag.embed.retrying');
+				await new Promise((r) => setTimeout(r, 1500));
+			}
 		}
-	});
-	return embedding;
+	}
+	throw lastErr;
 }
 
 type ChunkRow = {
@@ -162,7 +176,8 @@ export async function retrieveRelevantChunks(q: RetrievalQuery): Promise<Retriev
 	// Fase 1: filtrada por tag (se houver)
 	let taggedRows: ChunkRow[] = [];
 	if (q.conditionTags.length > 0) {
-		const arrayLiteral = '{' + q.conditionTags.map((t) => `"${t.replace(/"/g, '\\"')}"`).join(',') + '}';
+		const arrayLiteral =
+			'{' + q.conditionTags.map((t) => `"${t.replace(/"/g, '\\"')}"`).join(',') + '}';
 		const tagFilter = sqlOp`ks.population_tags ?| ${arrayLiteral}::text[]`;
 		taggedRows = await vectorSearch(embeddingLiteral, tagFilter, k * 2);
 	}

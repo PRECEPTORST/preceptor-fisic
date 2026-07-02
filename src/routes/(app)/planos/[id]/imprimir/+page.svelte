@@ -15,23 +15,34 @@
 
 	const age = $derived.by(() => {
 		if (!student?.birthDate) return null;
-		const b = new Date(student.birthDate);
+		// birthDate é coluna `date` (string 'YYYY-MM-DD') — parse local, sem
+		// new Date(string) que interpreta UTC e erra no dia do aniversário.
+		const [by, bm, bd] = String(student.birthDate).split('-').map(Number);
+		if (!by || !bm || !bd) return null;
 		const now = new Date();
-		let a = now.getFullYear() - b.getFullYear();
-		const m = now.getMonth() - b.getMonth();
-		if (m < 0 || (m === 0 && now.getDate() < b.getDate())) a--;
+		let a = now.getFullYear() - by;
+		if (now.getMonth() + 1 < bm || (now.getMonth() + 1 === bm && now.getDate() < bd)) a--;
 		return a;
 	});
 
 	function fmtDate(d: Date | string | null | undefined): string {
 		if (!d) return '—';
+		// String date-only ('YYYY-MM-DD') formata direto — new Date() parsearia
+		// como meia-noite UTC e imprimiria 1 dia a menos no fuso do Brasil.
+		if (typeof d === 'string') {
+			const m = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+			if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+		}
 		return new Date(d).toLocaleDateString('pt-BR');
 	}
 
 	// ── Período do programa ──
+	// Sem program_weeks definido pela IA, não fabrica "16 semanas" no documento.
 	const startDate = $derived(new Date(plan.publishedAt ?? plan.createdAt));
-	const programWeeks = $derived(planData.program_weeks ?? 16);
-	const endDate = $derived(new Date(startDate.getTime() + programWeeks * 7 * 86_400_000));
+	const programWeeks = $derived(planData.program_weeks ?? null);
+	const endDate = $derived(
+		programWeeks ? new Date(startDate.getTime() + programWeeks * 7 * 86_400_000) : null
+	);
 
 	// ── Objetivo (capa) ──
 	const GOAL_LABELS: Record<string, string> = {
@@ -216,7 +227,13 @@
 
 		<section class="cover-block">
 			<div class="cover-lbl">Período de realização do programa</div>
-			<div class="cover-val small">{fmtDate(startDate)} a {fmtDate(endDate)} ({programWeeks} semanas)</div>
+			<div class="cover-val small">
+				{#if programWeeks && endDate}
+					{fmtDate(startDate)} a {fmtDate(endDate)} ({programWeeks} semanas)
+				{:else}
+					Início em {fmtDate(startDate)} · término a definir pelo profissional
+				{/if}
+			</div>
 		</section>
 
 		{@render signature()}

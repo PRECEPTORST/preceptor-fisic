@@ -1,9 +1,12 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { eq } from 'drizzle-orm';
 import {
 	getStudentDetail,
 	getProfessionalByAuthId,
 	countPlansGeneratedRecent
 } from '$lib/server/queries';
+import { db } from '$lib/server/db';
+import { trainingPreferences } from '$lib/server/db/schema';
 import { createPlanPlaceholder, generateTrainingPlanInBackground } from '$lib/server/ai/generator';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -19,6 +22,21 @@ export const config = {
 // Protege quota Gemini de abuse (loop, retries em UI bug, etc.) e limita custo.
 const RATE_LIMIT_PLANS = 5;
 const RATE_LIMIT_WINDOW_MIN = 5;
+
+// Valores de equipamento aceitos — mesmos termos EN do exercise_catalog
+// (o filtro do generator faz match por substring nesses termos).
+const EQUIPMENT_VALUES = [
+	'body weight',
+	'dumbbell',
+	'barbell',
+	'band',
+	'kettlebell',
+	'cable',
+	'leverage machine',
+	'smith machine',
+	'stability ball',
+	'bench'
+];
 
 export const load = (async ({ params, parent }) => {
 	const { professional } = await parent();
@@ -37,6 +55,12 @@ export const actions: Actions = {
 		const professional = await getProfessionalByAuthId(locals.user.id);
 		if (!professional) return fail(401, { error: 'professional não encontrado' });
 
+		// Ownership + soft-delete: sem essa guarda um POST direto criaria
+		// placeholder de plano apontando pra aluno de outro professional
+		// (ou deletado) — getStudentDetail já filtra os dois casos.
+		const detail = await getStudentDetail(params.id!, professional.id);
+		if (!detail) return fail(404, { error: 'aluno não encontrado' });
+
 		// Rate limit check ANTES de criar placeholder ou chamar IA
 		const recent = await countPlansGeneratedRecent(professional.id, RATE_LIMIT_WINDOW_MIN);
 		if (recent >= RATE_LIMIT_PLANS) {
@@ -48,7 +72,33 @@ export const actions: Actions = {
 		}
 
 		const data = await request.formData();
-		const notes = String(data.get('notes') ?? '').slice(0, 2000) || undefined;
+		// Sem truncamento silencioso: as notas alimentam prescrição clínica —
+		// cortar o final (onde costuma estar a restrição) é perigoso.
+		const rawNotes = String(data.get('notes') ?? '').trim();
+		if (rawNotes.length > 2000) {
+			return fail(400, {
+				error: 'Observações muito longas (máximo 2000 caracteres). Resuma o texto antes de gerar.'
+			});
+		}
+		const notes = rawNotes || undefined;
+
+		// Equipamento disponível: persiste ANTES de disparar a geração — o
+		// generator lê training_preferences.equipment_available pra filtrar
+		// o catálogo enviado à IA.
+		const equipment = data
+			.getAll('equipment')
+			.map(String)
+			.filter((v) => EQUIPMENT_VALUES.includes(v));
+		if (detail.preferences) {
+			await db
+				.update(trainingPreferences)
+				.set({ equipmentAvailable: equipment, updatedAt: new Date() })
+				.where(eq(trainingPreferences.studentId, params.id!));
+		} else {
+			await db
+				.insert(trainingPreferences)
+				.values({ studentId: params.id!, equipmentAvailable: equipment });
+		}
 
 		const planId = await createPlanPlaceholder(params.id!, professional.id);
 

@@ -35,6 +35,14 @@
 		outro: 'var(--ink-3)'
 	};
 
+	// Resumo IA vem em markdown leve. Renderização mínima e segura: escapa
+	// TUDO primeiro e só então converte **x** → <strong> (quebras de linha
+	// ficam por conta do pre-wrap). Nada de innerHTML cru.
+	function renderSummary(md: string): string {
+		const esc = md.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		return esc.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+	}
+
 	type View = 'kanban' | 'tabela';
 	let view = $state<View>('kanban');
 
@@ -426,7 +434,7 @@
 				<div style="font:500 12px var(--font-mono);text-transform:uppercase;letter-spacing:0.05em;color:var(--accent);margin-bottom:10px">
 					Resumo por IA{fbSummaryCount ? ` · ${fbSummaryCount} feedbacks` : ''}
 				</div>
-				<div style="font:400 14px var(--font-sans);color:var(--ink-1);line-height:1.6;white-space:pre-wrap">{fbSummary}</div>
+				<div style="font:400 14px var(--font-sans);color:var(--ink-1);line-height:1.6;white-space:pre-wrap">{@html renderSummary(fbSummary)}</div>
 			</div>
 		{/if}
 

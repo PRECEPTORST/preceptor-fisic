@@ -34,7 +34,11 @@ export const actions: Actions = {
 				payload: { ok: false, email: email.slice(0, 80), reason: error.message },
 				...fp
 			});
-			return fail(401, { email, error: error.message });
+			// Mensagem PT-BR — error.message cru (inglês) fica só no audit.
+			const msg = error.message.includes('Invalid login credentials')
+				? 'Email ou senha incorretos.'
+				: 'Não foi possível entrar. Tente novamente.';
+			return fail(401, { email, error: msg });
 		}
 
 		audit({
@@ -45,7 +49,13 @@ export const actions: Actions = {
 			...fp
 		});
 
-		redirect(303, '/dashboard');
+		// Deep link preservado pelo authGuard (?next=) — só paths internos.
+		const nextRaw = String(data.get('next') ?? '');
+		const dest =
+			nextRaw.startsWith('/') && !nextRaw.startsWith('//') && !nextRaw.startsWith('/\\')
+				? nextRaw
+				: '/dashboard';
+		redirect(303, dest);
 	},
 
 	signup: async ({ request, locals, getClientAddress }) => {
@@ -104,7 +114,11 @@ export const actions: Actions = {
 				payload: { ok: false, email: email.slice(0, 80), reason: error.message },
 				...fp
 			});
-			return fail(400, { email, error: error.message });
+			// Mensagem PT-BR — error.message cru (inglês) fica só no audit.
+			const msg = error.message.includes('already registered')
+				? 'Este email já está cadastrado. Use "Entrar" ou recupere a senha.'
+				: 'Não foi possível criar a conta. Tente novamente.';
+			return fail(400, { email, error: msg });
 		}
 
 		audit({
@@ -130,7 +144,6 @@ export const actions: Actions = {
 				// orienta a entrar manualmente (sem mencionar confirmação).
 				return {
 					success: true,
-					confirmEmail: false,
 					email,
 					message: 'Conta criada! Faça login com seu email e senha.'
 				};

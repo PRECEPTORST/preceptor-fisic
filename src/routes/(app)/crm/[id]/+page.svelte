@@ -29,6 +29,13 @@
 	let saving = $state(false);
 	let confirmingDelete = $state(false);
 
+	// wa.me exige formato internacional: número BR local (10-11 dígitos,
+	// DDD+número) ganha prefixo 55; já-internacional passa direto.
+	function waPhone(phone: string): string {
+		const digits = phone.replace(/\D/g, '');
+		return digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
+	}
+
 	// Bind local form state pro stage atual (controla visibilidade do lostReason)
 	let stage = $state<LeadStage>(lead.stage);
 	$effect(() => {
@@ -75,13 +82,6 @@
 				</span>
 				<span style="font:var(--label-mono);color:var(--ink-3)">Criado em {fmtDate(lead.createdAt)}</span>
 			</div>
-		</div>
-		<div class="hdr-actions">
-			{#if lead.subjectProfessionalId}
-				<Button variant="secondary" onclick={() => goto(`/admin/users/${lead.subjectProfessionalId}`)}>
-					Ver perfil →
-				</Button>
-			{/if}
 		</div>
 	</header>
 
@@ -186,7 +186,7 @@
 					{#if lead.phone}
 						<a
 							class="quick-action"
-							href="https://wa.me/{lead.phone.replace(/\D/g, '')}"
+							href="https://wa.me/{waPhone(lead.phone)}"
 							target="_blank"
 							rel="noopener"
 						>
@@ -243,7 +243,7 @@
 									Usuário da plataforma
 								</div>
 								<div style="font:var(--label-mono);color:var(--ink-3);margin-top:2px">
-									Sincronizado com /professionals
+									Cadastro vinculado à plataforma
 								</div>
 							</div>
 						</div>

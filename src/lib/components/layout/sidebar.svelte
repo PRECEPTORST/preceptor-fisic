@@ -14,7 +14,6 @@
 
 	type Props = {
 		showUser?: boolean;
-		showSearch?: boolean;
 		showBadges?: boolean;
 		dense?: boolean;
 		accentLogo?: boolean;
@@ -28,7 +27,6 @@
 
 	let {
 		showUser = true,
-		showSearch = true,
 		showBadges = true,
 		dense = false,
 		accentLogo = true,
@@ -74,8 +72,7 @@
 	]);
 	const NAV_FOOTER: NavItem[] = [
 		{ id: 'feedback', label: 'Feedback', icon: 'feedback', href: '/feedback' },
-		{ id: 'config', label: 'Configurações', icon: 'config', href: '/configuracoes' },
-		{ id: 'logout', label: 'Sair', icon: 'logout', href: '/logout' }
+		{ id: 'config', label: 'Configurações', icon: 'config', href: '/configuracoes' }
 	];
 
 	const isActive = (href: string) => {
@@ -102,19 +99,6 @@
 			</div>
 		</div>
 	</a>
-
-	{#if showSearch}
-		<div style="position:relative;margin-bottom:14px;padding:0 4px">
-			<div class="pf-search">
-				<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<circle cx="11" cy="11" r="7" />
-					<path d="M21 21l-4.5-4.5" />
-				</svg>
-				<input placeholder="Buscar aluno, plano…" />
-				<span class="pf-search__kbd">⌘K</span>
-			</div>
-		</div>
-	{/if}
 
 	<div class="pf-sidebar__section">Workspace</div>
 	<nav class="pf-sidebar__nav">
@@ -148,6 +132,16 @@
 				<span style="flex:1">{it.label}</span>
 			</a>
 		{/each}
+		<!-- Logout via POST (anti-CSRF) — GET /logout foi removido -->
+		<form method="POST" action="/logout" style="display:contents">
+			<button class="pf-navitem" type="submit" style="width:100%">
+				<span class="pf-navitem__indicator"></span>
+				<span class="pf-navitem__icon">
+					<NavIcon name="logout" size={18} />
+				</span>
+				<span style="flex:1">Sair</span>
+			</button>
+		</form>
 	</nav>
 
 	{#if showUser}
@@ -220,34 +214,6 @@
 		box-shadow:
 			0 0 0 1px rgba(167, 139, 250, 0.25),
 			var(--glow-accent);
-	}
-	.pf-search {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		height: 32px;
-		padding: 0 10px;
-		background: var(--bg-2);
-		border: 1px solid var(--ink-line);
-		border-radius: var(--r-2);
-	}
-	.pf-search input {
-		flex: 1;
-		background: transparent;
-		border: 0;
-		outline: none;
-		font: 400 12.5px var(--font-sans);
-		color: var(--ink-1);
-	}
-	.pf-search input::placeholder {
-		color: var(--ink-3);
-	}
-	.pf-search__kbd {
-		font: 500 9.5px var(--font-mono);
-		color: var(--ink-3);
-		padding: 2px 5px;
-		border: 1px solid var(--ink-line);
-		border-radius: 4px;
 	}
 	.pf-sidebar__section {
 		font: 500 9.5px var(--font-mono);

@@ -68,7 +68,7 @@
 			href: '/exercicios',
 			icon: '◇',
 			title: 'Explore o catálogo',
-			desc: 'Mais de 500 exercícios indexados por grupo muscular.'
+			desc: '1.324 exercícios com vídeo, indexados por grupo muscular.'
 		},
 		{
 			href: '/dashboard',
@@ -82,6 +82,10 @@
 		if (step === 2) step = 1;
 	}
 </script>
+
+<svelte:head>
+	<title>Bem-vindo · Preceptor Fisic</title>
+</svelte:head>
 
 <div class="onb-shell">
 	<div class="onb-glow"></div>

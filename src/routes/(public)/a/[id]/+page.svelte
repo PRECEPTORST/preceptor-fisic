@@ -84,14 +84,35 @@
 	const weekday = today.toLocaleDateString('pt-BR', { weekday: 'long' });
 	const dateStr = today.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
 
+	// getDay() → chave day_of_week do plano (0=dom … 6=sab).
+	const DOW_KEYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'] as const;
+	const DOW_LABELS: Record<string, string> = {
+		dom: 'domingo', seg: 'segunda', ter: 'terça', qua: 'quarta',
+		qui: 'quinta', sex: 'sexta', sab: 'sábado'
+	};
+	const hasDow = $derived(sessions.some((s) => s.day_of_week));
+
 	const todaySessionIdx = $derived.by(() => {
-		// Heurística: pega a próxima sessão na ordem (mod 7)
-		// Em produção: olharia day_of_week e calendário
 		if (sessions.length === 0) return -1;
-		const dow = today.getDay();
-		return dow % sessions.length;
+		// Grade real do plano: sessão marcada pro dia de hoje (-1 = descanso).
+		if (hasDow) return sessions.findIndex((s) => s.day_of_week === DOW_KEYS[today.getDay()]!);
+		// Fallback (planos antigos sem day_of_week): rotação pelo dia da semana.
+		return today.getDay() % sessions.length;
 	});
 	const todaySession = $derived(todaySessionIdx >= 0 ? sessions[todaySessionIdx] : null);
+
+	// Dia de descanso (grade com day_of_week, nada hoje): acha o próximo
+	// treino a partir de amanhã pra mostrar no card no lugar do "hoje".
+	const nextSessionIdx = $derived.by(() => {
+		if (!hasDow || todaySessionIdx >= 0) return -1;
+		for (let k = 1; k <= 7; k++) {
+			const key = DOW_KEYS[(today.getDay() + k) % 7]!;
+			const i = sessions.findIndex((s) => s.day_of_week === key);
+			if (i >= 0) return i;
+		}
+		return -1;
+	});
+	const nextSession = $derived(nextSessionIdx >= 0 ? sessions[nextSessionIdx] : null);
 	const exerciseCount = $derived(todaySession ? (todaySession.main?.length ?? 0) : 0);
 
 	// Thumbnails dos primeiros exercícios da sessão de hoje — só os que
@@ -187,6 +208,22 @@
 					</button>
 				</div>
 			</div>
+		{:else if nextSession}
+			<!-- Dia de descanso — grade day_of_week sem sessão hoje -->
+			<div class="hero-card-wrap">
+				<div class="hero-card">
+					<div class="eyebrow" style="margin-bottom:8px">○ Hoje é descanso</div>
+					<div style="font:500 24px var(--font-sans);letter-spacing:-0.02em;margin-bottom:4px">
+						Sem treino hoje
+					</div>
+					<div style="font:var(--body-sm);color:var(--ink-2);margin-bottom:18px">
+						Próximo treino: {nextSession.label ?? 'Sessão'}{nextSession.day_of_week ? ` · ${DOW_LABELS[nextSession.day_of_week]}` : ''}
+					</div>
+					<button class="cta" onclick={() => goto(`/a/${student.id}/treino/${nextSessionIdx}${tq}`)}>
+						Ver próximo treino →
+					</button>
+				</div>
+			</div>
 		{/if}
 
 		<!-- Atenção clínica — restrições do plano (red/yellow) -->
@@ -241,7 +278,7 @@
 		</div>
 
 		<!-- Plano completo -->
-		<div class="section">
+		<div class="section" id="plano">
 			<div class="section-header">
 				<Eyebrow>Plano completo</Eyebrow>
 				<a href="/a/{student.id}/historico{tq}" style="font:var(--label-mono);color:var(--accent);text-decoration:none">
@@ -260,6 +297,7 @@
 						<div style="flex:1;min-width:0;text-align:left">
 							<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
 								<span style="font:500 16px var(--font-sans);color:var(--ink-0)">{s.label ?? `Treino ${String.fromCharCode(65 + i)}`}</span>
+								{#if s.day_of_week}<span style="font:var(--label-mono);color:var(--ink-3);text-transform:uppercase">{s.day_of_week}</span>{/if}
 								{#if isToday}<Chip variant="active">● hoje</Chip>{/if}
 							</div>
 							<div style="font:var(--body-sm);color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
@@ -294,12 +332,12 @@
 		Seus dados são tratados conforme a
 		<a href="/legal/privacidade" target="_blank" rel="noopener">Política de Privacidade</a>.
 		Pra corrigir ou excluir seus dados, fale com seu treinador ou escreva pra
-		<a href="mailto:dpo@preceptorfisic.com">dpo@preceptorfisic.com</a>.
+		<a href="mailto:castroomath7@gmail.com">castroomath7@gmail.com</a>.
 	</div>
 
 	<!-- Bottom tab bar -->
 	<nav class="tab-bar">
-		{#each [{ id: 'hoje', icon: '◉', label: 'Hoje', href: `/a/${student.id}${tq}` }, { id: 'plano', icon: '▤', label: 'Plano', href: `/a/${student.id}${tq}` }, { id: 'historico', icon: '◔', label: 'Histórico', href: `/a/${student.id}/historico${tq}` }] as t (t.id)}
+		{#each [{ id: 'hoje', icon: '◉', label: 'Hoje', href: `/a/${student.id}${tq}` }, { id: 'plano', icon: '▤', label: 'Plano', href: `/a/${student.id}${tq}#plano` }, { id: 'historico', icon: '◔', label: 'Histórico', href: `/a/${student.id}/historico${tq}` }] as t (t.id)}
 			<a href={t.href} class="tab-link" class:on={t.id === 'hoje'}>
 				<span style="font-size:20px">{t.icon}</span>
 				<span style="font:500 10px var(--font-sans)">{t.label}</span>

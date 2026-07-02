@@ -37,6 +37,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Alunos · Preceptor Fisic</title>
+</svelte:head>
+
 <div class="page-body">
 	<header class="al-header">
 		<div>

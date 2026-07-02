@@ -59,21 +59,11 @@ const supabase: Handle = async ({ event, resolve }) => {
 		// lança aqui e, como esse handler roda em TODA request, derrubaria o
 		// site inteiro com 500. Tratamos como "não autenticado" — o authGuard
 		// então manda pro /login, que é o comportamento seguro/esperado.
-		// DIAGNÓSTICO TEMPORÁRIO (#login-loop): distingue "cookie não chegou"
-		// de "cookie chegou mas é inválido" (rotação de refresh token).
-		const sbCookies = event.cookies
-			.getAll()
-			.filter((c) => c.name.startsWith('sb-'))
-			.map((c) => c.name);
 		try {
 			const {
 				data: { session }
 			} = await event.locals.supabase.auth.getSession();
 			if (!session) {
-				logger.info(
-					{ path: event.url.pathname, sbCookies, reason: 'no_session_from_cookies' },
-					'auth.diag'
-				);
 				return { session: null, user: null };
 			}
 			const {
@@ -81,21 +71,18 @@ const supabase: Handle = async ({ event, resolve }) => {
 				error
 			} = await event.locals.supabase.auth.getUser();
 			if (error) {
-				logger.info(
-					{ path: event.url.pathname, sbCookies, reason: 'getuser_error', err: error.message.slice(0, 120) },
-					'auth.diag'
-				);
 				return { session: null, user: null };
 			}
 			return { session, user };
 		} catch (err) {
-			logger.warn({ err: String(err).slice(0, 200), sbCookies }, 'auth.safeGetSession.failed');
+			logger.warn({ err: String(err).slice(0, 200) }, 'auth.safeGetSession.failed');
 			return { session: null, user: null };
 		}
 	};
 
 	return resolve(event, {
-		filterSerializedResponseHeaders: (name) => name === 'content-range' || name === 'x-supabase-api-version'
+		filterSerializedResponseHeaders: (name) =>
+			name === 'content-range' || name === 'x-supabase-api-version'
 	});
 };
 
@@ -119,7 +106,8 @@ const authGuard: Handle = async ({ event, resolve }) => {
 		event.url.pathname === '/robots.txt' ||
 		event.url.pathname === '/';
 	if (!session && !isPublic) {
-		redirect(303, '/login');
+		// Preserva o deep link: após login, a action lê ?next= e volta pro destino.
+		redirect(303, `/login?next=${encodeURIComponent(event.url.pathname + event.url.search)}`);
 	}
 	if (session && event.url.pathname === '/login') {
 		redirect(303, '/dashboard');
@@ -138,7 +126,12 @@ export const handleError: HandleServerError = ({ error, event, status }) => {
 			{ status, path: event.url.pathname, err: String(error).slice(0, 200) },
 			'request.error.4xx'
 		);
-		return { message: typeof error === 'object' && error && 'message' in error ? String((error as { message: unknown }).message) : 'Erro' };
+		return {
+			message:
+				typeof error === 'object' && error && 'message' in error
+					? String((error as { message: unknown }).message)
+					: 'Erro'
+		};
 	}
 	// 5xx → Sentry + log
 	if (SENTRY_DSN) {

@@ -56,7 +56,10 @@ export const exerciseSchema = z.object({
 	 * instruções traduzidas na ficha do aluno. Pra exercícios fora do
 	 * catálogo (custom/aquecimento improvisado), deixar undefined.
 	 */
-	catalog_id: z.string().regex(/^\d{4,5}$/).optional(),
+	catalog_id: z
+		.string()
+		.regex(/^\d{4,5}$/)
+		.optional(),
 	muscle_groups: z.array(z.string()).default([]),
 	sets: z.number().int().min(1).max(20),
 	reps: z.string().min(1).max(200),

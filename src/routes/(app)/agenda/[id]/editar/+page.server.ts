@@ -1,5 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
+import { eq } from 'drizzle-orm';
+import { waitUntil } from '@vercel/functions';
 import {
 	getAppointmentById,
 	getProfessionalByAuthId,
@@ -7,7 +9,12 @@ import {
 	updateAppointment,
 	deleteAppointment
 } from '$lib/server/queries';
+import { db } from '$lib/server/db';
+import { students } from '$lib/server/db/schema';
+import { sendAppointmentNotification } from '$lib/server/email';
+import { logger } from '$lib/server/logger';
 import { isUuid } from '$lib/server/validation';
+import { parseLocalDateTime } from '$lib/server/tz';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load = (async ({ params, parent }) => {
@@ -40,16 +47,39 @@ export const actions: Actions = {
 		const type = TypeEnum.safeParse(String(fd.get('type') ?? ''));
 		const status = StatusEnum.safeParse(String(fd.get('status') ?? 'scheduled'));
 		const duration = Number(fd.get('duration') ?? 60);
-		const label = String(fd.get('label') ?? '').trim() || undefined;
-		const notes = String(fd.get('notes') ?? '').trim() || undefined;
+		// null (não undefined): permite LIMPAR o campo — undefined faz o Drizzle
+		// pular a coluna e o valor antigo ficava impossível de apagar.
+		const label = String(fd.get('label') ?? '').trim() || null;
+		const notes = String(fd.get('notes') ?? '').trim() || null;
 
-		if (!date || !time || !type.success || !status.success) return fail(400, { error: 'dados inválidos' });
+		if (!date || !time || !type.success || !status.success)
+			return fail(400, { error: 'dados inválidos' });
 		if (studentId && !isUuid(studentId)) return fail(400, { error: 'aluno inválido' });
-		const startsAt = new Date(`${date}T${time}:00`);
-		if (Number.isNaN(startsAt.getTime())) return fail(400, { error: 'data inválida' });
+		// Parse como horário de Brasília — new Date('...T...') no server (Vercel
+		// = UTC) deslocaria tudo em 3h (C14).
+		const startsAt = parseLocalDateTime(`${date}T${time}`);
+		if (!startsAt) return fail(400, { error: 'data inválida' });
 		// duration sem validação ia inserir NaN numa coluna integer (500).
 		if (!Number.isFinite(duration) || duration < 15 || duration > 240)
 			return fail(400, { error: 'duração inválida' });
+
+		// Ownership: studentId vem do form — valida que o aluno pertence a
+		// este profissional antes de anexá-lo à sessão (mesmo guard do criar).
+		if (studentId) {
+			const [owned] = await db
+				.select({ professionalId: students.professionalId })
+				.from(students)
+				.where(eq(students.id, studentId))
+				.limit(1);
+			if (owned?.professionalId !== professional.id) {
+				return fail(403, { error: 'aluno não encontrado' });
+			}
+		}
+
+		// Estado anterior pra detectar remarcação (startsAt mudou) sem depender
+		// do que o client mandou.
+		const before = await getAppointmentById(params.id!, professional.id);
+		if (!before) return fail(404, { error: 'sessão não encontrada' });
 
 		await updateAppointment({
 			appointmentId: params.id!,
@@ -62,6 +92,47 @@ export const actions: Actions = {
 			label,
 			notes
 		});
+
+		// Notifica o aluno por email quando a sessão é remarcada OU cancelada —
+		// o email é o único canal do aluno; sem isso ele comparece no horário
+		// antigo (ou numa sessão que não existe mais).
+		const rescheduled =
+			status.data === 'scheduled' && before.startsAt.getTime() !== startsAt.getTime();
+		const cancelledNow = status.data === 'cancelled' && before.status !== 'cancelled';
+		if ((rescheduled || cancelledNow) && studentId) {
+			try {
+				const [student] = await db
+					.select({ name: students.name, email: students.email })
+					.from(students)
+					.where(eq(students.id, studentId))
+					.limit(1);
+				if (student?.email) {
+					const emailPromise = sendAppointmentNotification({
+						to: student.email,
+						studentName: student.name,
+						professionalName: professional.name,
+						startsAt,
+						durationMinutes: duration,
+						type: type.data,
+						label,
+						studentId,
+						variant: cancelledNow ? 'cancelada' : 'remarcada'
+					}).catch((err) =>
+						logger.error({ err: String(err).slice(0, 200) }, 'appointment.notify.send_failed')
+					);
+					// Sem waitUntil a serverless function congela no redirect e a
+					// Promise órfã pode nunca enviar o email (C09).
+					try {
+						waitUntil(emailPromise);
+					} catch {
+						// Fora do contexto Vercel (ex: dev local): waitUntil lança.
+						// Promise continua rodando porque Node não termina.
+					}
+				}
+			} catch (err) {
+				logger.error({ err: String(err).slice(0, 200) }, 'appointment.notify.lookup_failed');
+			}
+		}
 
 		redirect(303, '/agenda');
 	},

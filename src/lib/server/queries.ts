@@ -5,6 +5,8 @@
 import { eq, and, desc, asc, isNull, sql, count, gte, lte, inArray } from 'drizzle-orm';
 import { db } from './db';
 import { isUuid } from './validation';
+import { localDateKey, startOfLocalDay, startOfLocalWeek, formatLocal } from './tz';
+import { classifyExercise, tonnagePerSet } from '$lib/exercise-load';
 import {
 	professionals,
 	students,
@@ -84,7 +86,9 @@ const GOAL_LABELS: Record<string, string> = {
 	performance: 'Performance'
 };
 
-export async function getStudentsByProfessional(professionalId: string): Promise<StudentListItem[]> {
+export async function getStudentsByProfessional(
+	professionalId: string
+): Promise<StudentListItem[]> {
 	// 1 query única — antes era 3N+1 round-trips (~1.5s pra 10 alunos no SP→SP).
 	// Agora usa correlated subqueries em uma só ida ao Postgres (~80ms).
 	const rows = await db.execute<{
@@ -160,31 +164,39 @@ export async function getStudentsByProfessional(professionalId: string): Promise
 
 	const list = (rows as unknown as { rows?: typeof rows }).rows ?? rows;
 
-	return (list as Array<{
-		id: string;
-		name: string;
-		birth_date: string | null;
-		sex: string;
-		weight_kg: number | null;
-		height_cm: number | null;
-		goals: string[] | null;
-		weekly_sessions: number | null;
-		plan_summary: string | null;
-		plan_status: string | null;
-		sessions_7: number;
-		last_session: Date | string | null;
-		streak: number;
-	}>).map((r) => {
+	return (
+		list as Array<{
+			id: string;
+			name: string;
+			birth_date: string | null;
+			sex: string;
+			weight_kg: number | null;
+			height_cm: number | null;
+			goals: string[] | null;
+			weekly_sessions: number | null;
+			plan_summary: string | null;
+			plan_status: string | null;
+			sessions_7: number;
+			last_session: Date | string | null;
+			streak: number;
+		}>
+	).map((r) => {
 		const sessions7 = Number(r.sessions_7 ?? 0);
 		const goal = r.goals?.[0];
 		const goalLabel = goal ? (GOAL_LABELS[goal] ?? goal) : null;
+		// Plano em produção (pending/generating) também conta como ativo — sem
+		// isso o aluno aparecia como "Pausado" no meio da geração (M18).
 		const status: 'active' | 'paused' =
-			r.plan_status === 'published' || r.plan_status === 'generated' ? 'active' : 'paused';
+			r.plan_status === 'published' ||
+			r.plan_status === 'generated' ||
+			r.plan_status === 'pending' ||
+			r.plan_status === 'generating'
+				? 'active'
+				: 'paused';
 		const lastDate = r.last_session ? new Date(r.last_session) : null;
+		// formatLocal: data em Brasília — em UTC, treino de 21h+ virava "amanhã".
 		const lastFmt = lastDate
-			? lastDate
-					.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
-					.replace('.', '')
+			? formatLocal(lastDate, { day: '2-digit', month: 'short' }).replace('.', '')
 			: null;
 		const adherence = r.weekly_sessions
 			? Math.min(100, Math.round((sessions7 / r.weekly_sessions) * 100))
@@ -222,7 +234,7 @@ export type StudentDetail = {
 	healthProfile: HealthProfile | null;
 	preferences: typeof trainingPreferences.$inferSelect | null;
 	plans: { id: string; title: string; isActive: boolean; createdAt: Date; sessionsTotal: number }[];
-	assessments: typeof physicalAssessments.$inferSelect[];
+	assessments: (typeof physicalAssessments.$inferSelect)[];
 	lastWeights: number[];
 	/** Séries de progresso pra sparklines — últimas 8 medidas, ordem cronológica */
 	progress: {
@@ -239,9 +251,7 @@ function buildMetric(values: number[]): ProgressMetric {
 	const current = values[values.length - 1] ?? null;
 	const first = values[0] ?? null;
 	const deltaPct =
-		current !== null && first !== null && first !== 0
-			? ((current - first) / first) * 100
-			: null;
+		current !== null && first !== null && first !== 0 ? ((current - first) / first) * 100 : null;
 	return { values, current, first, deltaPct };
 }
 
@@ -253,7 +263,13 @@ export async function getStudentDetail(
 	const studentRows = await db
 		.select()
 		.from(students)
-		.where(and(eq(students.id, studentId), eq(students.professionalId, professionalId), isNull(students.deletedAt)))
+		.where(
+			and(
+				eq(students.id, studentId),
+				eq(students.professionalId, professionalId),
+				isNull(students.deletedAt)
+			)
+		)
 		.limit(1);
 	const student = studentRows[0];
 	if (!student) return null;
@@ -298,12 +314,8 @@ export async function getStudentDetail(
 	// últimas 8 avaliações em ordem cronológica (mais antiga → mais nova)
 	const recent8 = assessments.slice(0, 8).slice().reverse();
 	const seriesBmi = recent8.map((a) => a.bmi).filter((v): v is number => v !== null);
-	const seriesBodyFat = recent8
-		.map((a) => a.bodyFatPct)
-		.filter((v): v is number => v !== null);
-	const seriesRestingHr = recent8
-		.map((a) => a.restingHr)
-		.filter((v): v is number => v !== null);
+	const seriesBodyFat = recent8.map((a) => a.bodyFatPct).filter((v): v is number => v !== null);
+	const seriesRestingHr = recent8.map((a) => a.restingHr).filter((v): v is number => v !== null);
 	const seriesBpSys = recent8
 		.map((a) => a.bloodPressureSystolic)
 		.filter((v): v is number => v !== null);
@@ -367,7 +379,9 @@ export async function getPlansByProfessional(professionalId: string): Promise<Pl
 		})
 		.from(trainingPlans)
 		.leftJoin(students, eq(students.id, trainingPlans.studentId))
-		.where(eq(trainingPlans.professionalId, professionalId))
+		// isNull(students.deletedAt): aluno soft-deletado some de /alunos — os
+		// planos dele não podem continuar listados em /planos.
+		.where(and(eq(trainingPlans.professionalId, professionalId), isNull(students.deletedAt)))
 		.orderBy(desc(trainingPlans.createdAt));
 
 	return rows.map((r) => {
@@ -395,7 +409,13 @@ export type PlanRestriction = {
 	title: string;
 	description: string;
 	affected_exercises: string[];
-	source?: { type: string; rule_code?: string; chunk_id?: string; source_id?: string; note?: string };
+	source?: {
+		type: string;
+		rule_code?: string;
+		chunk_id?: string;
+		source_id?: string;
+		note?: string;
+	};
 };
 
 export type PlanExercise = {
@@ -652,7 +672,12 @@ async function collectAndEnrichCatalogInner(planData: PlanData): Promise<Catalog
 		for (const block of [session.warmup ?? [], session.main ?? [], session.cooldown ?? []]) {
 			if (!Array.isArray(block)) continue;
 			for (const ex of block) {
-				if (ex && typeof ex === 'object' && typeof ex.catalog_id === 'string' && /^\d{4,5}$/.test(ex.catalog_id)) {
+				if (
+					ex &&
+					typeof ex === 'object' &&
+					typeof ex.catalog_id === 'string' &&
+					/^\d{4,5}$/.test(ex.catalog_id)
+				) {
 					ids.add(ex.catalog_id);
 				}
 			}
@@ -741,7 +766,8 @@ export type CreateStudentInput = {
 	heightCm?: number | null;
 	phone?: string | null;
 	email?: string | null;
-	consentAcceptedAt: Date;
+	/** null no modo link: o TITULAR consente depois, no /completar (LGPD art. 11). */
+	consentAcceptedAt: Date | null;
 	diagnoses: { label: string; severity?: 'leve' | 'moderada' | 'grave' }[];
 	medications: { name: string; dose?: string; frequency?: string }[];
 	/** Limitações físicas / lesões — regiões com restrição de amplitude
@@ -773,7 +799,9 @@ export async function createStudentTx(input: CreateStudentInput): Promise<string
 				phone: input.phone ?? undefined,
 				email: input.email ?? undefined,
 				consentAcceptedAt: input.consentAcceptedAt,
-				consentTermsVersion: 'v1.0',
+				// Versão dos termos só carimba junto do consentimento — no modo
+				// link ambas ficam null até o aluno consentir no /completar.
+				consentTermsVersion: input.consentAcceptedAt ? 'v1.0' : null,
 				profileCompletedAt: input.profileComplete === false ? null : new Date()
 			})
 			.returning({ id: students.id });
@@ -846,6 +874,21 @@ export type CreateAssessmentInput = {
 
 export async function createAssessment(input: CreateAssessmentInput): Promise<string> {
 	return await db.transaction(async (tx) => {
+		// Defesa em profundidade (a rota já valida): aluno TEM que pertencer ao
+		// profissional — sem isso o insert + update de peso vazaria pra aluno alheio.
+		const [owned] = await tx
+			.select({ id: students.id })
+			.from(students)
+			.where(
+				and(
+					eq(students.id, input.studentId),
+					eq(students.professionalId, input.professionalId),
+					isNull(students.deletedAt)
+				)
+			)
+			.limit(1);
+		if (!owned) throw new Error('aluno não encontrado ou não pertence a este profissional');
+
 		const [a] = await tx
 			.insert(physicalAssessments)
 			.values({
@@ -864,9 +907,11 @@ export async function createAssessment(input: CreateAssessmentInput): Promise<st
 
 		const recs: Array<{ metricType: string; value: number; unit: string }> = [];
 		if (input.weightKg) recs.push({ metricType: 'weight', value: input.weightKg, unit: 'kg' });
-		if (input.bodyFatPct) recs.push({ metricType: 'body_fat_pct', value: input.bodyFatPct, unit: '%' });
+		if (input.bodyFatPct)
+			recs.push({ metricType: 'body_fat_pct', value: input.bodyFatPct, unit: '%' });
 		if (input.bmi) recs.push({ metricType: 'bmi', value: input.bmi, unit: 'kg/m2' });
-		if (input.leanMassKg) recs.push({ metricType: 'lean_mass', value: input.leanMassKg, unit: 'kg' });
+		if (input.leanMassKg)
+			recs.push({ metricType: 'lean_mass', value: input.leanMassKg, unit: 'kg' });
 
 		if (recs.length > 0) {
 			await tx.insert(progressRecords).values(
@@ -884,7 +929,9 @@ export async function createAssessment(input: CreateAssessmentInput): Promise<st
 			await tx
 				.update(students)
 				.set({ weightKg: input.weightKg, updatedAt: new Date() })
-				.where(eq(students.id, input.studentId));
+				.where(
+					and(eq(students.id, input.studentId), eq(students.professionalId, input.professionalId))
+				);
 		}
 
 		return a.id;
@@ -919,7 +966,9 @@ export async function updateStudentTx(input: UpdateStudentInput): Promise<void> 
 		const [s] = await tx
 			.select({ id: students.id })
 			.from(students)
-			.where(and(eq(students.id, input.studentId), eq(students.professionalId, input.professionalId)))
+			.where(
+				and(eq(students.id, input.studentId), eq(students.professionalId, input.professionalId))
+			)
 			.limit(1);
 		if (!s) throw new Error('aluno não encontrado ou não pertence a este profissional');
 
@@ -975,7 +1024,9 @@ export async function updateStudentTx(input: UpdateStudentInput): Promise<void> 
 				.update(trainingPreferences)
 				.set({
 					experienceLevel: input.experienceLevel,
-					...(input.prescribedDifficulty ? { prescribedDifficulty: input.prescribedDifficulty } : {}),
+					...(input.prescribedDifficulty
+						? { prescribedDifficulty: input.prescribedDifficulty }
+						: {}),
 					...(input.trainingSplit ? { trainingSplit: input.trainingSplit } : {}),
 					weeklySessions: input.weeklySessions,
 					minutesPerSession: input.minutesPerSession,
@@ -1068,7 +1119,9 @@ export type CompleteStudentSelfFillInput = {
 };
 
 /** O próprio aluno completa o perfil pelo link. Não exige profissional (rota token-gated). */
-export async function completeStudentSelfFillTx(input: CompleteStudentSelfFillInput): Promise<void> {
+export async function completeStudentSelfFillTx(
+	input: CompleteStudentSelfFillInput
+): Promise<void> {
 	await db.transaction(async (tx) => {
 		const [s] = await tx
 			.select({ id: students.id })
@@ -1077,13 +1130,16 @@ export async function completeStudentSelfFillTx(input: CompleteStudentSelfFillIn
 			.limit(1);
 		if (!s) throw new Error('aluno não encontrado');
 
+		// Merge não-destrutivo: reenvio do link é fluxo intencional, mas campo
+		// omitido/vazio NÃO pode anular dado já registrado pelo profissional
+		// (ex.: peso atualizado por avaliação física). Só grava o que veio.
 		await tx
 			.update(students)
 			.set({
-				birthDate: input.birthDate ?? null,
-				weightKg: input.weightKg ?? null,
-				heightCm: input.heightCm ?? null,
-				phone: input.phone ?? null,
+				...(input.birthDate != null ? { birthDate: input.birthDate } : {}),
+				...(input.weightKg != null ? { weightKg: input.weightKg } : {}),
+				...(input.heightCm != null ? { heightCm: input.heightCm } : {}),
+				...(input.phone != null ? { phone: input.phone } : {}),
 				consentAcceptedAt: sql`coalesce(${students.consentAcceptedAt}, now())`,
 				consentTermsVersion: 'v1.0',
 				profileCompletedAt: new Date(),
@@ -1092,17 +1148,41 @@ export async function completeStudentSelfFillTx(input: CompleteStudentSelfFillIn
 			.where(eq(students.id, input.studentId));
 
 		const [hp] = await tx
-			.select({ id: healthProfiles.id })
+			.select({
+				id: healthProfiles.id,
+				diagnoses: healthProfiles.diagnoses,
+				medications: healthProfiles.medications,
+				injuries: healthProfiles.injuries
+			})
 			.from(healthProfiles)
 			.where(eq(healthProfiles.studentId, input.studentId))
 			.limit(1);
 		if (hp) {
+			// Reenvio do autopreenchimento NÃO pode achatar refinamento do
+			// profissional: item que já existe (por label/name/region) preserva
+			// os campos ricos (severity/dose/frequency/since/notes) e só recebe
+			// por cima o que o aluno reenviou.
+			const norm = (v: unknown) =>
+				String(v ?? '')
+					.trim()
+					.toLowerCase();
+			const mergeByKey = <T extends Record<string, unknown>>(
+				incoming: T[],
+				existing: unknown,
+				key: string
+			): T[] => {
+				const prevList = Array.isArray(existing) ? (existing as Record<string, unknown>[]) : [];
+				return incoming.map((item) => {
+					const prev = prevList.find((e) => norm(e[key]) === norm(item[key]));
+					return prev ? ({ ...prev, ...item } as T) : item;
+				});
+			};
 			await tx
 				.update(healthProfiles)
 				.set({
-					diagnoses: input.diagnoses,
-					medications: input.medications,
-					injuries: input.injuries ?? [],
+					diagnoses: mergeByKey(input.diagnoses, hp.diagnoses, 'label'),
+					medications: mergeByKey(input.medications, hp.medications, 'name'),
+					injuries: mergeByKey(input.injuries ?? [], hp.injuries, 'region'),
 					cardiovascularRisk: input.cardiovascularRisk,
 					updatedAt: new Date()
 				})
@@ -1163,7 +1243,8 @@ export async function softDeleteStudent(studentId: string, professionalId: strin
 export type PublishResult = { ok: boolean; reason?: string };
 
 export async function publishPlan(planId: string, professionalId: string): Promise<PublishResult> {
-	if (!isUuid(planId) || !isUuid(professionalId)) return { ok: false, reason: 'plano não encontrado' };
+	if (!isUuid(planId) || !isUuid(professionalId))
+		return { ok: false, reason: 'plano não encontrado' };
 	const [plan] = await db
 		.select({
 			id: trainingPlans.id,
@@ -1176,8 +1257,13 @@ export async function publishPlan(planId: string, professionalId: string): Promi
 		.limit(1);
 
 	if (!plan) return { ok: false, reason: 'plano não encontrado' };
-	if (plan.professionalId !== professionalId) return { ok: false, reason: 'plano não pertence a este profissional' };
-	if (plan.status !== 'generated') return { ok: false, reason: `plano em status "${plan.status}" — só "generated" pode ser publicado` };
+	if (plan.professionalId !== professionalId)
+		return { ok: false, reason: 'plano não pertence a este profissional' };
+	if (plan.status !== 'generated')
+		return {
+			ok: false,
+			reason: `plano em status "${plan.status}" — só "generated" pode ser publicado`
+		};
 
 	const reds = (plan.restrictions ?? []).filter((r) => r.level === 'red' && !r.resolved_at);
 	if (reds.length > 0) {
@@ -1263,15 +1349,18 @@ export async function updateProfessional(input: UpdateProfessionalInput): Promis
 		.where(eq(professionals.authUserId, input.authUserId));
 }
 
+// Campos opcionais aceitam null explícito (= limpar a coluna) além de
+// undefined (= não mexer — Drizzle omite colunas undefined do UPDATE).
+// Sem isso era impossível apagar uma observação/equipment já salvos.
 export type CreateExerciseInput = {
 	professionalId: string;
-	code?: string;
+	code?: string | null;
 	name: string;
 	muscleGroup: string;
-	equipment?: string;
-	level?: string;
-	pattern?: string;
-	executionNotes?: string;
+	equipment?: string | null;
+	level?: string | null;
+	pattern?: string | null;
+	executionNotes?: string | null;
 	contraindications: string[];
 };
 
@@ -1282,8 +1371,8 @@ export type UpdateAppointmentInput = {
 	startsAt: Date;
 	durationMinutes: number;
 	type: 'treino' | 'avaliacao' | 'reabilitacao' | 'consulta';
-	label?: string;
-	notes?: string;
+	label?: string | null;
+	notes?: string | null;
 	status: 'scheduled' | 'completed' | 'cancelled';
 };
 
@@ -1336,11 +1425,16 @@ export async function updateAppointment(input: UpdateAppointmentInput): Promise<
 		);
 }
 
-export async function deleteAppointment(appointmentId: string, professionalId: string): Promise<void> {
+export async function deleteAppointment(
+	appointmentId: string,
+	professionalId: string
+): Promise<void> {
 	if (!isUuid(appointmentId) || !isUuid(professionalId)) return;
 	await db
 		.delete(appointments)
-		.where(and(eq(appointments.id, appointmentId), eq(appointments.professionalId, professionalId)));
+		.where(
+			and(eq(appointments.id, appointmentId), eq(appointments.professionalId, professionalId))
+		);
 }
 
 export type UpdateExerciseInput = CreateExerciseInput & { exerciseId: string };
@@ -1476,6 +1570,8 @@ export async function conversationBelongsTo(
 	conversationId: string,
 	professionalId: string
 ): Promise<boolean> {
+	// Sem o guard, /mensagens?t=<não-uuid> estourava 22P02 no Postgres → 500.
+	if (!isUuid(conversationId) || !isUuid(professionalId)) return false;
 	const [c] = await db
 		.select({ id: conversations.id })
 		.from(conversations)
@@ -1510,10 +1606,7 @@ export async function postMessage(
 			throw new Error('Conversa não encontrada ou não pertence a este profissional.');
 		}
 	}
-	const [m] = await db
-		.insert(messages)
-		.values({ conversationId, body, fromRole })
-		.returning();
+	const [m] = await db.insert(messages).values({ conversationId, body, fromRole }).returning();
 	if (!m) throw new Error('Falha ao inserir mensagem');
 	await db
 		.update(conversations)
@@ -1632,22 +1725,27 @@ export async function getAlunoAppData(studentId: string): Promise<AlunoAppData |
 		.orderBy(desc(trainingSessions.sessionDate))
 		.limit(10);
 
-	const streakDays = computeStreak(sessRows.map((r) => r.sessionDate));
+	// Streak com query dedicada janelada por data — usar as 10 linhas do
+	// recentSessions travava o streak em 10 dias pros alunos mais assíduos.
+	// 120 dias cobre qualquer streak realista; computeStreak deduplica por dia.
+	const streakSince = new Date(Date.now() - 120 * 86_400_000);
+	const streakRows = await db
+		.select({ sessionDate: trainingSessions.sessionDate })
+		.from(trainingSessions)
+		.where(
+			and(eq(trainingSessions.studentId, studentId), gte(trainingSessions.sessionDate, streakSince))
+		);
+	const streakDays = computeStreak(streakRows.map((r) => r.sessionDate));
 
-	// Sessões da semana corrente (segunda 00:00 → agora) — count dedicado
-	// pra não confundir com as "últimas 10 sessões" do recentSessions.
-	const weekStart = new Date();
-	const dow = (weekStart.getDay() + 6) % 7; // 0 = segunda
-	weekStart.setDate(weekStart.getDate() - dow);
-	weekStart.setHours(0, 0, 0, 0);
+	// Sessões da semana corrente (segunda 00:00 de Brasília → agora) — count
+	// dedicado pra não confundir com as "últimas 10 sessões" do recentSessions.
+	// Fronteira via tz: o server roda em UTC e deslocava a virada de semana em 3h.
+	const weekStart = startOfLocalWeek(new Date());
 	const [weekCount] = await db
 		.select({ n: count() })
 		.from(trainingSessions)
 		.where(
-			and(
-				eq(trainingSessions.studentId, studentId),
-				gte(trainingSessions.sessionDate, weekStart)
-			)
+			and(eq(trainingSessions.studentId, studentId), gte(trainingSessions.sessionDate, weekStart))
 		);
 
 	// Meta semanal real do aluno (era hardcoded 5 na UI)
@@ -1670,18 +1768,13 @@ export async function getAlunoAppData(studentId: string): Promise<AlunoAppData |
 
 function computeStreak(dates: Date[]): number {
 	if (dates.length === 0) return 0;
-	const days = new Set(
-		dates.map((d) => {
-			const dt = new Date(d);
-			return `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`;
-		})
-	);
+	// Chaves de dia no fuso de Brasília — em UTC, treino depois das 21h BRT
+	// caía no dia seguinte e quebrava/inflava o streak.
+	const days = new Set(dates.map((d) => localDateKey(new Date(d))));
 	let streak = 0;
 	const now = new Date();
 	for (let i = 0; i < 365; i++) {
-		const d = new Date(now);
-		d.setDate(now.getDate() - i);
-		const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+		const key = localDateKey(new Date(now.getTime() - i * 86_400_000));
 		if (days.has(key)) {
 			streak++;
 		} else if (i > 0) {
@@ -1762,15 +1855,6 @@ function parseLoadToKg(load: string | undefined | null): number {
 	return 0;
 }
 
-/** Segunda-feira (00:00) da semana de uma data. */
-function mondayOf(d: Date): Date {
-	const date = new Date(d);
-	const day = (date.getDay() + 6) % 7; // 0 = segunda
-	date.setDate(date.getDate() - day);
-	date.setHours(0, 0, 0, 0);
-	return date;
-}
-
 export type LoadWeek = {
 	weekStart: string; // ISO date (segunda)
 	weekLabel: string; // "12/mai"
@@ -1800,9 +1884,15 @@ export async function getStudentLoadEvolution(
 	if (!isUuid(studentId)) {
 		return { weeks: [], hasData: false, externalMetric: 'volume', totalSessions: 0 };
 	}
-	const since = new Date();
-	since.setDate(since.getDate() - weeksBack * 7);
-	since.setHours(0, 0, 0, 0);
+	// Peso do aluno — necessário pra estimar tonelagem de exercício bodyweight
+	// (bodyweight_kg × reps × 0.65, ver $lib/exercise-load).
+	const [stu] = await db
+		.select({ weightKg: students.weightKg })
+		.from(students)
+		.where(eq(students.id, studentId))
+		.limit(1);
+
+	const since = startOfLocalDay(new Date(Date.now() - weeksBack * 7 * 86_400_000));
 
 	const rows = await db
 		.select({
@@ -1812,23 +1902,23 @@ export async function getStudentLoadEvolution(
 			exercisesDone: trainingSessions.exercisesDone
 		})
 		.from(trainingSessions)
-		.where(
-			and(eq(trainingSessions.studentId, studentId), gte(trainingSessions.sessionDate, since))
-		)
+		.where(and(eq(trainingSessions.studentId, studentId), gte(trainingSessions.sessionDate, since)))
 		.orderBy(asc(trainingSessions.sessionDate));
 
-	// Inicializa buckets pra TODAS as semanas (mesmo vazias) → timeline contínua
+	// Inicializa buckets pra TODAS as semanas (mesmo vazias) → timeline contínua.
+	// Fronteiras em horário de Brasília (server roda em UTC): sessão de domingo
+	// 21h30 BRT caía na segunda UTC e migrava pra semana seguinte.
+	// A semana CORRENTE (parcial) fica de fora (i < weeksBack): com 1-2 treinos
+	// ela virava a "carga aguda" do ACWR e o veredito do gráfico disparava
+	// "subcarga"/"volume caindo" toda segunda/terça — só semanas completas.
 	const buckets = new Map<string, LoadWeek>();
-	const firstMonday = mondayOf(since);
-	for (let i = 0; i <= weeksBack; i++) {
-		const ws = new Date(firstMonday);
-		ws.setDate(firstMonday.getDate() + i * 7);
-		const key = ws.toISOString().slice(0, 10);
+	const firstMonday = startOfLocalWeek(since);
+	for (let i = 0; i < weeksBack; i++) {
+		const ws = new Date(firstMonday.getTime() + i * 7 * 86_400_000);
+		const key = localDateKey(ws);
 		buckets.set(key, {
 			weekStart: key,
-			weekLabel: ws
-				.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
-				.replace('.', ''),
+			weekLabel: formatLocal(ws, { day: '2-digit', month: 'short' }).replace('.', ''),
 			tonnage: 0,
 			repVolume: 0,
 			internalLoad: 0,
@@ -1838,9 +1928,13 @@ export async function getStudentLoadEvolution(
 	}
 
 	const rpeSum = new Map<string, { sum: number; n: number }>();
+	// Séries que geraram kg vs séries contadas (exclui `time`) — decide a
+	// métrica externa lá embaixo sem deixar um único halter mascarar calistenia.
+	let tonnageSets = 0;
+	let countedSets = 0;
 
 	for (const row of rows) {
-		const key = mondayOf(new Date(row.sessionDate)).toISOString().slice(0, 10);
+		const key = localDateKey(startOfLocalWeek(new Date(row.sessionDate)));
 		const bucket = buckets.get(key);
 		if (!bucket) continue;
 
@@ -1850,20 +1944,40 @@ export async function getStudentLoadEvolution(
 		// Preferência: set_logs (peso×reps reais por série). Fallback: modelo
 		// antigo (sets_done × reps × load_used em texto) pra logs anteriores.
 		for (const ex of row.exercisesDone ?? []) {
-			if (!ex.completed) continue;
+			// set_logs preenchido conta mesmo sem o toque em "concluído" —
+			// série registrada é trabalho executado.
+			if (!ex.completed && !(ex.set_logs && ex.set_logs.length > 0)) continue;
+			// Classificação por nome (retrocompatível com logs antigos):
+			//  - `time`: weight guarda SEGUNDOS — nunca soma na tonelagem
+			//    (a carga desses entra via sRPE na carga interna);
+			//  - `bodyweight`: estima kg via peso do aluno (× reps × 0.65).
+			const kind = classifyExercise({ name: ex.name ?? '' });
 			if (ex.set_logs && ex.set_logs.length > 0) {
 				for (const sl of ex.set_logs) {
 					const w = Number(sl.weight) || 0;
 					const r = Number(sl.reps) || 0;
 					bucket.repVolume += r;
-					bucket.tonnage += w * r;
+					if (kind === 'time') continue;
+					const t =
+						kind === 'bodyweight'
+							? tonnagePerSet({ kind, reps: r, bodyweightKg: stu?.weightKg })
+							: w * r;
+					bucket.tonnage += t;
+					countedSets += 1;
+					if (t > 0) tonnageSets += 1;
 				}
 			} else {
 				const sets = Number(ex.sets_done) || 0;
 				const reps = parseRepsToNumber(ex.reps_done);
-				const kg = parseLoadToKg(ex.load_used);
 				bucket.repVolume += sets * reps;
-				bucket.tonnage += sets * reps * kg;
+				if (kind === 'time') continue;
+				const perSet =
+					kind === 'bodyweight'
+						? tonnagePerSet({ kind, reps, bodyweightKg: stu?.weightKg })
+						: reps * parseLoadToKg(ex.load_used);
+				bucket.tonnage += sets * perSet;
+				countedSets += sets;
+				if (perSet > 0) tonnageSets += sets;
 			}
 		}
 
@@ -1884,16 +1998,16 @@ export async function getStudentLoadEvolution(
 		if (bucket && acc.n > 0) bucket.avgRpe = Math.round((acc.sum / acc.n) * 10) / 10;
 	}
 
-	const weeks = Array.from(buckets.values()).sort((a, b) =>
-		a.weekStart.localeCompare(b.weekStart)
-	);
+	const weeks = Array.from(buckets.values()).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
 	const totalTonnage = weeks.reduce((s, w) => s + w.tonnage, 0);
 	const totalSessions = weeks.reduce((s, w) => s + w.sessions, 0);
 
 	return {
 		weeks,
 		hasData: totalSessions > 0,
-		externalMetric: totalTonnage > 0 ? 'tonnage' : 'volume',
+		// Tonelagem só quando a MAIORIA das séries gerou kg — evita que um único
+		// halter esconda o trabalho calistênico de aluno sem peso cadastrado.
+		externalMetric: totalTonnage > 0 && tonnageSets * 2 >= countedSets ? 'tonnage' : 'volume',
 		totalSessions
 	};
 }
@@ -2019,13 +2133,17 @@ export async function getDashboardStats(professionalId: string): Promise<Dashboa
 		// subqueries por load do dashboard (lento). Agora: 1 GROUP BY que
 		// retorna só os dias COM sessão (esparso); o array de 182 posições
 		// é montado em JS preenchendo zeros.
+		// Datas em America/Sao_Paulo (server = UTC): treino de 21h+ BRT caía
+		// na célula do dia seguinte do heatmap.
 		db.execute<{ day_offset: number; sessions_count: number }>(sql`
 			SELECT
-				(CURRENT_DATE - ts.session_date::date)::int AS day_offset,
+				((now() AT TIME ZONE 'America/Sao_Paulo')::date
+					- (ts.session_date AT TIME ZONE 'America/Sao_Paulo')::date)::int AS day_offset,
 				COUNT(*)::int AS sessions_count
 			FROM training_sessions ts
 			WHERE ts.logged_by = ${professionalId}
-			  AND ts.session_date::date > CURRENT_DATE - 182
+			  AND (ts.session_date AT TIME ZONE 'America/Sao_Paulo')::date
+					> (now() AT TIME ZONE 'America/Sao_Paulo')::date - 182
 			GROUP BY 1
 		`),
 		// Próximos 7 dias de agendamentos
@@ -2052,13 +2170,15 @@ export async function getDashboardStats(professionalId: string): Promise<Dashboa
 	]);
 
 	const statsRows = (statsResult as unknown as { rows?: typeof statsResult }).rows ?? statsResult;
-	const stats = (statsRows as Array<{
-		active_students: number;
-		all_plans: number;
-		active_plans: number;
-		sessions_7: number;
-		assessments_total: number;
-	}>)[0];
+	const stats = (
+		statsRows as Array<{
+			active_students: number;
+			all_plans: number;
+			active_plans: number;
+			sessions_7: number;
+			assessments_total: number;
+		}>
+	)[0];
 
 	const heatmapRows =
 		(heatmapResult as unknown as { rows?: typeof heatmapResult }).rows ?? heatmapResult;
@@ -2073,12 +2193,14 @@ export async function getDashboardStats(professionalId: string): Promise<Dashboa
 
 	const upcomingRows =
 		(upcomingResult as unknown as { rows?: typeof upcomingResult }).rows ?? upcomingResult;
-	const upcomingAppointments = (upcomingRows as Array<{
-		id: string;
-		starts_at: Date | string;
-		title: string | null;
-		student_name: string | null;
-	}>).map((r) => ({
+	const upcomingAppointments = (
+		upcomingRows as Array<{
+			id: string;
+			starts_at: Date | string;
+			title: string | null;
+			student_name: string | null;
+		}>
+	).map((r) => ({
 		id: r.id,
 		startsAt: new Date(r.starts_at).toISOString(),
 		title: r.title,
@@ -2152,7 +2274,7 @@ function mapCatalogRow(r: CatalogRow): CatalogExercise {
 
 function unwrapRows<T>(result: unknown): T[] {
 	const r = result as { rows?: T[] };
-	return (r.rows ?? (result as T[])) ?? [];
+	return r.rows ?? (result as T[]) ?? [];
 }
 
 /**
@@ -2170,12 +2292,15 @@ export async function searchExerciseCatalog(opts: {
 	const limit = Math.min(opts.limit ?? 60, 200);
 	const offset = opts.offset ?? 0;
 	const q = opts.query?.trim();
+	// Escapa curingas do ILIKE (\, % e _): sem isso buscar "%" devolvia o
+	// catálogo inteiro e "_" casava qualquer caractere.
+	const pat = q ? '%' + q.replace(/[\\%_]/g, '\\$&') + '%' : undefined;
 
 	const conds = [sql`1=1`];
 	if (opts.bodyPart) conds.push(sql`body_part = ${opts.bodyPart}`);
 	if (opts.equipment) conds.push(sql`equipment = ${opts.equipment}`);
 	if (opts.difficulty) conds.push(sql`difficulty = ${opts.difficulty}`);
-	if (q) conds.push(sql`(name ILIKE ${'%' + q + '%'} OR name_en ILIKE ${'%' + q + '%'})`);
+	if (pat) conds.push(sql`(name ILIKE ${pat} OR name_en ILIKE ${pat})`);
 	const where = sql.join(conds, sql` AND `);
 
 	const [itemsResult, countResult] = await Promise.all([
@@ -2323,10 +2448,7 @@ export type LeadListItem = {
  * compartilhados entre todos os admins do Preceptor Fisic.
  */
 export async function getAllLeads(): Promise<LeadListItem[]> {
-	const rows = await db
-		.select()
-		.from(leads)
-		.orderBy(desc(leads.createdAt));
+	const rows = await db.select().from(leads).orderBy(desc(leads.createdAt));
 	return rows as LeadListItem[];
 }
 
@@ -2461,9 +2583,7 @@ export async function createLeadFromSignup(params: {
  *
  * Chamado por hooks (Stripe webhook, after-add-student, etc).
  */
-export async function syncLeadStageFromProfessional(
-	professionalId: string
-): Promise<void> {
+export async function syncLeadStageFromProfessional(professionalId: string): Promise<void> {
 	const result = await db.execute<{
 		subscription_status: string;
 		has_students: boolean;
@@ -2558,9 +2678,6 @@ export async function getMyFeedback(professionalId: string): Promise<FeedbackIte
 
 /** TODOS os feedbacks — só admin enxerga (filtragem no caller). */
 export async function getAllFeedback(): Promise<FeedbackItem[]> {
-	const rows = await db
-		.select(FEEDBACK_COLS)
-		.from(feedback)
-		.orderBy(desc(feedback.createdAt));
+	const rows = await db.select(FEEDBACK_COLS).from(feedback).orderBy(desc(feedback.createdAt));
 	return rows as FeedbackItem[];
 }

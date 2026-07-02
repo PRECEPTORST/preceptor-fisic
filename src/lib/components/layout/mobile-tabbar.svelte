@@ -29,7 +29,7 @@
 
 	const moreActive = $derived.by(() => {
 		const path = page.url.pathname;
-		const otherRoutes = ['/exercicios', '/mensagens', '/configuracoes'];
+		const otherRoutes = ['/exercicios', '/mensagens', '/configuracoes', '/feedback', '/crm'];
 		return otherRoutes.some((r) => path.startsWith(r));
 	});
 </script>

@@ -19,7 +19,8 @@ const PRESETS = {
 	login: { max: 5, windowMs: 60_000, label: 'login' },
 	signup: { max: 3, windowMs: 600_000, label: 'criação de conta' },
 	password_reset: { max: 3, windowMs: 600_000, label: 'recuperação de senha' },
-	plan_generate: { max: 5, windowMs: 300_000, label: 'geração de plano' }
+	plan_generate: { max: 5, windowMs: 300_000, label: 'geração de plano' },
+	email_send: { max: 3, windowMs: 600_000, label: 'envio de email' }
 } as const;
 
 export type RateLimitKey = keyof typeof PRESETS;

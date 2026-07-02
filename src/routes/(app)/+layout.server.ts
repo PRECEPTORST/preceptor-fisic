@@ -20,9 +20,7 @@ export const load = (async ({ locals }) => {
 	// Esta query roda em TODA página autenticada. Se o DB der um soluço aqui,
 	// um throw derrubaria o app logado inteiro com 500 — então degradamos pra
 	// zeros (sidebar sem badges) em vez de quebrar a navegação.
-	let counts:
-		| { students_count: number; unread_messages: number; new_leads: number }
-		| undefined;
+	let counts: { students_count: number; unread_messages: number; new_leads: number } | undefined;
 	try {
 		const result = await db.execute<{
 			students_count: number;
@@ -43,11 +41,13 @@ export const load = (async ({ locals }) => {
 					WHERE stage = 'cadastrou')::int AS new_leads
 		`);
 		const list = (result as unknown as { rows?: typeof result }).rows ?? result;
-		counts = (list as Array<{
-			students_count: number;
-			unread_messages: number;
-			new_leads: number;
-		}>)[0];
+		counts = (
+			list as Array<{
+				students_count: number;
+				unread_messages: number;
+				new_leads: number;
+			}>
+		)[0];
 	} catch (err) {
 		console.error('layout.sidebarCounts.failed', String(err).slice(0, 300));
 	}

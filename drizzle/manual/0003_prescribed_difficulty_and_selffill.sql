@@ -2,8 +2,8 @@
 --
 -- Escrita à mão porque `drizzle-kit generate` está caindo num prompt
 -- interativo de rename (drift de snapshot pré-existente). Idempotente —
--- pode rodar mais de uma vez sem erro. Aplique no Supabase (SQL editor)
--- ou via `psql $DATABASE_URL -f drizzle/manual/0003_*.sql`.
+-- pode rodar mais de uma vez sem erro. Aplicado automaticamente por
+-- `npm run db:post-migrate` (scripts/apply-post-migration.ts).
 
 -- 1) Enum de dificuldade-alvo dos exercícios prescritos.
 DO $$ BEGIN
@@ -18,11 +18,25 @@ ALTER TABLE "training_preferences"
 
 -- 3) Marca temporal de quando o perfil do aluno ficou completo.
 --    NULL = criado via link de auto-preenchimento e ainda não preenchido.
-ALTER TABLE "students"
-	ADD COLUMN IF NOT EXISTS "profile_completed_at" timestamptz;
+-- 4) Backfill: alunos pré-existentes são considerados completos — mas SÓ na
+--    criação da coluna. Re-execuções não podem tocar nos NULLs legítimos
+--    (alunos ainda aguardando auto-preenchimento).
+DO $$
+DECLARE
+	coluna_nova boolean;
+BEGIN
+	SELECT NOT EXISTS (
+		SELECT 1 FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'students'
+			AND column_name = 'profile_completed_at'
+	) INTO coluna_nova;
 
--- 4) Backfill: alunos já existentes são considerados completos (não devem
---    aparecer como "aguardando preenchimento").
-UPDATE "students"
-SET "profile_completed_at" = COALESCE("consent_accepted_at", "created_at")
-WHERE "profile_completed_at" IS NULL;
+	ALTER TABLE "students"
+		ADD COLUMN IF NOT EXISTS "profile_completed_at" timestamptz;
+
+	IF coluna_nova THEN
+		UPDATE "students"
+		SET "profile_completed_at" = COALESCE("consent_accepted_at", "created_at")
+		WHERE "profile_completed_at" IS NULL;
+	END IF;
+END $$;

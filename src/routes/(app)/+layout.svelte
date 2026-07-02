@@ -14,6 +14,13 @@
 	let moreOpen = $state(false);
 </script>
 
+<svelte:head>
+	<!-- Manifest do app do PROFISSIONAL (start_url /dashboard). Fica aqui, e
+	     não no app.html, porque o app do ALUNO (/a/[id]) serve um manifest
+	     dinâmico próprio — o navegador usa o primeiro link que encontrar. -->
+	<link rel="manifest" href="/manifest.webmanifest" />
+</svelte:head>
+
 <div class="app-shell">
 	<!-- Sidebar — desktop only -->
 	<Sidebar {userName} {userCref} {studentsCount} {unreadMessages} {newLeadsCount} {isAdmin} />

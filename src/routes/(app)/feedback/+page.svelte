@@ -38,6 +38,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Feedback · Preceptor Fisic</title>
+</svelte:head>
+
 <div style="max-width:760px;margin:0 auto;padding:24px 20px 64px">
 	<Eyebrow>◆ Beta</Eyebrow>
 	<h1 style="font:600 24px var(--font-sans);color:var(--ink-0);margin:6px 0 4px;letter-spacing:-0.02em">
@@ -118,6 +122,7 @@
 			<input
 				id="fb-page"
 				name="page"
+				maxlength="200"
 				placeholder="Ex: tela de gerar plano, agenda…"
 				style="width:100%;background:var(--bg-2);border:1px solid var(--ink-line);border-radius:var(--r-2);padding:10px 12px;font:400 13.5px var(--font-sans);color:var(--ink-0);outline:none"
 			/>

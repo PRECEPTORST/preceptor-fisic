@@ -66,6 +66,10 @@ gunzip -c backup-XXXXXXXX-XXXX.sql.gz | psql "$DATABASE_URL_DIRECT"
 
 # Re-rodar migrations pra garantir que está atualizado
 npm run db:migrate
+
+# OBRIGATÓRIO após migrate: aplica drizzle/manual/ (drift) + post-migration/
+# (RLS, policies, índices) — sem isso o banco restaurado fica sem RLS/policies.
+npm run db:post-migrate
 ```
 
 ### Restore parcial (uma tabela)

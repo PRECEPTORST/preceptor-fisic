@@ -13,6 +13,10 @@
 	});
 </script>
 
+<svelte:head>
+	<title>Recuperar senha · Preceptor Fisic</title>
+</svelte:head>
+
 <div class="rec-shell">
 	<div class="rec-glow"></div>
 	<div class="rec-frame">

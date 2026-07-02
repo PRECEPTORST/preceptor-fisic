@@ -4,9 +4,11 @@
 		unit?: string;
 		value?: string;
 		name?: string;
+		/** Teclado mobile: 'decimal' (padrão) ou 'numeric' pra campos inteiros. */
+		inputmode?: 'decimal' | 'numeric';
 		onChange?: (v: string) => void;
 	};
-	let { label, unit, value = $bindable(''), name, onChange }: Props = $props();
+	let { label, unit, value = $bindable(''), name, inputmode = 'decimal', onChange }: Props = $props();
 	let focused = $state(false);
 </script>
 
@@ -21,6 +23,8 @@
 	>
 		<input
 			{name}
+			{inputmode}
+			autocomplete="off"
 			bind:value
 			oninput={() => onChange?.(value)}
 			onfocus={() => (focused = true)}

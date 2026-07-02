@@ -9,14 +9,39 @@
 	let view = $state<'grid' | 'list'>('grid');
 	let filter = $state<'all' | 'active' | 'archived'>('all');
 
+	// Plano em geração não é "encerrado" — trata pending/generating como estado próprio.
+	function isGeneratingStatus(s: string): boolean {
+		return s === 'pending' || s === 'generating';
+	}
+
+	// Label PT-BR do status (evita 'Generated'/'Published' cru na UI).
+	function planStatusLabel(s: string): string {
+		return (
+			(
+				{
+					pending: 'Na fila',
+					generating: 'Gerando…',
+					generated: 'Rascunho',
+					published: 'Publicado',
+					failed: 'Falhou',
+					archived: 'Arquivado'
+				} as Record<string, string>
+			)[s] ?? s
+		);
+	}
+
 	const filtered = $derived(
 		plans.filter((p) => {
 			if (filter === 'all') return true;
-			if (filter === 'active') return p.isActive;
-			return !p.isActive;
+			if (filter === 'active') return p.isActive || isGeneratingStatus(p.status);
+			return !p.isActive && !isGeneratingStatus(p.status);
 		})
 	);
 </script>
+
+<svelte:head>
+	<title>Planos · Preceptor Fisic</title>
+</svelte:head>
 
 <div class="planos-main">
 	<header class="planos-header">
@@ -28,8 +53,8 @@
 			</p>
 		</div>
 		<div class="planos-actions">
-			<Button variant="secondary">Exportar</Button>
-			<Button>+ Novo</Button>
+			<!-- Novo plano = escolher o aluno primeiro (geração parte da ficha do aluno) -->
+			<Button onclick={() => goto('/alunos')}>+ Novo</Button>
 		</div>
 	</header>
 
@@ -39,7 +64,7 @@
 			<div style="font:var(--body);color:var(--ink-2);max-width:420px;margin:0 auto 20px">
 				Vá para a ficha de um aluno e clique em "Gerar plano" pra criar o primeiro.
 			</div>
-			<Button onclick={() => goto('/dashboard')}>Ver alunos</Button>
+			<Button onclick={() => goto('/alunos')}>Ver alunos</Button>
 		</div>
 	{:else}
 		<div
@@ -81,7 +106,7 @@
 							style="padding:14px 18px;border-bottom:1px solid var(--ink-line);display:flex;justify-content:space-between;align-items:center;background:var(--bg-3)"
 						>
 							<span style="font:var(--label-mono);color:{p.isActive ? 'var(--accent)' : 'var(--ink-2)'}"
-								>{p.isActive ? '● ATIVO' : '○ ENCERRADO'}</span
+								>{isGeneratingStatus(p.status) ? '◌ GERANDO…' : p.isActive ? '● ATIVO' : '○ ENCERRADO'}</span
 							>
 							<span style="font:var(--label-mono);color:var(--ink-3)"
 								>{new Date(p.createdAt).toLocaleDateString('pt-BR')}</span
@@ -100,8 +125,8 @@
 									<div style="font:var(--label-mono);color:var(--ink-3);margin-top:4px">SESSÕES</div>
 								</div>
 								<div>
-									<div style="font:500 16px var(--font-sans);color:var(--ink-0);line-height:1.2;text-transform:capitalize">
-										{p.status}
+									<div style="font:500 16px var(--font-sans);color:var(--ink-0);line-height:1.2">
+										{planStatusLabel(p.status)}
 									</div>
 									<div style="font:var(--label-mono);color:var(--ink-3);margin-top:4px">STATUS</div>
 								</div>
@@ -136,7 +161,7 @@
 							{p.title}
 						</div>
 						<div class="cell-sessoes num" style="font:500 14px var(--font-mono);color:var(--ink-0)">{p.sessionsTotal}</div>
-						<div class="cell-status"><Chip variant={p.isActive ? 'active' : 'default'}>{p.status}</Chip></div>
+						<div class="cell-status"><Chip variant={p.isActive ? 'active' : 'default'}>{planStatusLabel(p.status)}</Chip></div>
 						<div class="cell-data num" style="font:var(--label-mono);color:var(--ink-2)">{new Date(p.createdAt).toLocaleDateString('pt-BR')}</div>
 						<span class="cell-arrow" style="color:var(--accent);text-align:right">→</span>
 					</button>

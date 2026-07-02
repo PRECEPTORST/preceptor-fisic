@@ -76,16 +76,19 @@
 	// Mantemos os mesmos campos `weight` + `reps` no setLog: pra `time` o "weight"
 	// vira "segundos" (mesmo input, label diferente); pra `bodyweight` esconde
 	// o input de carga e mantém só reps (tonelagem é estimada server-side).
-	const exKind = $derived(
-		ex
-			? classifyExercise({
-					name: ex.name,
-					equipment: (ex as { equipment?: string }).equipment ?? null,
-					muscle_groups: ex.muscle_groups,
-					body_part: (ex as { body_part?: string }).body_part ?? null
-				})
-			: 'weight'
+	// Calculada pra TODOS os exercícios (não só o ativo) — vai ao servidor via
+	// hidden kind_{i} pra gravar a unidade certa (kg vs s) em cada set_log.
+	const kinds = $derived(
+		exercises.map((e) =>
+			classifyExercise({
+				name: e.name,
+				equipment: (e as { equipment?: string }).equipment ?? null,
+				muscle_groups: e.muscle_groups,
+				body_part: (e as { body_part?: string }).body_part ?? null
+			})
+		)
 	);
+	const exKind = $derived(kinds[activeIdx] ?? 'weight');
 	const exHint = $derived(loadInputHint(exKind));
 	const completedCount = $derived(Object.values(completed).filter(Boolean).length);
 	const allCompleted = $derived(completedCount === exercises.length);
@@ -166,6 +169,7 @@
 			<input type="hidden" name="setlogs_{i}" value={JSON.stringify(setLogs[i] ?? [])} />
 			<input type="hidden" name="completed_{i}" value={completed[i] ? 'on' : ''} />
 			<input type="hidden" name="pct_{i}" value={intensityUsed[i] ?? ''} />
+			<input type="hidden" name="kind_{i}" value={kinds[i] ?? 'weight'} />
 		{/each}
 
 		<!-- Detalhe do exercício ativo -->
@@ -322,7 +326,7 @@
 					<span class="num" style="font:500 13px var(--font-mono);color:var(--ink-2)">⏱ {elapsedMin} min</span>
 				</div>
 
-				<label class="lbl">PSE — Esforço percebido (0-10)</label>
+				<label class="lbl">PSE — Esforço percebido (4-10)</label>
 				<div class="rpe-row">
 					{#each [4, 5, 6, 7, 8, 9, 10] as v (v)}
 						<button
@@ -334,6 +338,7 @@
 					{/each}
 					<input type="hidden" name="rpe" value={rpe} />
 				</div>
+				<div class="sets-hint">Sentiu mais leve que 4? Marque 4 — é o piso da escala.</div>
 
 				<label class="lbl" style="margin-top:14px">Observações (opcional)</label>
 				<textarea

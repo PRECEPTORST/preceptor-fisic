@@ -1,12 +1,14 @@
 /**
- * Aplica SQL pós-migration (RLS policies + FK pra auth.users) no BR.
- * Idempotente — pode rodar várias vezes.
+ * Aplica SQL não-journaled no BR: drizzle/manual/*.sql (reconciliação de
+ * drift — colunas/enums fora das migrations geradas) e depois
+ * drizzle/post-migration/*.sql (RLS policies + FK pra auth.users).
+ * Ordem alfabética dentro de cada pasta. Idempotente — pode rodar várias vezes.
  */
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 dotenv.config({ path: '.env' });
 import postgres from 'postgres';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const BR = process.env.DATABASE_URL_DIRECT;
@@ -16,14 +18,16 @@ if (!BR) {
 }
 
 const sql = postgres(BR, { prepare: false });
-const dir = join(process.cwd(), 'drizzle', 'post-migration');
+const dir = join(process.cwd(), 'drizzle');
 
-const files = [
-	'0001-rls.sql',
-	'0002-auth-fk.sql',
-	'0003-rls-perf.sql',
-	'0004-exercise-catalog.sql'
-];
+// manual/ primeiro (policies do post-migration/ dependem de tabelas/colunas
+// que só existem após a reconciliação de drift).
+const files = ['manual', 'post-migration'].flatMap((sub) =>
+	readdirSync(join(dir, sub))
+		.filter((f) => f.endsWith('.sql'))
+		.sort()
+		.map((f) => join(sub, f))
+);
 try {
 	for (const f of files) {
 		console.log(`▸ aplicando ${f}…`);

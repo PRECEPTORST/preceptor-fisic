@@ -1,10 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { inArray } from 'drizzle-orm';
-import {
-	getAlunoAppData,
-	logTrainingSession,
-	matchCatalogByName
-} from '$lib/server/queries';
+import { getAlunoAppData, logTrainingSession, matchCatalogByName } from '$lib/server/queries';
 import { db } from '$lib/server/db';
 import { exerciseCatalog } from '$lib/server/db/schema';
 import { verifyStudentToken } from '$lib/server/aluno-token';
@@ -63,11 +59,7 @@ export const load = (async ({ params, url }) => {
 	}
 
 	// Passada 2: fuzzy pros nomes que sobraram (sem catalog_id ou id que não casou)
-	const missing = [
-		...new Set(
-			allExercises.map((e) => e.name).filter((n) => n && !videoMap[n])
-		)
-	];
+	const missing = [...new Set(allExercises.map((e) => e.name).filter((n) => n && !videoMap[n]))];
 	await Promise.all(
 		missing.map(async (name) => {
 			const match = await matchCatalogByName(name);
@@ -95,6 +87,12 @@ export const actions: Actions = {
 		const session = data.plan.planData.weekly_sessions?.[idx];
 		if (!session) return fail(404, { error: 'sessão não encontrada' });
 		const exerciseLogs = (session.main ?? []).map((ex, i) => {
+			// Tipo do exercício (hidden kind_{i}, classifyExercise no front):
+			// pra `time` o campo weight é SEGUNDOS — nunca pode virar "kg".
+			const kindRaw = String(fd.get(`kind_${i}`) ?? 'weight');
+			const kind = kindRaw === 'time' || kindRaw === 'bodyweight' ? kindRaw : 'weight';
+			const unit: 'kg' | 's' = kind === 'time' ? 's' : 'kg';
+
 			// set_logs: peso/reps reais por série (JSON enviado pelo front).
 			// Cada série vira { weight, reps }; vazias (sem peso E sem reps) são descartadas.
 			let setLogs: { weight: number; reps: number }[] = [];
@@ -133,18 +131,22 @@ export const actions: Actions = {
 				name: ex.name,
 				sets_done: setsDone,
 				reps_done: repsSummary,
-				load_used: maxWeight > 0 ? `${maxWeight}kg` : undefined,
-				set_logs: setLogs.length ? setLogs : undefined,
+				// `time` → "45s" (segundos), nunca "kg" — senão a duração polui a tonelagem.
+				load_used: maxWeight > 0 ? `${maxWeight}${unit}` : undefined,
+				set_logs: setLogs.length ? setLogs.map((s) => ({ ...s, unit })) : undefined,
 				intensity_used: intensityUsed,
 				notes: undefined,
-				completed: fd.get(`completed_${i}`) === 'on'
+				// Série com log preenchido = trabalho feito, mesmo sem o toque em
+				// "concluído" (aluno esquece; as métricas não podem descartar).
+				completed: fd.get(`completed_${i}`) === 'on' || setLogs.length > 0
 			};
 		});
 		// rpe não-numérico (NaN) iria parar na coluna integer perceived_effort
 		// (erro do Postgres → 500). Só aceita 0–10; senão fica undefined.
 		const rpeNum = fd.get('rpe') ? Number(fd.get('rpe')) : NaN;
-		const perceivedEffort =
-			Number.isFinite(rpeNum) ? Math.min(10, Math.max(0, Math.round(rpeNum))) : undefined;
+		const perceivedEffort = Number.isFinite(rpeNum)
+			? Math.min(10, Math.max(0, Math.round(rpeNum)))
+			: undefined;
 		const observations = String(fd.get('observations') ?? '').trim() || undefined;
 
 		// Duração: cliente envia minutos decorridos (start no mount → submit).
@@ -152,10 +154,7 @@ export const actions: Actions = {
 		// das séries (cada série ~3.5min incluindo descanso).
 		const elapsedRaw = Number(fd.get('duration_minutes') ?? 0);
 		const plannedDuration = session.duration_minutes ?? null;
-		const totalSets = (session.main ?? []).reduce(
-			(acc, ex) => acc + (Number(ex.sets) || 3),
-			0
-		);
+		const totalSets = (session.main ?? []).reduce((acc, ex) => acc + (Number(ex.sets) || 3), 0);
 		const setsEstimate = Math.round(totalSets * 3.5);
 		let durationMinutes: number | undefined;
 		if (Number.isFinite(elapsedRaw) && elapsedRaw >= 5 && elapsedRaw <= 180) {
@@ -179,9 +178,7 @@ export const actions: Actions = {
 
 		// Preserva token na URL após redirect — pega do form (hidden _t)
 		// porque a URL do form POST (?/complete) já perdeu a query string.
-		const tq = tokenFromForm
-			? `?t=${tokenFromForm}&just_completed=1`
-			: '?just_completed=1';
+		const tq = tokenFromForm ? `?t=${tokenFromForm}&just_completed=1` : '?just_completed=1';
 		redirect(303, `/a/${params.id}${tq}`);
 	}
 };

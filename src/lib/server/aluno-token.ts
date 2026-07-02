@@ -1,25 +1,31 @@
 /**
  * Magic-link tokens pro app do aluno.
  *
- * Geração: HMAC-SHA256(studentId, secret) truncado pra 16 hex chars.
+ * Geração: HMAC-SHA256(studentId, secret) truncado pra 24 hex chars.
  * Determinístico — mesma URL serve sempre, mas não dá pra adivinhar
  * sem o secret server-side.
  *
- * Secret = primeiros 32 chars do SUPABASE_SERVICE_ROLE_KEY (não muda
- * frequentemente, único por projeto Supabase).
+ * Secret = ALUNO_LINK_SECRET (dedicado, `openssl rand -hex 32`). Fallback:
+ * SHA-256 da SUPABASE_SERVICE_ROLE_KEY completa — nunca um slice, pois o
+ * prefixo de todo JWT do Supabase é um header público constante.
  */
-import { createHmac } from 'node:crypto';
+import { createHmac, createHash } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 
 function getSecret(): string {
+	const dedicated = env.ALUNO_LINK_SECRET ?? process.env.ALUNO_LINK_SECRET ?? '';
+	if (dedicated) return dedicated;
 	const key = env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-	if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY ausente — sem secret pro magic-link');
-	return key.slice(0, 32);
+	if (!key)
+		throw new Error(
+			'ALUNO_LINK_SECRET/SUPABASE_SERVICE_ROLE_KEY ausentes — sem secret pro magic-link'
+		);
+	return createHash('sha256').update(key).digest('hex');
 }
 
 export function signStudentToken(studentId: string): string {
 	const secret = getSecret();
-	return createHmac('sha256', secret).update(studentId).digest('hex').slice(0, 16);
+	return createHmac('sha256', secret).update(studentId).digest('hex').slice(0, 24);
 }
 
 export function verifyStudentToken(studentId: string, token: string | null | undefined): boolean {
