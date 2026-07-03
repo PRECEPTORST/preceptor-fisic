@@ -16,6 +16,11 @@ jobs:
     name: Lint + Tipos + Vitest
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # DATABASE_URL dummy: o módulo db lança no IMPORT sem ela, quebrando o
+    # import dos arquivos de teste (postgres.js só conecta na 1ª query, que os
+    # testes puros nunca fazem).
+    env:
+      DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci'
 
     steps:
       - uses: actions/checkout@v4
@@ -62,9 +67,13 @@ jobs:
       - name: Run Playwright smoke
         run: npm run test:e2e
         env:
-          # Smoke não precisa de Supabase real — testa só o shell público
-          PUBLIC_SUPABASE_URL: ''
-          PUBLIC_SUPABASE_ANON_KEY: ''
+          # Smoke em CI testa só o SHELL PÚBLICO (login, landing, legal, SEO,
+          # PWA). DATABASE_URL dummy evita o throw no import do módulo db; as
+          # rotas públicas não fazem query. Sem E2E_REAL_DB → os testes do app
+          # do aluno (que exigem banco seedado) são pulados.
+          DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci'
+          PUBLIC_SUPABASE_URL: 'https://ci.supabase.co'
+          PUBLIC_SUPABASE_ANON_KEY: 'ci-anon-key'
 
       - name: Upload Playwright report on failure
         if: failure()

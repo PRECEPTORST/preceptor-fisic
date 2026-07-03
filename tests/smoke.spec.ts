@@ -29,7 +29,8 @@ test.describe('Smoke — rotas públicas (não logado)', () => {
 	test('rotas protegidas redirecionam pra login quando sem sessão', async ({ page, context }) => {
 		await context.clearCookies();
 		await page.goto('/dashboard');
-		await expect(page).toHaveURL(/\/login$/);
+		// Redireciona pro /login (com ?next= preservando o deep link).
+		await expect(page).toHaveURL(/\/login(\?|$)/);
 	});
 
 	test('manifest e sw são servidos', async ({ page }) => {
@@ -44,6 +45,10 @@ test.describe('Smoke — rotas públicas (não logado)', () => {
 });
 
 test.describe('Smoke — app do aluno (público com magic-link)', () => {
+	// Exige banco real com o aluno seedado (UUID fixo abaixo). Em CI não há
+	// banco, então pula; rode local com E2E_REAL_DB=1 apontando pro Supabase.
+	test.skip(!process.env.E2E_REAL_DB, 'requer banco seedado — rode com E2E_REAL_DB=1');
+
 	test('rota /a/[id] com token válido renderiza saudação', async ({ page }) => {
 		const studentId = 'dc02543e-b69a-4a91-bed1-220698bf4b14';
 		await page.goto(`/a/${studentId}`);
@@ -60,12 +65,14 @@ test.describe('Smoke — app do aluno (público com magic-link)', () => {
 });
 
 test.describe('Smoke — PWA', () => {
-	test('app.html tem link manifest, apple-touch-icon, e SW registration', async ({ page }) => {
+	test('app.html tem apple-touch-icon e SW desativado (kill-switch)', async ({ page }) => {
 		const r = await page.request.get('/login');
 		const html = await r.text();
-		expect(html).toContain('manifest.webmanifest');
 		expect(html).toContain('apple-touch-icon');
-		expect(html).toContain("serviceWorker.register('/sw.js')");
+		// Service worker foi DESATIVADO de propósito (kill switch — o SW de cache
+		// quebrava navegações de auth). app.html não registra SW; desregistra.
+		expect(html).not.toContain("serviceWorker.register('/sw.js')");
+		expect(html).toContain('serviceWorker');
 	});
 });
 
