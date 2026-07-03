@@ -117,8 +117,15 @@
 		const parts = [ex.intensity, ex.load_guidance].map((p) => p?.trim()).filter(Boolean);
 		return parts.length > 0 ? parts.join(' · ') : '-';
 	}
+	// Ações dinâmicas têm cadência; isometria/alongamento não.
+	const DYNAMIC_ACTIONS = new Set(['isotonica', 'auxotonico', 'isocinetica']);
 	function fmtCadence(ex: PlanExercise): string {
-		return ex.cadence || ex.tempo || '-';
+		const c = (ex.cadence || ex.tempo || '').trim();
+		if (c) return c;
+		// Sem cadência definida: exercício dinâmico recebe tempo controlado padrão
+		// "2/2" (evita a coluna vazia na ficha); isometria/alongamento/sem ação
+		// definida ficam "-" (cadência não se aplica). O personal pode editar.
+		return ex.muscle_action && DYNAMIC_ACTIONS.has(ex.muscle_action) ? '2/2' : '-';
 	}
 	function fmtAction(ex: PlanExercise): string {
 		return ex.muscle_action ? (MUSCLE_ACTION_LABEL[ex.muscle_action] ?? '-') : '-';

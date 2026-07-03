@@ -504,22 +504,6 @@
 		.edit-in:focus {
 			border-color: var(--accent);
 		}
-		/* Remover exercício — link discreto de perigo no painel de edição */
-		.remove-link {
-			all: unset;
-			cursor: pointer;
-			font: 500 12px var(--font-sans);
-			color: var(--danger);
-			opacity: 0.85;
-		}
-		.remove-link:hover {
-			opacity: 1;
-			text-decoration: underline;
-		}
-		.remove-link:disabled {
-			opacity: 0.4;
-			cursor: default;
-		}
 		/* Adicionar exercício — botão discreto no fim de cada bloco */
 		.add-btn {
 			all: unset;
@@ -1281,7 +1265,7 @@
 							style="display:flex;flex-direction:column;{j || blockKey !== firstBlock ? 'border-top:1px solid var(--ink-line)' : ''}"
 						>
 							<div
-								style="padding:14px 20px;display:grid;grid-template-columns:32px 1fr auto auto auto auto auto auto;gap:14px;align-items:center"
+								style="padding:14px 20px;display:grid;grid-template-columns:32px 1fr auto auto auto auto auto auto auto;gap:12px;align-items:center"
 							>
 								<div class="num" style="font:500 13px var(--font-mono);color:var(--ink-3)">
 									{String(j + 1).padStart(2, '0')}
@@ -1352,6 +1336,33 @@
 										style="all:unset;cursor:pointer;font:500 11px var(--font-mono);text-transform:uppercase;letter-spacing:0.06em;padding:3px 10px;border:1px solid var(--ink-line);border-radius:var(--r-pill);color:{editOpen ? 'var(--accent)' : 'var(--ink-1)'};background:{editOpen ? 'var(--accent-wash)' : 'transparent'}"
 										aria-expanded={editOpen}
 									>{editOpen ? '× fechar' : '✎ editar'}</button>
+								{:else}
+									<span></span>
+								{/if}
+								{#if !isArchived}
+									<!-- Excluir exercício direto da linha (além do trocar/editar). -->
+									<form
+										method="POST"
+										action="?/removeExercise"
+										use:enhance={({ cancel }) => {
+											if (!window.confirm(`Excluir "${ex.name}" desta sessão?`)) {
+												cancel();
+												return;
+											}
+											savingEdit = true;
+											return exerciseMutationHandler(() => {});
+										}}
+										style="display:contents"
+									>
+										<input type="hidden" name="sessionIdx" value={i} />
+										<input type="hidden" name="block" value={blockKey} />
+										<input type="hidden" name="exerciseIdx" value={j} />
+										<button
+											type="submit"
+											title="Excluir exercício"
+											style="all:unset;cursor:pointer;font:500 11px var(--font-mono);text-transform:uppercase;letter-spacing:0.06em;padding:3px 10px;border:1px solid var(--ink-line);border-radius:var(--r-pill);color:var(--danger)"
+										>✕ excluir</button>
+									</form>
 								{:else}
 									<span></span>
 								{/if}
@@ -1448,25 +1459,6 @@
 										<Button type="button" variant="ghost" size="sm" onclick={() => (editKey = null)}>Cancelar</Button>
 										<Button type="submit" size="sm" disabled={savingEdit}>{savingEdit ? 'Salvando…' : 'Salvar'}</Button>
 									</div>
-								</form>
-								<!-- Remover (form separado — não se aninha ao de edição) -->
-								<form
-									method="POST"
-									action="?/removeExercise"
-									use:enhance={({ cancel }) => {
-										if (!window.confirm(`Remover "${ex.name}" desta sessão?`)) {
-											cancel();
-											return;
-										}
-										savingEdit = true;
-										return exerciseMutationHandler(() => (editKey = null));
-									}}
-									style="padding:0 20px 16px 60px"
-								>
-									<input type="hidden" name="sessionIdx" value={i} />
-									<input type="hidden" name="block" value={blockKey} />
-									<input type="hidden" name="exerciseIdx" value={j} />
-									<button type="submit" class="remove-link" disabled={savingEdit}>🗑 Remover este exercício</button>
 								</form>
 							{/if}
 							{#if catEntry?.videoUrl && videoOpen}
