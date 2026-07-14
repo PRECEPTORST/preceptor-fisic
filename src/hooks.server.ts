@@ -137,8 +137,16 @@ export const handleError: HandleServerError = ({ error, event, status }) => {
 	if (SENTRY_DSN) {
 		Sentry.captureException(error, { extra: { path: event.url.pathname } });
 	}
+	// Loga também a causa raiz: erros do driver (drizzle "Failed query")
+	// escondem o motivo real (ex: "password authentication failed") em .cause.
+	const cause = (error as { cause?: unknown })?.cause;
 	logger.error(
-		{ status, path: event.url.pathname, err: String(error).slice(0, 500) },
+		{
+			status,
+			path: event.url.pathname,
+			err: String(error).slice(0, 300),
+			cause: cause != null ? String(cause).slice(0, 300) : undefined
+		},
 		'request.error.5xx'
 	);
 	return { message: 'Erro interno. Tente de novo em alguns segundos.' };
