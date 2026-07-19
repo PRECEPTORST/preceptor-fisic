@@ -104,7 +104,7 @@
 		{
 			eyebrow: '◆ PreceptorFISIC + RAG',
 			title: 'Geração com diretrizes',
-			body: 'PreceptorFISIC com retrieval-augmented sobre ACSM, AHA, OMS e ESSA. Citações reais com chunk_id, página e organização — não invenção.',
+			body: 'PreceptorFISIC consulta as diretrizes ACSM, AHA, OMS e ESSA na hora de gerar. Citações reais, com página e organização: não invenção.',
 			metric: '2.040 chunks',
 			metricLabel: 'indexados'
 		},
@@ -140,7 +140,7 @@
 		{
 			n: '02',
 			title: 'Gere com PreceptorFISIC',
-			body: 'Plano sai em 15-30s — você vê materializando ao vivo. ACSM tem prioridade no RAG. Validação clínica automática antes de publicar.'
+			body: 'Plano sai em 15-30s e você vê materializando ao vivo. ACSM tem prioridade nas fontes. Validação clínica automática antes de publicar.'
 		},
 		{
 			n: '03',
@@ -154,13 +154,71 @@
 		// Só métricas compriváveis — sem números de aderência/usuários fabricados
 		// (mesma política do /login; risco CDC/CONFEF)
 		{ v: '1.324', l: 'exercícios com vídeo' },
-		{ v: 'sa-east-1', l: 'região BR · LGPD' },
-		{ v: 'ACSM ★', l: 'preferência RAG' }
+		{ v: 'Brasil', l: 'servidores no país · LGPD' },
+		{ v: 'ACSM ★', l: 'prioridade nas fontes' }
+	];
+
+	const PAINS = [
+		{
+			title: 'Medo de errar',
+			body: 'Hipertenso, gestante, pós-cirúrgico: uma prescrição errada vira risco real. E a responsabilidade é sua, sozinho.'
+		},
+		{
+			title: 'Tempo perdido',
+			body: 'Horas pesquisando diretriz, montando planilha e conferindo contraindicação aluno por aluno. Tempo que não volta e não escala.'
+		},
+		{
+			title: 'IA genérica não serve',
+			body: 'ChatGPT não cita fonte, não prioriza ACSM e inventa com confiança. Para populações especiais, isso é inaceitável.'
+		}
+	];
+
+	const PLANS = [
+		{
+			name: 'Grátis',
+			price: 'R$ 0',
+			period: 'para sempre',
+			desc: 'Para testar com seus primeiros alunos.',
+			items: ['Geração com PreceptorFISIC', 'Validação clínica automática', 'App do aluno via magic-link'],
+			cta: 'Começar grátis',
+			href: '/login?mode=signup',
+			featured: false
+		},
+		{
+			name: 'Essencial',
+			price: 'R$ 69,90',
+			period: '/mês',
+			desc: 'Para o profissional em crescimento.',
+			items: ['Mais alunos ativos', 'Histórico completo de planos', 'Suporte por e-mail'],
+			cta: 'Começar grátis',
+			href: '/login?mode=signup',
+			featured: false
+		},
+		{
+			name: 'Pro',
+			price: 'R$ 149,90',
+			period: '/mês',
+			desc: 'Para quem vive de prescrição clínica.',
+			items: ['Alunos ilimitados', 'Auditoria completa de cada plano', 'Prioridade na geração'],
+			cta: 'Começar grátis',
+			href: '/login?mode=signup',
+			featured: true
+		},
+		{
+			name: 'Institucional',
+			price: 'R$ 499,90',
+			period: 'a partir de · /mês',
+			desc: 'Para clínicas, academias e equipes.',
+			items: ['Múltiplos profissionais', 'Onboarding dedicado', 'Contrato e faturamento'],
+			cta: 'Falar com o time',
+			href: 'mailto:castroomath7@gmail.com',
+			featured: false
+		}
 	];
 </script>
 
 <svelte:head>
-	<title>Preceptor Fisic — Prescrição clínica validada</title>
+	<title>Preceptor Fisic · Prescrição clínica validada</title>
 	<meta
 		name="description"
 		content="Plataforma para profissionais CREF/CREFITO que prescrevem exercícios para populações especiais. PreceptorFISIC com diretrizes ACSM, validação clínica automática, app mobile do aluno."
@@ -172,7 +230,7 @@
 	<!-- Open Graph (Facebook, LinkedIn, WhatsApp) -->
 	<meta property="og:type" content="website" />
 	<meta property="og:url" content="https://preceptor-fisic.vercel.app/" />
-	<meta property="og:title" content="Preceptor Fisic — Prescrição clínica validada" />
+	<meta property="og:title" content="Preceptor Fisic · Prescrição clínica validada" />
 	<meta
 		property="og:description"
 		content="PreceptorFISIC com diretrizes ACSM · Validação clínica automática · App mobile do aluno. Plataforma para profissionais CREF/CREFITO."
@@ -182,13 +240,13 @@
 	<meta property="og:image:type" content="image/png" />
 	<meta property="og:image:width" content="1200" />
 	<meta property="og:image:height" content="630" />
-	<meta property="og:image:alt" content="Preceptor Fisic — prescrição clínica validada" />
+	<meta property="og:image:alt" content="Preceptor Fisic · Prescrição clínica validada" />
 	<meta property="og:site_name" content="Preceptor Fisic" />
 	<meta property="og:locale" content="pt_BR" />
 
 	<!-- Twitter Card -->
 	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:title" content="Preceptor Fisic — Prescrição clínica validada" />
+	<meta name="twitter:title" content="Preceptor Fisic · Prescrição clínica validada" />
 	<meta
 		name="twitter:description"
 		content="PreceptorFISIC com diretrizes ACSM · Validação clínica automática · App mobile do aluno."
@@ -231,7 +289,7 @@
 		<nav class="lp-nav" aria-label="Navegação">
 			<a href="#features">Plataforma</a>
 			<a href="#how">Como funciona</a>
-			<a href="#metrics">Resultados</a>
+			<a href="#pricing">Preços</a>
 		</nav>
 
 		<div class="lp-cta">
@@ -285,7 +343,7 @@
 		<div class="hero-content">
 			<div class="hero-eyebrow">
 				<span class="hero-eyebrow-dot"></span>
-				CONFORMIDADE LGPD · DADOS NA REGIÃO BR
+				PARA PROFISSIONAIS CREF · CREFITO
 			</div>
 
 			<h1 class="hero-h1">
@@ -295,13 +353,13 @@
 
 			<p class="hero-sub">
 				A primeira plataforma brasileira para profissionais CREF/CREFITO que prescrevem para
-				<strong>populações especiais</strong> — com PreceptorFISIC fundamentado em diretrizes ACSM, validação
+				<strong>populações especiais</strong>. PreceptorFISIC fundamentado em diretrizes ACSM, validação
 				clínica automática e app mobile do aluno.
 			</p>
 
 			<div class="hero-actions">
 				<a href="/login?mode=signup" class="lp-btn lp-btn--primary lp-btn--lg">
-					Começar agora
+					Começar grátis
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M5 12h14M13 5l7 7-7 7" />
 					</svg>
@@ -322,7 +380,7 @@
 				<div class="hero-trust-divider"></div>
 				<div class="hero-trust-item">
 					<span class="trust-dot info"></span>
-					PreceptorFISIC + RAG
+					Citações científicas reais
 				</div>
 			</div>
 		</div>
@@ -350,6 +408,23 @@
 		</div>
 	</section>
 
+	<!-- PAIN — nomeia o problema antes de mostrar a solução -->
+	<section class="pain" id="pain">
+		<div class="section-head">
+			<div class="eyebrow">◈ O problema</div>
+			<h2>Prescrever para população especial <em>é assinar sozinho.</em></h2>
+		</div>
+		<div class="pain-grid">
+			{#each PAINS as p (p.title)}
+				<article class="pain-card">
+					<h3>{p.title}</h3>
+					<p>{p.body}</p>
+				</article>
+			{/each}
+		</div>
+		<p class="pain-bridge">É por isso que existe o Preceptor Fisic.</p>
+	</section>
+
 	<!-- METRICS -->
 	<section class="metrics" id="metrics">
 		<div class="metrics-inner">
@@ -359,6 +434,62 @@
 					<div class="metric-l">{m.l}</div>
 				</div>
 			{/each}
+		</div>
+	</section>
+
+	<!-- DIFFERENTIATOR -->
+	<section class="diff">
+		<div class="diff-grid">
+			<div class="diff-side">
+				<div class="eyebrow">⊕ Diferencial</div>
+				<h2>ACSM tem <em>prioridade absoluta</em> nas nossas fontes.</h2>
+				<p>
+					Quando duas diretrizes cobrem o mesmo ponto e uma é ACSM, a ACSM ganha. São as
+					diretrizes mais técnicas e específicas para prescrição de exercício; AHA é mais ampla
+					em saúde cardiovascular e menos detalhada em programação.
+				</p>
+				<p class="diff-quote">
+					O profissional que usa Preceptor sabe disso. O que usa ChatGPT não.
+				</p>
+			</div>
+			<div class="diff-panel">
+				<details class="diff-details">
+					<summary>Ver detalhes técnicos</summary>
+					<div class="diff-card">
+						<div class="diff-card-head">
+							<span class="eyebrow">RAG context · top 8 chunks</span>
+						</div>
+						<div class="diff-rows">
+							<div class="diff-row hi">
+								<span class="diff-tag acsm">★ ACSM</span>
+								<span class="diff-row-title">Position Stand on Hypertension and Exercise</span>
+								<span class="num diff-dist">0.142</span>
+							</div>
+							<div class="diff-row hi">
+								<span class="diff-tag acsm">★ ACSM</span>
+								<span class="diff-row-title">Guidelines for Exercise Testing and Prescription, 11ed</span>
+								<span class="num diff-dist">0.158</span>
+							</div>
+							<div class="diff-row">
+								<span class="diff-tag essa">◆ ESSA</span>
+								<span class="diff-row-title">Position Statement: Exercise and Type 2 Diabetes</span>
+								<span class="num diff-dist">0.171</span>
+							</div>
+							<div class="diff-row hi">
+								<span class="diff-tag acsm">★ ACSM</span>
+								<span class="diff-row-title">Pre-participation Cardiovascular Screening</span>
+								<span class="num diff-dist">0.183</span>
+							</div>
+							<div class="diff-row low">
+								<span class="diff-tag aha">○ AHA</span>
+								<span class="diff-row-title">Scientific Statement: Resistance Exercise</span>
+								<span class="num diff-dist">0.197</span>
+							</div>
+						</div>
+						<div class="diff-foot">org_distribution: <span class="num">acsm:3 · essa:1 · aha:1</span></div>
+					</div>
+				</details>
+			</div>
 		</div>
 	</section>
 
@@ -416,54 +547,38 @@
 		</div>
 	</section>
 
-	<!-- DIFFERENTIATOR -->
-	<section class="diff">
-		<div class="diff-grid">
-			<div class="diff-side">
-				<div class="eyebrow">⊕ Diferencial técnico</div>
-				<h2>Por que ACSM tem <em>preferência absoluta</em> no nosso RAG.</h2>
-				<p>
-					Quando dois chunks cobrem o mesmo ponto e um é ACSM, outro é AHA, o ACSM ganha boost de
-					ranking. As diretrizes ACSM são as mais técnicas e específicas para prescrição de
-					exercício; AHA é mais ampla em saúde cardiovascular e menos detalhada em programação.
-				</p>
-				<p class="diff-note">
-					O profissional que usa Preceptor sabe disso. O que usa ChatGPT não.
-				</p>
-			</div>
-			<div class="diff-card">
-				<div class="diff-card-head">
-					<span class="eyebrow">RAG context · top 8 chunks</span>
-				</div>
-				<div class="diff-rows">
-					<div class="diff-row hi">
-						<span class="diff-tag acsm">★ ACSM</span>
-						<span class="diff-row-title">Position Stand on Hypertension and Exercise</span>
-						<span class="num diff-dist">0.142</span>
+	<!-- PRICING -->
+	<section class="pricing" id="pricing">
+		<div class="section-head">
+			<div class="eyebrow">◆ Preços</div>
+			<h2>Planos para cada fase. <em>Mesma ciência em todos.</em></h2>
+			<p>Mesma qualidade científica em todos os planos: diretrizes ACSM, validação clínica e auditoria completa desde o Grátis.</p>
+		</div>
+		<div class="pricing-grid">
+			{#each PLANS as plan (plan.name)}
+				<article class="price-card" class:featured={plan.featured}>
+					{#if plan.featured}
+						<div class="price-badge">Mais popular</div>
+					{/if}
+					<h3>{plan.name}</h3>
+					<div class="price-value">
+						<span class="num price-num">{plan.price}</span>
+						<span class="price-period">{plan.period}</span>
 					</div>
-					<div class="diff-row hi">
-						<span class="diff-tag acsm">★ ACSM</span>
-						<span class="diff-row-title">Guidelines for Exercise Testing and Prescription, 11ed</span>
-						<span class="num diff-dist">0.158</span>
-					</div>
-					<div class="diff-row">
-						<span class="diff-tag essa">◆ ESSA</span>
-						<span class="diff-row-title">Position Statement: Exercise and Type 2 Diabetes</span>
-						<span class="num diff-dist">0.171</span>
-					</div>
-					<div class="diff-row hi">
-						<span class="diff-tag acsm">★ ACSM</span>
-						<span class="diff-row-title">Pre-participation Cardiovascular Screening</span>
-						<span class="num diff-dist">0.183</span>
-					</div>
-					<div class="diff-row low">
-						<span class="diff-tag aha">○ AHA</span>
-						<span class="diff-row-title">Scientific Statement: Resistance Exercise</span>
-						<span class="num diff-dist">0.197</span>
-					</div>
-				</div>
-				<div class="diff-foot">org_distribution: <span class="num">acsm:3 · essa:1 · aha:1</span></div>
-			</div>
+					<p class="price-desc">{plan.desc}</p>
+					<ul class="price-items">
+						{#each plan.items as item (item)}
+							<li>{item}</li>
+						{/each}
+					</ul>
+					<a
+						href={plan.href}
+						class="lp-btn {plan.featured ? 'lp-btn--primary' : 'lp-btn--secondary'}"
+					>
+						{plan.cta}
+					</a>
+				</article>
+			{/each}
 		</div>
 	</section>
 
@@ -490,6 +605,13 @@
 			<div class="cta-fineprint">
 				Sem cartão de crédito · Sem app store · Dados em São Paulo · LGPD compliant
 			</div>
+			<!-- Oferta de baixo compromisso pra quem não quer criar conta ainda -->
+			<a
+				class="cta-soft"
+				href="mailto:castroomath7@gmail.com?subject=Quero%20ver%20um%20plano%20de%20exemplo"
+			>
+				Não está pronto? Peça um plano de exemplo por e-mail →
+			</a>
 		</div>
 	</section>
 
@@ -508,7 +630,7 @@
 					<div class="footer-col-h">Plataforma</div>
 					<a href="#features">Features</a>
 					<a href="#how">Como funciona</a>
-					<a href="#metrics">Resultados</a>
+					<a href="#pricing">Preços</a>
 				</div>
 				<div>
 					<div class="footer-col-h">Acesso</div>
@@ -524,7 +646,7 @@
 			</div>
 		</div>
 		<div class="footer-bot">
-			<span>Construído em São Paulo · Região sa-east-1</span>
+			<span>Construído em São Paulo · Servidores no Brasil</span>
 			<span>Diretrizes ACSM · ESSA · AHA · OMS · ADA</span>
 		</div>
 	</footer>
@@ -998,6 +1120,44 @@
 		max-width: 580px;
 	}
 
+	/* PAIN */
+	.pain {
+		padding: 100px 32px;
+		max-width: 1200px;
+		margin: 0 auto;
+		width: 100%;
+		box-sizing: border-box;
+	}
+	.pain-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 14px;
+	}
+	.pain-card {
+		padding: 26px 26px 22px;
+		background: var(--bg-1);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-3);
+	}
+	.pain-card h3 {
+		font: 500 19px var(--font-sans);
+		letter-spacing: -0.015em;
+		margin: 0 0 8px;
+		color: var(--ink-0);
+	}
+	.pain-card p {
+		font: 400 14px/1.55 var(--font-sans);
+		color: var(--ink-1);
+		margin: 0;
+	}
+	.pain-bridge {
+		margin: 40px 0 0;
+		font: 400 clamp(18px, 2.2vw, 24px) var(--font-sans);
+		font-style: italic;
+		letter-spacing: -0.015em;
+		color: var(--accent-2);
+	}
+
 	/* FEATURES */
 	.features {
 		padding: 100px 32px;
@@ -1176,13 +1336,28 @@
 		color: var(--ink-1);
 		margin: 0 0 14px;
 	}
-	.diff-note {
-		padding: 14px 18px;
+	/* Destaque visual da seção: a frase, não o painel técnico */
+	.diff-side .diff-quote {
+		padding: 18px 22px;
 		background: var(--bg-1);
 		border-left: 2px solid var(--accent);
 		border-radius: 0 var(--r-2) var(--r-2) 0;
+		font: 400 clamp(17px, 1.8vw, 21px)/1.45 var(--font-sans);
 		font-style: italic;
 		color: var(--ink-0);
+	}
+	.diff-details summary {
+		cursor: pointer;
+		font: 500 13px var(--font-sans);
+		color: var(--ink-1);
+		padding: 10px 0;
+		transition: color 140ms var(--ease);
+	}
+	.diff-details summary:hover {
+		color: var(--ink-0);
+	}
+	.diff-details[open] summary {
+		margin-bottom: 10px;
 	}
 	.diff-card {
 		background: var(--bg-1);
@@ -1272,6 +1447,99 @@
 		color: var(--accent-2);
 	}
 
+	/* PRICING */
+	.pricing {
+		padding: 100px 32px;
+		max-width: 1200px;
+		margin: 0 auto;
+		width: 100%;
+		box-sizing: border-box;
+	}
+	.pricing-grid {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 14px;
+		align-items: stretch;
+	}
+	.price-card {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 26px 24px;
+		background: var(--bg-1);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-3);
+	}
+	.price-card.featured {
+		border-color: rgba(167, 139, 250, 0.45);
+		background: rgba(167, 139, 250, 0.06);
+	}
+	.price-badge {
+		position: absolute;
+		top: -11px;
+		left: 24px;
+		padding: 3px 10px;
+		background: linear-gradient(180deg, var(--accent), var(--accent-dim));
+		color: #0a0a0a;
+		border-radius: var(--r-pill);
+		font: 600 10.5px var(--font-mono);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
+	.price-card h3 {
+		font: 500 18px var(--font-sans);
+		letter-spacing: -0.015em;
+		margin: 0;
+		color: var(--ink-0);
+	}
+	.price-value {
+		display: flex;
+		align-items: baseline;
+		gap: 6px;
+		flex-wrap: wrap;
+	}
+	.price-num {
+		font: 600 28px var(--font-mono);
+		color: var(--ink-0);
+		letter-spacing: -0.02em;
+		font-variant-numeric: tabular-nums;
+	}
+	.price-period {
+		font: 500 11px var(--font-mono);
+		color: var(--ink-3);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+	.price-desc {
+		font: 400 13.5px/1.5 var(--font-sans);
+		color: var(--ink-1);
+		margin: 0;
+	}
+	.price-items {
+		list-style: none;
+		margin: 0;
+		padding: 12px 0 16px;
+		border-top: 1px solid var(--ink-line);
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		flex: 1;
+	}
+	.price-items li {
+		font: 400 13px/1.4 var(--font-sans);
+		color: var(--ink-1);
+		padding-left: 18px;
+		position: relative;
+	}
+	.price-items li::before {
+		content: '✓';
+		position: absolute;
+		left: 0;
+		color: var(--accent);
+		font-weight: 600;
+	}
+
 	/* FINAL CTA */
 	.cta-final {
 		position: relative;
@@ -1333,6 +1601,18 @@
 		color: var(--ink-3);
 		text-transform: uppercase;
 		letter-spacing: 0.1em;
+	}
+	.cta-soft {
+		display: inline-block;
+		margin-top: 18px;
+		font: 400 13.5px var(--font-sans);
+		color: var(--ink-1);
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		transition: color 140ms var(--ease);
+	}
+	.cta-soft:hover {
+		color: var(--ink-0);
 	}
 
 	/* FOOTER */
@@ -1455,8 +1735,22 @@
 
 		.features,
 		.how,
-		.diff {
+		.diff,
+		.pain,
+		.pricing {
 			padding: 64px 18px;
+		}
+		.pain-grid {
+			grid-template-columns: 1fr;
+		}
+		.pain-bridge {
+			margin-top: 28px;
+		}
+		.pricing-grid {
+			grid-template-columns: 1fr;
+		}
+		.price-card.featured {
+			order: -1;
 		}
 		.section-head {
 			margin-bottom: 36px;
