@@ -169,7 +169,7 @@
 		},
 		{
 			title: 'IA genérica não serve',
-			body: 'ChatGPT não cita fonte, não prioriza ACSM e inventa com confiança. Para populações especiais, isso é inaceitável.'
+			body: 'ChatGPT e Gemini não citam fonte, não priorizam ACSM e inventam com confiança. Para populações especiais, isso é inaceitável.'
 		}
 	];
 
@@ -208,19 +208,19 @@
 </script>
 
 <svelte:head>
-	<title>Preceptor Fisic · Prescrição clínica validada</title>
+	<title>PreceptorFISIC · Prescrição clínica validada</title>
 	<meta
 		name="description"
 		content="Plataforma para profissionais CREF/CREFITO que prescrevem exercícios para populações especiais. PreceptorFISIC com diretrizes ACSM, validação clínica automática, app mobile do aluno."
 	/>
 	<meta name="keywords" content="prescrição exercício, populações especiais, hipertensão, diabetes, cardiopatia, ACSM, fisioterapia, personal trainer, CREF, CREFITO" />
-	<meta name="author" content="Preceptor Fisic" />
+	<meta name="author" content="PreceptorFISIC" />
 	<link rel="canonical" href="https://preceptor-fisic.vercel.app/" />
 
 	<!-- Open Graph (Facebook, LinkedIn, WhatsApp) -->
 	<meta property="og:type" content="website" />
 	<meta property="og:url" content="https://preceptor-fisic.vercel.app/" />
-	<meta property="og:title" content="Preceptor Fisic · Prescrição clínica validada" />
+	<meta property="og:title" content="PreceptorFISIC · Prescrição clínica validada" />
 	<meta
 		property="og:description"
 		content="PreceptorFISIC com diretrizes ACSM · Validação clínica automática · App mobile do aluno. Plataforma para profissionais CREF/CREFITO."
@@ -230,13 +230,13 @@
 	<meta property="og:image:type" content="image/png" />
 	<meta property="og:image:width" content="1200" />
 	<meta property="og:image:height" content="630" />
-	<meta property="og:image:alt" content="Preceptor Fisic · Prescrição clínica validada" />
-	<meta property="og:site_name" content="Preceptor Fisic" />
+	<meta property="og:image:alt" content="PreceptorFISIC · Prescrição clínica validada" />
+	<meta property="og:site_name" content="PreceptorFISIC" />
 	<meta property="og:locale" content="pt_BR" />
 
 	<!-- Twitter Card -->
 	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:title" content="Preceptor Fisic · Prescrição clínica validada" />
+	<meta name="twitter:title" content="PreceptorFISIC · Prescrição clínica validada" />
 	<meta
 		name="twitter:description"
 		content="PreceptorFISIC com diretrizes ACSM · Validação clínica automática · App mobile do aluno."
@@ -248,7 +248,7 @@
 	{
 		"@context": "https://schema.org",
 		"@type": "SoftwareApplication",
-		"name": "Preceptor Fisic",
+		"name": "PreceptorFISIC",
 		"applicationCategory": "HealthApplication",
 		"operatingSystem": "Web, iOS, Android",
 		"description": "Plataforma de prescrição clínica de exercícios com PreceptorFISIC fundamentado em diretrizes ACSM.",
@@ -271,7 +271,7 @@
 		<a href="/" class="lp-brand">
 			<BrandMark size={30} />
 			<div>
-				<div class="lp-name">Preceptor Fisic</div>
+				<div class="lp-name">Preceptor<span class="lp-name-fisic">FISIC</span></div>
 				<div class="lp-sub">PRO · v3.2</div>
 			</div>
 		</a>
@@ -412,7 +412,7 @@
 				</article>
 			{/each}
 		</div>
-		<p class="pain-bridge">É por isso que existe o Preceptor Fisic.</p>
+		<p class="pain-bridge">É por isso que existe o PreceptorFISIC.</p>
 	</section>
 
 	<!-- METRICS -->
@@ -439,7 +439,8 @@
 					em saúde cardiovascular e menos detalhada em programação.
 				</p>
 				<p class="diff-quote">
-					O profissional que usa Preceptor sabe disso. O que usa ChatGPT não.
+					O profissional que usa PreceptorFISIC sabe disso. Quem joga no ChatGPT ou no
+					Gemini, não.
 				</p>
 			</div>
 			<div class="diff-panel">
@@ -492,7 +493,7 @@
 				<em>aguenta auditoria.</em>
 			</h2>
 			<p>
-				Quatro pilares que separam Preceptor Fisic de planilhas, ChatGPT genérico e apps de
+				Quatro pilares que separam PreceptorFISIC de planilhas, ChatGPT genérico e apps de
 				academia. Construído pelo método clínico, não pelo marketing.
 			</p>
 		</div>
@@ -608,7 +609,7 @@
 			<div class="footer-brand">
 				<BrandMark size={30} />
 				<div>
-					<div class="lp-name">Preceptor Fisic</div>
+					<div class="lp-name">Preceptor<span class="lp-name-fisic">FISIC</span></div>
 					<div class="lp-sub">© 2026 · v3.2</div>
 				</div>
 			</div>
@@ -641,7 +642,7 @@
 
 <style>
 	/* ─────────────────────────────────────────────
-	   LANDING PAGE — Preceptor Fisic
+	   LANDING PAGE — PreceptorFISIC
 	   Dark fit-tech · vídeo hero · contraste alto
 	   ───────────────────────────────────────────── */
 	.lp {
@@ -685,9 +686,12 @@
 		text-decoration: none;
 	}
 	.lp-name {
-		font: 600 15px var(--font-sans);
+		font: 500 15px var(--font-sans);
 		color: var(--ink-0);
 		letter-spacing: -0.015em;
+	}
+	.lp-name-fisic {
+		font-weight: 700;
 	}
 	.lp-sub {
 		font: 500 9.5px var(--font-mono);
@@ -1092,11 +1096,34 @@
 
 	/* PAIN */
 	.pain {
-		padding: 100px 32px;
+		position: relative;
+		padding: 100px 32px 56px;
 		max-width: 1200px;
 		margin: 0 auto;
 		width: 100%;
 		box-sizing: border-box;
+	}
+	/* Textura de pontos sutil — dá vida à área logo abaixo do hero.
+	   Full-bleed (100vw) e com máscara radial pra sumir nas bordas. */
+	.pain::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: 50%;
+		width: 100vw;
+		transform: translateX(-50%);
+		background-image: radial-gradient(#3d3d3d 1.3px, transparent 1.4px);
+		background-size: 22px 22px;
+		-webkit-mask-image: radial-gradient(ellipse 82% 72% at 50% 45%, #000 30%, transparent 100%);
+		mask-image: radial-gradient(ellipse 82% 72% at 50% 45%, #000 30%, transparent 100%);
+		opacity: 0.8;
+		pointer-events: none;
+		z-index: 0;
+	}
+	.pain > * {
+		position: relative;
+		z-index: 1;
 	}
 	.pain-grid {
 		display: grid;
@@ -1121,7 +1148,9 @@
 		margin: 0;
 	}
 	.pain-bridge {
-		margin: 56px 0 0;
+		margin: 56px auto 0;
+		max-width: 900px;
+		text-align: center;
 		font: 600 clamp(34px, 5vw, 56px)/1.12 var(--font-sans);
 		font-style: italic;
 		letter-spacing: -0.025em;
