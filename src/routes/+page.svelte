@@ -588,13 +588,6 @@
 					Falar com um humano
 				</a>
 			</div>
-			<!-- Oferta de baixo compromisso pra quem não quer criar conta ainda -->
-			<a
-				class="cta-soft"
-				href="mailto:castroomath7@gmail.com?subject=Quero%20ver%20um%20plano%20de%20exemplo"
-			>
-				Não está pronto? Peça um plano de exemplo por e-mail →
-			</a>
 		</div>
 	</section>
 
@@ -1308,11 +1301,11 @@
 		align-items: center;
 	}
 	.diff-side .eyebrow {
-		font: 500 11px var(--font-mono);
-		color: var(--accent-2);
+		font: 600 17px var(--font-mono);
+		color: var(--accent);
 		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		margin-bottom: 12px;
+		letter-spacing: 0.14em;
+		margin-bottom: 16px;
 	}
 	.diff-side h2 {
 		font: 500 clamp(28px, 3.5vw, 40px)/1.1 var(--font-sans);
@@ -1537,6 +1530,19 @@
 		border-top: 1px solid var(--ink-line);
 		background: var(--bg-1);
 	}
+	/* Textura de pontos também na seção final, atrás do brilho */
+	.cta-final::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background-image: radial-gradient(#3d3d3d 1.3px, transparent 1.4px);
+		background-size: 22px 22px;
+		-webkit-mask-image: radial-gradient(ellipse 80% 78% at 50% 50%, #000 22%, transparent 100%);
+		mask-image: radial-gradient(ellipse 80% 78% at 50% 50%, #000 22%, transparent 100%);
+		opacity: 0.7;
+		pointer-events: none;
+		z-index: 0;
+	}
 	.cta-glow {
 		position: absolute;
 		top: 50%;
@@ -1555,10 +1561,10 @@
 		margin: 0 auto;
 	}
 	.cta-inner .eyebrow {
-		font: 500 11px var(--font-mono);
-		color: var(--accent-2);
+		font: 600 17px var(--font-mono);
+		color: var(--accent);
 		text-transform: uppercase;
-		letter-spacing: 0.1em;
+		letter-spacing: 0.14em;
 		margin-bottom: 16px;
 	}
 	.cta-inner h2 {
@@ -1582,18 +1588,6 @@
 		gap: 12px;
 		justify-content: center;
 		flex-wrap: wrap;
-	}
-	.cta-soft {
-		display: inline-block;
-		margin-top: 18px;
-		font: 400 13.5px var(--font-sans);
-		color: var(--ink-1);
-		text-decoration: underline;
-		text-underline-offset: 3px;
-		transition: color 140ms var(--ease);
-	}
-	.cta-soft:hover {
-		color: var(--ink-0);
 	}
 
 	/* FOOTER */
