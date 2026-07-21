@@ -103,32 +103,18 @@
 
 	const FEATURES = [
 		{
-			eyebrow: '◆ PreceptorFISIC + RAG',
+			eyebrow: 'Ciência na geração',
 			title: 'Geração com diretrizes',
-			body: 'PreceptorFISIC consulta as diretrizes ACSM, AHA, OMS e ESSA na hora de gerar. Citações reais, com página e organização: não invenção.',
+			body: 'PreceptorFISIC consulta as diretrizes ACSM, AHA, OMS e ESSA na hora de gerar. Cada recomendação cita a fonte, com página e organização: nada é inventado.',
 			metric: '2.040',
 			metricLabel: 'trechos de diretrizes'
 		},
 		{
-			eyebrow: '◇ Validação clínica',
-			title: 'Engine de regras',
-			body: 'Cada plano gerado passa por 23 regras clínicas (LCA, hipertensão, cardiopatia, gestação, DPOC...). Detecta contraindicações antes da publicação.',
-			metric: '23 regras',
-			metricLabel: 'automáticas'
-		},
-		{
-			eyebrow: '◈ App do aluno',
-			title: 'Magic-link mobile',
-			body: 'Aluno acessa pelo celular sem login, sem app store. Hoje · Plano · Histórico. PWA instalável. Profissional acompanha aderência em tempo real.',
-			metric: 'PWA',
-			metricLabel: 'sem app store'
-		},
-		{
-			eyebrow: '⊕ Rastreabilidade',
-			title: 'Cada decisão fica registrada',
-			body: 'Todo plano guarda a diretriz que o embasou, a data e a versão usada na geração. Se o aluno ou o médico dele questionar, você mostra exatamente em que a recomendação se apoiou.',
-			metric: 'Auditável',
-			metricLabel: 'plano por plano'
+			eyebrow: 'Segurança clínica',
+			title: 'Motor de regras clínicas',
+			body: 'Cada plano passa por 23 regras clínicas (LCA, hipertensão, cardiopatia, gestação, DPOC...) que detectam contraindicações antes de você liberar para o aluno.',
+			metric: '23',
+			metricLabel: 'regras clínicas'
 		}
 	];
 
@@ -486,8 +472,8 @@
 				<em>aguenta auditoria.</em>
 			</h2>
 			<p>
-				Quatro pilares que separam PreceptorFISIC de planilhas, ChatGPT genérico e apps de
-				academia. Construído pelo método clínico, não pelo marketing.
+				O que separa o PreceptorFISIC de planilhas, do ChatGPT genérico e de apps de
+				academia: método clínico, não marketing.
 			</p>
 		</div>
 
