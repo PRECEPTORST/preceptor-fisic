@@ -167,7 +167,7 @@
 			desc: 'Para o profissional em crescimento.',
 			items: ['Até 60 alunos ativos', 'Histórico completo de planos', 'Suporte por e-mail'],
 			cta: 'Começar agora',
-			href: '/login?mode=signup',
+			href: 'https://www.asaas.com/c/5c8m1fhyd6c3tsaq',
 			featured: false
 		},
 		{
@@ -177,7 +177,7 @@
 			desc: 'Para quem vive de prescrição clínica.',
 			items: ['Até 150 alunos ativos', 'Auditoria completa de cada plano', 'Prioridade na geração'],
 			cta: 'Começar agora',
-			href: '/login?mode=signup',
+			href: 'https://www.asaas.com/c/qihvgcw48aajit37',
 			featured: true
 		},
 		{
