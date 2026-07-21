@@ -444,9 +444,8 @@
 				</p>
 			</div>
 			<div class="diff-panel">
-				<details class="diff-details">
-					<summary>Ver as fontes por trás de uma recomendação</summary>
-					<div class="diff-card">
+				<div class="diff-panel-label">As fontes por trás de uma recomendação real</div>
+				<div class="diff-card">
 						<div class="diff-card-head">
 							<span class="eyebrow">Exemplo real · prescrição para hipertenso</span>
 						</div>
@@ -474,7 +473,6 @@
 						</div>
 						<div class="diff-foot">3 das 5 fontes desta recomendação são <span class="num">ACSM</span> ★</div>
 					</div>
-				</details>
 			</div>
 		</div>
 	</section>
@@ -1053,6 +1051,9 @@
 		grid-template-columns: repeat(3, 1fr);
 		gap: 20px;
 	}
+	.metric {
+		text-align: center;
+	}
 	.metric-v {
 		font: 600 28px var(--font-mono);
 		color: var(--ink-0);
@@ -1325,18 +1326,12 @@
 		font-style: italic;
 		color: var(--ink-0);
 	}
-	.diff-details summary {
-		cursor: pointer;
-		font: 500 13px var(--font-sans);
-		color: var(--ink-1);
-		padding: 10px 0;
-		transition: color 140ms var(--ease);
-	}
-	.diff-details summary:hover {
-		color: var(--ink-0);
-	}
-	.diff-details[open] summary {
-		margin-bottom: 10px;
+	.diff-panel-label {
+		font: 500 12px var(--font-mono);
+		color: var(--ink-2);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		margin-bottom: 12px;
 	}
 	.diff-card {
 		background: var(--bg-1);
