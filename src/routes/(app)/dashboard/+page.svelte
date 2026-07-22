@@ -150,7 +150,7 @@
 </script>
 
 <svelte:head>
-	<title>Dashboard · Preceptor Fisic</title>
+	<title>Dashboard · PreceptorFISIC</title>
 </svelte:head>
 
 <header class="dash-header">

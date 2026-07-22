@@ -1,14 +1,15 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { BrandMark } from '$lib/components/ui';
 	let { children }: { children: Snippet } = $props();
 </script>
 
 <div class="legal-shell">
 	<header class="legal-header">
 		<a href="/" class="legal-brand">
-			<div class="legal-logo">P</div>
+			<BrandMark size={30} />
 			<div>
-				<div class="legal-name">Preceptor Fisic</div>
+				<div class="legal-name">PreceptorFISIC</div>
 				<div class="legal-sub">PRO · v3.2</div>
 			</div>
 		</a>
@@ -24,7 +25,7 @@
 	</main>
 
 	<footer class="legal-footer">
-		<span>© 2026 Preceptor Fisic</span>
+		<span>© 2026 PreceptorFISIC</span>
 		<span>Conformidade LGPD · sa-east-1</span>
 	</footer>
 </div>
@@ -53,18 +54,6 @@
 		align-items: center;
 		gap: 11px;
 		text-decoration: none;
-	}
-	.legal-logo {
-		width: 32px;
-		height: 32px;
-		border-radius: 8px;
-		background: linear-gradient(135deg, var(--accent), var(--accent-dim));
-		color: #0a0a0a;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 700 16px var(--font-sans);
-		box-shadow: var(--glow-accent);
 	}
 	.legal-name {
 		font: 600 15px var(--font-sans);

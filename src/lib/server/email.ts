@@ -5,7 +5,7 @@
  *   1. Crie conta em https://resend.com (free tier 100 emails/dia)
  *   2. Verifique seu domínio (ou use onboarding@resend.dev em dev)
  *   3. Crie API key e cole em RESEND_API_KEY no .env.local
- *   4. Configure RESEND_FROM com email verificado (ex: "Preceptor Fisic <noreply@seu-dominio.com>")
+ *   4. Configure RESEND_FROM com email verificado (ex: "PreceptorFISIC <noreply@seu-dominio.com>")
  *
  * Sem RESEND_API_KEY: as funções logam e retornam { skipped: true } em vez
  * de falhar — útil em dev/staging sem incomodar com setup.
@@ -18,7 +18,7 @@ import { signStudentToken } from './aluno-token';
 import { APP_TZ } from './tz';
 
 const RESEND_API_KEY = env.RESEND_API_KEY;
-const FROM = env.RESEND_FROM ?? 'Preceptor Fisic <onboarding@resend.dev>';
+const FROM = env.RESEND_FROM ?? 'PreceptorFISIC <onboarding@resend.dev>';
 
 const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
@@ -87,7 +87,7 @@ const baseTemplate = (heading: string, body: string, ctaUrl?: string, ctaLabel?:
   <div style="display:flex;align-items:center;gap:11px;margin-bottom:32px;">
     <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#A78BFA,#6d5fa3);color:#0a0a0a;font:700 16px sans-serif;display:flex;align-items:center;justify-content:center;">P</div>
     <div>
-      <div style="font:600 15px sans-serif;color:#fafafa;">Preceptor Fisic</div>
+      <div style="font:600 15px sans-serif;color:#fafafa;">PreceptorFISIC</div>
       <div style="font:500 9.5px monospace;color:#4d4d4d;text-transform:uppercase;letter-spacing:0.1em;margin-top:1px;">PRO · v3.2</div>
     </div>
   </div>
@@ -124,17 +124,17 @@ export async function sendStudentMagicLink(opts: {
 }): Promise<EmailResult> {
 	const firstName = escapeHtml(opts.studentName.split(' ')[0] || 'aluno');
 	const professionalName = escapeHtml(opts.professionalName);
-	const subject = `${opts.professionalName} liberou seu acesso ao Preceptor Fisic`;
+	const subject = `${opts.professionalName} liberou seu acesso ao PreceptorFISIC`;
 	const body = `
 <p style="margin:0 0 14px;">Olá <strong style="color:#fafafa;">${firstName}</strong>,</p>
-<p style="margin:0 0 14px;"><strong style="color:#fafafa;">${professionalName}</strong> cadastrou você no Preceptor Fisic — sua plataforma pra acompanhar treinos prescritos.</p>
+<p style="margin:0 0 14px;"><strong style="color:#fafafa;">${professionalName}</strong> cadastrou você no PreceptorFISIC — sua plataforma pra acompanhar treinos prescritos.</p>
 <p style="margin:0;">Clique no botão abaixo pra abrir seu app no celular. <strong style="color:#fafafa;">Não precisa criar conta nem baixar nada</strong>: o link é seu acesso direto.</p>
 `;
 	return send({
 		to: opts.to,
 		subject,
 		html: baseTemplate('Seu acesso liberado.', body, opts.magicLinkUrl, 'Abrir meu treino →'),
-		text: `${opts.professionalName} liberou seu acesso ao Preceptor Fisic. Abra: ${opts.magicLinkUrl}`,
+		text: `${opts.professionalName} liberou seu acesso ao PreceptorFISIC. Abra: ${opts.magicLinkUrl}`,
 		tag: 'student.magic_link'
 	});
 }
@@ -154,14 +154,14 @@ export async function sendStudentFillLink(opts: {
 	const subject = `${opts.professionalName} pediu pra você completar seu cadastro`;
 	const body = `
 <p style="margin:0 0 14px;">Olá <strong style="color:#fafafa;">${firstName}</strong>,</p>
-<p style="margin:0 0 14px;"><strong style="color:#fafafa;">${professionalName}</strong> começou seu cadastro no Preceptor Fisic. Pra montar seus treinos sob medida, falta você preencher alguns dados.</p>
+<p style="margin:0 0 14px;"><strong style="color:#fafafa;">${professionalName}</strong> começou seu cadastro no PreceptorFISIC. Pra montar seus treinos sob medida, falta você preencher alguns dados.</p>
 <p style="margin:0;">Leva 2 minutos. <strong style="color:#fafafa;">Não precisa criar conta nem baixar nada</strong> — é só clicar.</p>
 `;
 	return send({
 		to: opts.to,
 		subject,
 		html: baseTemplate('Complete seu cadastro.', body, opts.fillUrl, 'Preencher meus dados →'),
-		text: `${opts.professionalName} pediu pra você completar seu cadastro no Preceptor Fisic. Preencha: ${opts.fillUrl}`,
+		text: `${opts.professionalName} pediu pra você completar seu cadastro no PreceptorFISIC. Preencha: ${opts.fillUrl}`,
 		tag: 'student.fill_link'
 	});
 }
@@ -174,7 +174,7 @@ export async function sendProfessionalWelcome(opts: {
 	name: string;
 }): Promise<EmailResult> {
 	const firstName = escapeHtml(opts.name.split(' ')[0] || 'profissional');
-	const subject = 'Bem-vindo(a) ao Preceptor Fisic';
+	const subject = 'Bem-vindo(a) ao PreceptorFISIC';
 	const body = `
 <p style="margin:0 0 14px;">Olá <strong style="color:#fafafa;">${firstName}</strong>,</p>
 <p style="margin:0 0 14px;">Seu perfil profissional está ativo. Agora você pode prescrever treinos com o PreceptorFISIC, fundamentado em diretrizes ACSM, com validação clínica automática.</p>

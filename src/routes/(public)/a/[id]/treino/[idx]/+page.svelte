@@ -114,7 +114,7 @@
 </script>
 
 <svelte:head>
-	<title>{session.label} · Preceptor Fisic</title>
+	<title>{session.label} · PreceptorFISIC</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 </svelte:head>
 

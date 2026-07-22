@@ -41,7 +41,7 @@
 
 <div class="wrap">
 	<header class="hd">
-		<div class="eyebrow">Preceptor Fisic</div>
+		<div class="eyebrow">PreceptorFISIC</div>
 		<h1>Olá, {student.name.split(' ')[0]} 👋</h1>
 		<p class="sub">
 			{pro.name} começou seu cadastro. Complete seus dados abaixo pra receber treinos sob medida.

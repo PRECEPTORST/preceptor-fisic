@@ -9,7 +9,7 @@
 </script>
 
 <svelte:head>
-	<title>Novo lead · CRM · Preceptor Fisic</title>
+	<title>Novo lead · CRM · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="page">

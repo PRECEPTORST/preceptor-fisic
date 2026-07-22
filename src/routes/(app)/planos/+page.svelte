@@ -40,7 +40,7 @@
 </script>
 
 <svelte:head>
-	<title>Planos · Preceptor Fisic</title>
+	<title>Planos · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="planos-main">

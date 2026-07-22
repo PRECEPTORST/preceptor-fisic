@@ -26,7 +26,7 @@
 </script>
 
 <svelte:head>
-	<title>Meus exercícios · Preceptor Fisic</title>
+	<title>Meus exercícios · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="mx-wrap">

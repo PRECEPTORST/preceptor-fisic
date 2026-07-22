@@ -28,7 +28,7 @@
 </script>
 
 <svelte:head>
-	<title>Nova sessão · Preceptor Fisic</title>
+	<title>Nova sessão · PreceptorFISIC</title>
 </svelte:head>
 
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">

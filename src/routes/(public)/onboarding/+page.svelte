@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Eyebrow } from '$lib/components/ui';
+	import { Button, Eyebrow, BrandMark } from '$lib/components/ui';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import type { PageData, ActionData } from './$types';
@@ -84,7 +84,7 @@
 </script>
 
 <svelte:head>
-	<title>Bem-vindo · Preceptor Fisic</title>
+	<title>Bem-vindo · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="onb-shell">
@@ -103,9 +103,9 @@
 
 	<div class="onb-frame" class:wide={step === 1 || step === 3}>
 		<header class="brand">
-			<div class="logo">P</div>
+			<BrandMark size={32} />
 			<div>
-				<div class="brand-name">Preceptor Fisic</div>
+				<div class="brand-name">PreceptorFISIC</div>
 				<div class="brand-sub">PRO · v3.2</div>
 			</div>
 		</header>
@@ -364,18 +364,6 @@
 		align-items: center;
 		gap: 12px;
 		margin-bottom: 28px;
-	}
-	.logo {
-		width: 36px;
-		height: 36px;
-		border-radius: 8px;
-		background: linear-gradient(135deg, var(--accent), var(--accent-dim));
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 700 18px var(--font-sans);
-		color: #0a0a0a;
-		box-shadow: var(--glow-accent);
 	}
 	.brand-name {
 		font: 600 16px var(--font-sans);

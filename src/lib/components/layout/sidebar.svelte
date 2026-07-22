@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import Avatar from '../ui/avatar.svelte';
 	import NavIcon from './nav-icon.svelte';
+	import { BrandMark } from '$lib/components/ui';
 
 	type NavItem = {
 		id: string;
@@ -40,7 +41,7 @@
 
 	const NAV_PRO = $derived<NavItem[]>([
 		{ id: 'home', label: 'Visão geral', icon: 'home', href: '/dashboard' },
-		// CRM aparece SÓ pro time admin do Preceptor Fisic
+		// CRM aparece SÓ pro time admin do PreceptorFISIC
 		...(isAdmin
 			? [
 					{
@@ -88,12 +89,9 @@
 	{/if}
 
 	<a class="pf-sidebar__brand" href="/dashboard">
-		<div
-			class="pf-sidebar__logo"
-			class:accent={accentLogo}
-		>P</div>
+		<BrandMark size={30} />
 		<div style="min-width:0">
-			<div style="font:600 14px var(--font-sans);letter-spacing:-0.015em;color:var(--ink-0)">Preceptor Fisic</div>
+			<div style="font:600 14px var(--font-sans);letter-spacing:-0.015em;color:var(--ink-0)">PreceptorFISIC</div>
 			<div style="font:500 9.5px var(--font-mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:0.1em;margin-top:2px">
 				PRO · v3.2
 			</div>
@@ -195,25 +193,6 @@
 		padding: 4px 8px 22px;
 		position: relative;
 		text-decoration: none;
-	}
-	.pf-sidebar__logo {
-		width: 30px;
-		height: 30px;
-		border-radius: 9px;
-		background: var(--bg-3);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 700 15px var(--font-sans);
-		color: var(--ink-0);
-		box-shadow: inset 0 0 0 1px var(--ink-line);
-	}
-	.pf-sidebar__logo.accent {
-		background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
-		color: #0a0a0a;
-		box-shadow:
-			0 0 0 1px rgba(167, 139, 250, 0.25),
-			var(--glow-accent);
 	}
 	.pf-sidebar__section {
 		font: 500 9.5px var(--font-mono);

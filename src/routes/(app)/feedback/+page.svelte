@@ -39,7 +39,7 @@
 </script>
 
 <svelte:head>
-	<title>Feedback · Preceptor Fisic</title>
+	<title>Feedback · PreceptorFISIC</title>
 </svelte:head>
 
 <div style="max-width:760px;margin:0 auto;padding:24px 20px 64px">

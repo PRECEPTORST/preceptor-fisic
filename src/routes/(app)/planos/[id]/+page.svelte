@@ -306,7 +306,7 @@
 </script>
 
 <svelte:head>
-	<title>Plano · {plan.studentName} · Preceptor Fisic</title>
+	<title>Plano · {plan.studentName} · PreceptorFISIC</title>
 </svelte:head>
 
 {#if isGenerating}

@@ -1,5 +1,5 @@
 <svelte:head>
-	<title>Política de Privacidade · Preceptor Fisic</title>
+	<title>Política de Privacidade · PreceptorFISIC</title>
 	<meta name="description" content="Política de Privacidade e tratamento de dados — LGPD." />
 </svelte:head>
 
@@ -15,7 +15,7 @@
 
 <h2>1. Quem somos</h2>
 <p>
-	<strong>Preceptor Fisic</strong> — controlador dos dados pessoais para fins de uso da
+	<strong>PreceptorFISIC</strong> — controlador dos dados pessoais para fins de uso da
 	plataforma. Atendemos a Autoridade Nacional de Proteção de Dados (ANPD) e nomeamos
 	encarregado conforme art. 41 da LGPD.
 </p>

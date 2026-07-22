@@ -34,7 +34,7 @@
 	const onboardingSteps = [
 		{
 			title: `Olá, ${student.name.split(' ')[0]}`,
-			body: `${pro.name} cadastrou você no Preceptor Fisic. Esse é seu app pessoal pra acompanhar treinos prescritos por ele.`,
+			body: `${pro.name} cadastrou você no PreceptorFISIC. Esse é seu app pessoal pra acompanhar treinos prescritos por ele.`,
 			icon: '◆'
 		},
 		{
@@ -137,7 +137,7 @@
 </script>
 
 <svelte:head>
-	<title>{student.name} · Preceptor Fisic</title>
+	<title>{student.name} · PreceptorFISIC</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 </svelte:head>
 
