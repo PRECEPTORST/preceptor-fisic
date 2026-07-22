@@ -159,36 +159,87 @@
 		}
 	];
 
-	const PLANS = [
+	/** Ciclo de cobrança escolhido na seção de preços. */
+	let cycle = $state<'mensal' | 'anual'>('mensal');
+
+	type Tier = {
+		price: string;
+		period: string;
+		href: string;
+		/** Valor cheio riscado (12 meses avulsos) — só no ciclo anual. */
+		was?: string;
+		/** Equivalência mensal do anual, ex: "equivale a R$ 58,25/mês". */
+		equiv?: string;
+		/** Texto alternativo quando o plano não tem anual de autoatendimento. */
+		note?: string;
+	};
+	type Plan = {
+		name: string;
+		desc: string;
+		items: string[];
+		cta: string;
+		featured: boolean;
+		mensal: Tier;
+		anual: Tier;
+	};
+
+	const PLANS: Plan[] = [
 		{
 			name: 'Essencial',
-			price: 'R$ 69,90',
-			period: '/mês',
 			desc: 'Para o profissional em crescimento.',
 			items: ['Até 60 alunos ativos', 'Até 20 treinos gerados por IA/mês', 'Histórico completo de planos', 'Suporte por e-mail'],
 			cta: 'Começar agora',
-			href: 'https://www.asaas.com/c/5c8m1fhyd6c3tsaq',
-			featured: false
+			featured: false,
+			mensal: {
+				price: 'R$ 69,90',
+				period: '/mês',
+				href: 'https://www.asaas.com/c/5c8m1fhyd6c3tsaq'
+			},
+			anual: {
+				price: 'R$ 699,00',
+				period: '/ano',
+				was: 'R$ 838,80',
+				equiv: 'equivale a R$ 58,25/mês',
+				href: 'https://www.asaas.com/c/n2xcnopwqy3n305n'
+			}
 		},
 		{
 			name: 'Pro',
-			price: 'R$ 149,90',
-			period: '/mês',
 			desc: 'Para quem vive de prescrição clínica.',
 			items: ['Até 150 alunos ativos', 'Até 50 treinos gerados por IA/mês', 'Auditoria completa de cada plano', 'Prioridade na geração'],
 			cta: 'Começar agora',
-			href: 'https://www.asaas.com/c/qihvgcw48aajit37',
-			featured: true
+			featured: true,
+			mensal: {
+				price: 'R$ 149,90',
+				period: '/mês',
+				href: 'https://www.asaas.com/c/qihvgcw48aajit37'
+			},
+			anual: {
+				price: 'R$ 1.498,80',
+				period: '/ano',
+				was: 'R$ 1.798,80',
+				equiv: 'equivale a R$ 124,90/mês',
+				href: 'https://www.asaas.com/c/9208gp2b2h8mduc7'
+			}
 		},
 		{
 			name: 'Institucional',
-			price: 'R$ 499,90',
-			period: 'a partir de · /mês',
 			desc: 'Para clínicas, academias e equipes.',
 			items: ['Múltiplos profissionais', 'Até 100 treinos gerados por IA/mês', 'Onboarding dedicado', 'Contrato e faturamento'],
 			cta: 'Falar com o time',
-			href: 'https://wa.me/553591481514?text=Ol%C3%A1%21%20Tenho%20interesse%20no%20plano%20Institucional%20do%20PreceptorFISIC.',
-			featured: false
+			featured: false,
+			mensal: {
+				price: 'R$ 499,90',
+				period: 'a partir de · /mês',
+				href: 'https://wa.me/553591481514?text=Ol%C3%A1%21%20Tenho%20interesse%20no%20plano%20Institucional%20do%20PreceptorFISIC.'
+			},
+			/** Sem link de autoatendimento: anual do Institucional é negociado no WhatsApp. */
+			anual: {
+				price: 'R$ 499,90',
+				period: 'a partir de · /mês',
+				note: 'Anual sob consulta',
+				href: 'https://wa.me/553591481514?text=Ol%C3%A1%21%20Tenho%20interesse%20no%20plano%20Institucional%20anual%20do%20PreceptorFISIC.'
+			}
 		}
 	];
 </script>
@@ -539,17 +590,50 @@
 			<h2>Planos para cada fase. <em>Mesma ciência em todos.</em></h2>
 			<p>Mesma qualidade científica em todos os planos: diretrizes ACSM, validação clínica e auditoria completa desde o Essencial.</p>
 		</div>
+		<div class="cycle-toggle" role="group" aria-label="Ciclo de cobrança">
+			<button
+				type="button"
+				class="cycle-opt"
+				class:active={cycle === 'mensal'}
+				aria-pressed={cycle === 'mensal'}
+				onclick={() => (cycle = 'mensal')}
+			>
+				Mensal
+			</button>
+			<button
+				type="button"
+				class="cycle-opt"
+				class:active={cycle === 'anual'}
+				aria-pressed={cycle === 'anual'}
+				onclick={() => (cycle = 'anual')}
+			>
+				Anual
+				<span class="cycle-tag">2 meses grátis</span>
+			</button>
+		</div>
 		<div class="pricing-grid">
 			{#each PLANS as plan (plan.name)}
+				{@const tier = plan[cycle]}
 				<article class="price-card" class:featured={plan.featured}>
 					{#if plan.featured}
 						<div class="price-badge">Mais popular</div>
 					{/if}
 					<h3>{plan.name}</h3>
 					<div class="price-value">
-						<span class="num price-num">{plan.price}</span>
-						<span class="price-period">{plan.period}</span>
+						{#if tier.was}
+							<span class="price-was">{tier.was}</span>
+						{:else if cycle === 'anual'}
+							<!-- mantém os preços alinhados entre cards com e sem valor cheio -->
+							<span class="price-was price-was--ghost" aria-hidden="true">&nbsp;</span>
+						{/if}
+						<span class="num price-num">{tier.price}</span>
+						<span class="price-period">{tier.period}</span>
 					</div>
+					{#if tier.equiv}
+						<div class="price-equiv">{tier.equiv}</div>
+					{:else if tier.note}
+						<div class="price-equiv">{tier.note}</div>
+					{/if}
 					<p class="price-desc">{plan.desc}</p>
 					<ul class="price-items">
 						{#each plan.items as item (item)}
@@ -557,10 +641,10 @@
 						{/each}
 					</ul>
 					<a
-						href={plan.href}
+						href={tier.href}
 						class="lp-btn {plan.featured ? 'lp-btn--primary' : 'lp-btn--secondary'}"
-						target={plan.href.startsWith('http') ? '_blank' : null}
-						rel={plan.href.startsWith('http') ? 'noopener noreferrer' : null}
+						target={tier.href.startsWith('http') ? '_blank' : null}
+						rel={tier.href.startsWith('http') ? 'noopener noreferrer' : null}
 					>
 						{plan.cta}
 					</a>
@@ -1482,6 +1566,68 @@
 		margin: 0 auto;
 		width: 100%;
 		box-sizing: border-box;
+	}
+	/* Toggle mensal/anual */
+	.cycle-toggle {
+		display: flex;
+		width: fit-content;
+		gap: 4px;
+		padding: 4px;
+		margin: 0 auto 28px;
+		background: var(--bg-1);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-pill);
+	}
+	.cycle-opt {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 18px;
+		border: none;
+		border-radius: var(--r-pill);
+		background: transparent;
+		color: var(--ink-2);
+		font: 500 13px var(--font-sans);
+		cursor: pointer;
+		transition:
+			background 0.16s ease,
+			color 0.16s ease;
+	}
+	.cycle-opt:hover {
+		color: var(--ink-0);
+	}
+	.cycle-opt.active {
+		background: var(--accent);
+		color: #0a0a0a;
+	}
+	.cycle-tag {
+		font: 600 10px var(--font-mono);
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		padding: 2px 7px;
+		border-radius: var(--r-pill);
+		background: rgba(167, 139, 250, 0.16);
+		color: var(--accent);
+	}
+	.cycle-opt.active .cycle-tag {
+		background: rgba(10, 10, 10, 0.16);
+		color: #0a0a0a;
+	}
+	/* Preço cheio riscado + equivalência mensal no ciclo anual */
+	.price-was {
+		flex-basis: 100%;
+		font: 500 12px var(--font-mono);
+		color: var(--ink-3);
+		text-decoration: line-through;
+		font-variant-numeric: tabular-nums;
+	}
+	.price-was--ghost {
+		visibility: hidden;
+	}
+	.price-equiv {
+		font: 500 11.5px var(--font-mono);
+		color: var(--accent);
+		letter-spacing: 0.02em;
 	}
 	.pricing-grid {
 		display: grid;
