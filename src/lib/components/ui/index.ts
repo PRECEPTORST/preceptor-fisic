@@ -9,5 +9,6 @@ export { default as Sparkline } from './sparkline.svelte';
 export { default as LoadChart } from './load-chart.svelte';
 export { default as ProgressBar } from './progress-bar.svelte';
 export { default as ToastContainer } from './toast-container.svelte';
+export { default as ThemeToggle } from './theme-toggle.svelte';
 export { default as BrandMark } from './brand-mark.svelte';
 export { toast } from './toast.svelte.js';

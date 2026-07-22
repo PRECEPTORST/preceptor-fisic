@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import Avatar from '../ui/avatar.svelte';
+	import ThemeToggle from '../ui/theme-toggle.svelte';
 	import NavIcon from './nav-icon.svelte';
 	import { BrandMark } from '$lib/components/ui';
 
@@ -130,6 +131,7 @@
 				<span style="flex:1">{it.label}</span>
 			</a>
 		{/each}
+		<ThemeToggle variant="nav" />
 		<!-- Logout via POST (anti-CSRF) — GET /logout foi removido -->
 		<form method="POST" action="/logout" style="display:contents">
 			<button class="pf-navitem" type="submit" style="width:100%">

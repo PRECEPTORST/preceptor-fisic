@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import Avatar from '../ui/avatar.svelte';
+	import ThemeToggle from '../ui/theme-toggle.svelte';
 	import { BrandMark } from '$lib/components/ui';
 
 	type Props = {
@@ -69,6 +70,8 @@
 
 	<div class="m-topbar__title" aria-current="page">{title}</div>
 
+	<ThemeToggle />
+
 	<a class="m-topbar__avatar" href="/configuracoes" aria-label="Configurações">
 		<Avatar name={userName} size={28} />
 	</a>
@@ -82,7 +85,7 @@
 		z-index: 40;
 		height: calc(54px + env(safe-area-inset-top, 0px));
 		padding-top: env(safe-area-inset-top, 0px);
-		background: rgba(10, 10, 10, 0.85);
+		background: var(--bg-glass);
 		backdrop-filter: saturate(140%) blur(14px);
 		-webkit-backdrop-filter: saturate(140%) blur(14px);
 		border-bottom: 1px solid var(--ink-line);

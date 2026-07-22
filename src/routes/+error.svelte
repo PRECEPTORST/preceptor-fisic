@@ -98,7 +98,7 @@
 		padding: 0 22px;
 		border-radius: var(--r-pill);
 		background: linear-gradient(180deg, var(--accent), var(--accent-dim));
-		color: #0a0a0a;
+		color: var(--on-accent);
 		font: 600 13.5px var(--font-sans);
 		text-decoration: none;
 		box-shadow: var(--glow-accent), 0 1px 0 rgba(255, 255, 255, 0.18) inset;

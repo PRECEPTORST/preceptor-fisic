@@ -596,7 +596,11 @@
 		/* "Gemini escrevendo" — bloco terminal/log com texto chegando ao vivo */
 		.gen-stream-block {
 			margin-top: 24px;
-			background: #0a0a0d;
+			/* Token, não valor fixo: o texto interno é var(--ink-1), que no tema
+			   claro vira #52525b — sobre o #0a0a0d cravado dava ~2.6:1, reprovado
+			   no WCAG AA. --bg-1 é #0a0a0a no escuro (mesma aparência de antes)
+			   e #fafafa no claro. */
+			background: var(--bg-1);
 			border: 1px solid var(--ink-line);
 			border-radius: var(--r-2);
 			overflow: hidden;
