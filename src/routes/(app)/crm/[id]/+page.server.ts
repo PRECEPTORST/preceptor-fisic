@@ -31,7 +31,7 @@ const VALID_SOURCES: LeadSource[] = [
 export const load = (async ({ params, parent }) => {
 	const { professional } = await parent();
 	if (!professional) error(401, 'não autenticado');
-	if (!professional.isAdmin) error(403, 'acesso restrito ao time admin do Preceptor Fisic');
+	if (!professional.isAdmin) error(403, 'acesso restrito ao time admin do PreceptorFISIC');
 
 	const lead = await getLeadById(params.id!);
 	if (!lead) error(404, 'lead não encontrado');

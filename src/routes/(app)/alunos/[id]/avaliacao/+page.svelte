@@ -47,7 +47,7 @@
 </script>
 
 <svelte:head>
-	<title>Avaliação física · Preceptor Fisic</title>
+	<title>Avaliação física · PreceptorFISIC</title>
 </svelte:head>
 
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">

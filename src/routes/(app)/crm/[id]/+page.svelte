@@ -67,7 +67,7 @@
 </script>
 
 <svelte:head>
-	<title>{lead.name} · CRM · Preceptor Fisic</title>
+	<title>{lead.name} · CRM · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="page">

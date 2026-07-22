@@ -19,7 +19,7 @@
 </script>
 
 <svelte:head>
-	<title>Novo exercício · Preceptor Fisic</title>
+	<title>Novo exercício · PreceptorFISIC</title>
 </svelte:head>
 
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">

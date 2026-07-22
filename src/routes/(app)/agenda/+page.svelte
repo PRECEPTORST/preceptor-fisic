@@ -113,7 +113,7 @@
 </script>
 
 <svelte:head>
-	<title>Agenda · Preceptor Fisic</title>
+	<title>Agenda · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="ag-shell" style="overflow:hidden;height:100vh;display:flex;flex-direction:column">

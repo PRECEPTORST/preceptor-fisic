@@ -29,7 +29,7 @@
 </script>
 
 <svelte:head>
-	<title>Configurações · Preceptor Fisic</title>
+	<title>Configurações · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="cfg-page" style="flex:1;overflow-y:auto;background:var(--bg-0)">

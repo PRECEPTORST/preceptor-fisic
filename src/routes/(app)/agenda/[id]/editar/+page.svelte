@@ -38,7 +38,7 @@
 </script>
 
 <svelte:head>
-	<title>Editar sessão · Preceptor Fisic</title>
+	<title>Editar sessão · PreceptorFISIC</title>
 </svelte:head>
 
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">

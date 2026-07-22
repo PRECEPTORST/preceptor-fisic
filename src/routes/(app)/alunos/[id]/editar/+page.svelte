@@ -41,7 +41,7 @@
 </script>
 
 <svelte:head>
-	<title>Editar aluno · Preceptor Fisic</title>
+	<title>Editar aluno · PreceptorFISIC</title>
 </svelte:head>
 
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">

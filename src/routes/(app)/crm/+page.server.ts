@@ -34,7 +34,7 @@ const VALID_SOURCES: LeadSource[] = [
 export const load = (async ({ parent }) => {
 	const { professional } = await parent();
 	if (!professional) error(401, 'não autenticado');
-	if (!professional.isAdmin) error(403, 'acesso restrito ao time admin do Preceptor Fisic');
+	if (!professional.isAdmin) error(403, 'acesso restrito ao time admin do PreceptorFISIC');
 
 	const [leads, counts, feedbacks] = await Promise.all([
 		getAllLeads(),

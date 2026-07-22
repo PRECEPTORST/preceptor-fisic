@@ -85,7 +85,7 @@
 </script>
 
 <svelte:head>
-	<title>Gerar plano · Preceptor Fisic</title>
+	<title>Gerar plano · PreceptorFISIC</title>
 </svelte:head>
 
 {#if phase === 'generating'}

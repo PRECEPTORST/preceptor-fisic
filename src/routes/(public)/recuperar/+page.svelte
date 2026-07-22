@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Eyebrow } from '$lib/components/ui';
+	import { Button, Eyebrow, BrandMark } from '$lib/components/ui';
 	import { enhance } from '$app/forms';
 	import type { ActionData } from './$types';
 
@@ -14,16 +14,16 @@
 </script>
 
 <svelte:head>
-	<title>Recuperar senha · Preceptor Fisic</title>
+	<title>Recuperar senha · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="rec-shell">
 	<div class="rec-glow"></div>
 	<div class="rec-frame">
 		<header class="brand">
-			<div class="logo">P</div>
+			<BrandMark size={32} />
 			<div>
-				<div class="brand-name">Preceptor Fisic</div>
+				<div class="brand-name">PreceptorFISIC</div>
 				<div class="brand-sub">PRO · v3.2</div>
 			</div>
 		</header>
@@ -125,18 +125,6 @@
 		align-items: center;
 		gap: 12px;
 		margin-bottom: 28px;
-	}
-	.logo {
-		width: 36px;
-		height: 36px;
-		border-radius: 8px;
-		background: linear-gradient(135deg, var(--accent), var(--accent-dim));
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 700 18px var(--font-sans);
-		color: #0a0a0a;
-		box-shadow: var(--glow-accent);
 	}
 	.brand-name {
 		font: 600 16px var(--font-sans);

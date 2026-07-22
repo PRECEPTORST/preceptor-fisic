@@ -1,5 +1,5 @@
 /**
- * Schema único do Preceptor Fisic. Fonte de verdade exclusiva.
+ * Schema único do PreceptorFISIC. Fonte de verdade exclusiva.
  * Portado da v2 (FisioMentor). Compatível com migração via pg_dump/restore.
  *
  * Gere migrations com `pnpm db:generate` e aplique com `pnpm db:migrate`.
@@ -137,7 +137,7 @@ export const professionals = pgTable(
 		specialty: specialtyEnum('specialty').default('prescricao_clinica').notNull(),
 		avatarUrl: text('avatar_url'),
 		onboardingCompleted: boolean('onboarding_completed').default(false).notNull(),
-		/** Acesso ao CRM interno do Preceptor Fisic. Flipar via SQL no Supabase. */
+		/** Acesso ao CRM interno do PreceptorFISIC. Flipar via SQL no Supabase. */
 		isAdmin: boolean('is_admin').default(false).notNull(),
 		aiPreferences: jsonb('ai_preferences')
 			.$type<{
@@ -760,7 +760,7 @@ export const leadSourceEnum = pgEnum('lead_source', [
 ]);
 
 /**
- * Estágios do funil de aquisição do Preceptor Fisic (CRM admin).
+ * Estágios do funil de aquisição do PreceptorFISIC (CRM admin).
  * Reflete a jornada do prospect → usuário → assinante.
  *
  * visitante: capturado em form da landing, ainda não criou conta
@@ -793,7 +793,7 @@ export const leads = pgTable(
 			onDelete: 'set null'
 		}),
 		/**
-		 * Quando o lead já é um usuário cadastrado do Preceptor Fisic,
+		 * Quando o lead já é um usuário cadastrado do PreceptorFISIC,
 		 * aponta pro record dele. NULL pra leads externos (landing/manual).
 		 */
 		subjectProfessionalId: uuid('subject_professional_id').references(() => professionals.id, {

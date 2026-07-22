@@ -57,7 +57,7 @@
 </script>
 
 <svelte:head>
-	<title>Catálogo de exercícios · Preceptor Fisic</title>
+	<title>Catálogo de exercícios · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="cat-main">

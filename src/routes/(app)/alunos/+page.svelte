@@ -38,7 +38,7 @@
 </script>
 
 <svelte:head>
-	<title>Alunos · Preceptor Fisic</title>
+	<title>Alunos · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="page-body">
