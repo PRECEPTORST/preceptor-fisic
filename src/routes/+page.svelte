@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import { BrandMark } from '$lib/components/ui';
 
+	let { data } = $props();
+
 	// Dual video crossfade — elimina a travadinha do loop nativo.
 	// Quando A está nos últimos 500ms, B inicia do zero e crossfade visual
 	// suave (opacity transition). Quando B aproxima do fim, A reinicia
@@ -252,18 +254,18 @@
 	/>
 	<meta name="keywords" content="prescrição exercício, populações especiais, hipertensão, diabetes, cardiopatia, ACSM, fisioterapia, personal trainer, CREF, CREFITO" />
 	<meta name="author" content="PreceptorFISIC" />
-	<link rel="canonical" href="https://preceptor-fisic.vercel.app/" />
+	<link rel="canonical" href={`${data.origin}/`} />
 
 	<!-- Open Graph (Facebook, LinkedIn, WhatsApp) -->
 	<meta property="og:type" content="website" />
-	<meta property="og:url" content="https://preceptor-fisic.vercel.app/" />
+	<meta property="og:url" content={`${data.origin}/`} />
 	<meta property="og:title" content="PreceptorFISIC · Prescrição clínica validada" />
 	<meta
 		property="og:description"
 		content="PreceptorFISIC com diretrizes ACSM · Validação clínica automática · App mobile do aluno. Plataforma para profissionais CREF/CREFITO."
 	/>
 	<!-- PNG (não SVG): WhatsApp/Facebook/LinkedIn/X não renderizam SVG em preview -->
-	<meta property="og:image" content="https://preceptor-fisic.vercel.app/og-image.png" />
+	<meta property="og:image" content={`${data.origin}/og-image.png`} />
 	<meta property="og:image:type" content="image/png" />
 	<meta property="og:image:width" content="1200" />
 	<meta property="og:image:height" content="630" />
@@ -278,7 +280,7 @@
 		name="twitter:description"
 		content="PreceptorFISIC com diretrizes ACSM · Validação clínica automática · App mobile do aluno."
 	/>
-	<meta name="twitter:image" content="https://preceptor-fisic.vercel.app/og-image.png" />
+	<meta name="twitter:image" content={`${data.origin}/og-image.png`} />
 
 	<!-- JSON-LD structured data (SoftwareApplication) -->
 	<script type="application/ld+json">
