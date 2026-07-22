@@ -597,7 +597,10 @@
 		transform: translateX(-50%);
 		width: 100%;
 		max-width: 480px;
-		background: rgba(10, 10, 10, 0.92);
+		/* Token, não valor fixo: no claro isso vira rgba(255,255,255,0.92).
+		   Cravado em rgba(10,10,10,.92), o app do aluno ficava todo branco
+		   com uma barra preta colada no rodapé. */
+		background: var(--bg-glass-strong);
 		backdrop-filter: blur(20px);
 		-webkit-backdrop-filter: blur(20px);
 		border-top: 1px solid var(--ink-line);
