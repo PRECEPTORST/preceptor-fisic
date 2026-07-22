@@ -117,7 +117,7 @@
 				<h1 class="onb-h1">
 					Olá{data.suggestedName ? `, ${data.suggestedName.split(' ')[0]}` : ''}.<br />
 					Vamos prescrever<br />
-					com<span style="color:var(--accent)"> rigor clínico.</span>
+					com <span class="onb-accent">rigor clínico.</span>
 				</h1>
 				<p class="onb-sub">
 					Você acabou de entrar numa plataforma para profissionais que prescrevem exercícios para
@@ -382,6 +382,16 @@
 		margin: 8px 0 14px;
 		letter-spacing: -0.028em;
 		color: var(--ink-0);
+	}
+	/* Mesmo tratamento de "rigor clínico" do hero da landing (.hero-accent):
+	   gradiente em itálico, não o roxo chapado que estava aqui. */
+	.onb-accent {
+		background: linear-gradient(120deg, var(--accent) 0%, var(--accent-2) 50%, #e0d4ff 100%);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+		font-style: italic;
+		font-weight: 400;
 	}
 	.onb-h2 {
 		font: 500 26px var(--font-sans);
