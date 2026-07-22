@@ -22,7 +22,7 @@ export const GET: RequestHandler = ({ params, url }) => {
 	const manifest = {
 		name: 'Meu treino',
 		short_name: 'Meu treino',
-		description: 'Seu treino prescrito no Preceptor Fisic.',
+		description: 'Seu treino prescrito no PreceptorFISIC.',
 		id: startUrl,
 		start_url: startUrl,
 		scope: `/a/${params.id}`,

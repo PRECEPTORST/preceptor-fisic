@@ -96,7 +96,7 @@
 	);
 	const mailtoUrl = $derived(
 		student.email
-			? `mailto:${student.email}?subject=${encodeURIComponent('Seu app de treinos — Preceptor Fisic')}&body=${encodeURIComponent(linkPitch)}`
+			? `mailto:${student.email}?subject=${encodeURIComponent('Seu app de treinos — PreceptorFISIC')}&body=${encodeURIComponent(linkPitch)}`
 			: null
 	);
 
@@ -220,7 +220,7 @@
 </script>
 
 <svelte:head>
-	<title>{student?.name ?? 'Aluno'} · Preceptor Fisic</title>
+	<title>{student?.name ?? 'Aluno'} · PreceptorFISIC</title>
 </svelte:head>
 
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">

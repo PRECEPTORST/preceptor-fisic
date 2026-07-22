@@ -122,7 +122,7 @@
 </script>
 
 <svelte:head>
-	<title>{session.label ?? 'Sessão'} · {studentName} · Preceptor Fisic</title>
+	<title>{session.label ?? 'Sessão'} · {studentName} · PreceptorFISIC</title>
 </svelte:head>
 
 <div style="flex:1;display:flex;flex-direction:column;background:var(--bg-0);height:100vh;overflow:hidden">

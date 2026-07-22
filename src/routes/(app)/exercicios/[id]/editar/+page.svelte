@@ -23,7 +23,7 @@
 </script>
 
 <svelte:head>
-	<title>Editar exercício · Preceptor Fisic</title>
+	<title>Editar exercício · PreceptorFISIC</title>
 </svelte:head>
 
 <div style="flex:1;overflow-y:auto;background:var(--bg-0)">

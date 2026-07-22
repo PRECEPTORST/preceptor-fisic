@@ -2495,7 +2495,7 @@ export async function getCatalogFacets(): Promise<{
 	};
 }
 
-/* ────────── CRM / LEADS (admin interno do Preceptor Fisic) ────────── */
+/* ────────── CRM / LEADS (admin interno do PreceptorFISIC) ────────── */
 
 /**
  * Funil de aquisição. Estágios refletem a jornada visitante → usuário pagante.
@@ -2548,7 +2548,7 @@ export type LeadListItem = {
 /**
  * Retorna TODOS os leads (admin-only — qualquer admin enxerga tudo).
  * Não há filtro por professionalId aqui propositalmente — leads são
- * compartilhados entre todos os admins do Preceptor Fisic.
+ * compartilhados entre todos os admins do PreceptorFISIC.
  */
 export async function getAllLeads(): Promise<LeadListItem[]> {
 	const rows = await db.select().from(leads).orderBy(desc(leads.createdAt));

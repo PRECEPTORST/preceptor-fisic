@@ -1,5 +1,5 @@
 /**
- * Engine de validação clínica do Preceptor Fisic.
+ * Engine de validação clínica do PreceptorFISIC.
  *
  * Roda APÓS a IA gerar o plano. Passa cada exercício/sessão pela bateria de
  * regras em `clinical_rules` e produz uma lista de violations que viram

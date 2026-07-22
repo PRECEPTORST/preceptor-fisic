@@ -1,20 +1,20 @@
 <svelte:head>
-	<title>Termos de Uso · Preceptor Fisic</title>
-	<meta name="description" content="Termos de uso da plataforma Preceptor Fisic." />
+	<title>Termos de Uso · PreceptorFISIC</title>
+	<meta name="description" content="Termos de uso da plataforma PreceptorFISIC." />
 </svelte:head>
 
 <h1>Termos de Uso</h1>
 <div class="legal-meta">Última atualização: 7 de maio de 2026</div>
 
 <p>
-	Bem-vindo ao Preceptor Fisic. Ao acessar ou usar nossos serviços, você concorda com estes
+	Bem-vindo ao PreceptorFISIC. Ao acessar ou usar nossos serviços, você concorda com estes
 	Termos. Leia com atenção — eles definem direitos e responsabilidades de profissionais
 	(CREF/CREFITO/CRM) e dos alunos vinculados.
 </p>
 
 <h2>1. Objeto e escopo</h2>
 <p>
-	O Preceptor Fisic é uma plataforma de software como serviço (SaaS) destinada a
+	O PreceptorFISIC é uma plataforma de software como serviço (SaaS) destinada a
 	<strong>profissionais habilitados em Educação Física, Fisioterapia e Medicina</strong> que
 	prescrevem exercícios para populações especiais. A plataforma oferece:
 </p>
@@ -82,7 +82,7 @@
 
 <h2>6. Propriedade intelectual</h2>
 <ul>
-	<li>O software, design e marca são propriedade do Preceptor Fisic</li>
+	<li>O software, design e marca são propriedade do PreceptorFISIC</li>
 	<li>Conteúdo de diretrizes (ACSM, AHA, etc) usado em RAG é citado em cada recomendação e pertence aos respectivos titulares</li>
 	<li>Dados clínicos de alunos pertencem ao próprio aluno; profissionais são <strong>controladores conjuntos</strong></li>
 	<li>Você mantém propriedade sobre planos que cria — concedemos licença não exclusiva para hospedagem</li>

@@ -169,7 +169,7 @@
 </script>
 
 <svelte:head>
-	<title>CRM · Preceptor Fisic</title>
+	<title>CRM · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="crm-page">

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Eyebrow } from '$lib/components/ui';
+	import { Button, Eyebrow, BrandMark } from '$lib/components/ui';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import type { PageData, ActionData } from './$types';
@@ -84,7 +84,7 @@
 </script>
 
 <svelte:head>
-	<title>Bem-vindo · Preceptor Fisic</title>
+	<title>Bem-vindo · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="onb-shell">
@@ -103,9 +103,9 @@
 
 	<div class="onb-frame" class:wide={step === 1 || step === 3}>
 		<header class="brand">
-			<div class="logo">P</div>
+			<BrandMark size={32} />
 			<div>
-				<div class="brand-name">Preceptor Fisic</div>
+				<div class="brand-name">PreceptorFISIC</div>
 				<div class="brand-sub">PRO · v3.2</div>
 			</div>
 		</header>
@@ -117,7 +117,7 @@
 				<h1 class="onb-h1">
 					Olá{data.suggestedName ? `, ${data.suggestedName.split(' ')[0]}` : ''}.<br />
 					Vamos prescrever<br />
-					com<span style="color:var(--accent)"> rigor clínico.</span>
+					com <span class="onb-accent">rigor clínico.</span>
 				</h1>
 				<p class="onb-sub">
 					Você acabou de entrar numa plataforma para profissionais que prescrevem exercícios para
@@ -365,18 +365,6 @@
 		gap: 12px;
 		margin-bottom: 28px;
 	}
-	.logo {
-		width: 36px;
-		height: 36px;
-		border-radius: 8px;
-		background: linear-gradient(135deg, var(--accent), var(--accent-dim));
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 700 18px var(--font-sans);
-		color: var(--on-accent);
-		box-shadow: var(--glow-accent);
-	}
 	.brand-name {
 		font: 600 16px var(--font-sans);
 		letter-spacing: -0.015em;
@@ -394,6 +382,16 @@
 		margin: 8px 0 14px;
 		letter-spacing: -0.028em;
 		color: var(--ink-0);
+	}
+	/* Mesmo tratamento de "rigor clínico" do hero da landing (.hero-accent):
+	   gradiente em itálico, não o roxo chapado que estava aqui. */
+	.onb-accent {
+		background: linear-gradient(120deg, var(--accent) 0%, var(--accent-2) 50%, #e0d4ff 100%);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+		font-style: italic;
+		font-weight: 400;
 	}
 	.onb-h2 {
 		font: 500 26px var(--font-sans);

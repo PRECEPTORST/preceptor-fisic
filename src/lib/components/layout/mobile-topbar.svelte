@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import Avatar from '../ui/avatar.svelte';
 	import ThemeToggle from '../ui/theme-toggle.svelte';
+	import { BrandMark } from '$lib/components/ui';
 
 	type Props = {
 		userName?: string;
@@ -33,7 +34,7 @@
 		if (path === '/configuracoes') return 'Configurações';
 		if (path === '/feedback') return 'Feedback';
 		if (path.startsWith('/crm')) return 'CRM';
-		return 'Preceptor Fisic';
+		return 'PreceptorFISIC';
 	});
 
 	// Mostra back button em rotas detail (não em rotas top-level)
@@ -63,7 +64,7 @@
 		</button>
 	{:else}
 		<a class="m-topbar__brand" href="/dashboard" aria-label="Início">
-			<div class="m-topbar__logo">P</div>
+			<BrandMark size={28} />
 		</a>
 	{/if}
 
@@ -105,18 +106,6 @@
 		align-items: center;
 		justify-content: center;
 		flex-shrink: 0;
-	}
-	.m-topbar__logo {
-		width: 30px;
-		height: 30px;
-		border-radius: 8px;
-		background: linear-gradient(135deg, var(--accent), var(--accent-dim));
-		color: var(--on-accent);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 700 14px var(--font-sans);
-		box-shadow: var(--glow-accent);
 	}
 	.m-topbar__back {
 		all: unset;

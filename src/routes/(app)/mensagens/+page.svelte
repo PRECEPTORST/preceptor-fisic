@@ -95,7 +95,7 @@
 </script>
 
 <svelte:head>
-	<title>Mensagens · Preceptor Fisic</title>
+	<title>Mensagens · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="msg-grid" style="display:grid;grid-template-columns:360px 1fr 320px;height:100vh;overflow:hidden">

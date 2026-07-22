@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { BrandMark } from '$lib/components/ui';
 
 	// Página de erro global — cobre (app), (public) e /a/[id].
 	// Sem ela, 404/500 caíam na página default branca em inglês do SvelteKit.
@@ -27,12 +28,12 @@
 </script>
 
 <svelte:head>
-	<title>{page.status} · Preceptor Fisic</title>
+	<title>{page.status} · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="err">
 	<div class="err-glow"></div>
-	<div class="err-logo">P</div>
+	<div class="err-logo"><BrandMark size={38} /></div>
 	<div class="num err-status">{page.status}</div>
 	<h1 class="err-title">{msg.title}</h1>
 	<p class="err-sub">{msg.sub}</p>
@@ -65,18 +66,9 @@
 		pointer-events: none;
 	}
 	.err-logo {
-		width: 40px;
-		height: 40px;
-		border-radius: 10px;
-		background: linear-gradient(135deg, var(--accent), var(--accent-dim));
-		color: var(--on-accent);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 700 19px var(--font-sans);
-		box-shadow: var(--glow-accent);
 		margin-bottom: 28px;
 		position: relative;
+		line-height: 0;
 	}
 	.err-status {
 		font: 500 64px/1 var(--font-mono);

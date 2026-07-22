@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { BrandMark } from '$lib/components/ui';
+
+	let { data } = $props();
 
 	// Dual video crossfade — elimina a travadinha do loop nativo.
 	// Quando A está nos últimos 500ms, B inicia do zero e crossfade visual
@@ -102,32 +105,18 @@
 
 	const FEATURES = [
 		{
-			eyebrow: '◆ PreceptorFISIC + RAG',
+			eyebrow: 'Ciência na geração',
 			title: 'Geração com diretrizes',
-			body: 'PreceptorFISIC consulta as diretrizes ACSM, AHA, OMS e ESSA na hora de gerar. Citações reais, com página e organização: não invenção.',
-			metric: '2.040 chunks',
-			metricLabel: 'indexados'
+			body: 'PreceptorFISIC consulta as diretrizes ACSM, AHA, OMS e ESSA na hora de gerar. Cada recomendação cita a fonte, com página e organização: nada é inventado.',
+			metric: '2.040',
+			metricLabel: 'trechos de diretrizes'
 		},
 		{
-			eyebrow: '◇ Validação clínica',
-			title: 'Engine de regras',
-			body: 'Cada plano gerado passa por 23 regras clínicas (LCA, hipertensão, cardiopatia, gestação, DPOC...). Detecta contraindicações antes da publicação.',
-			metric: '23 regras',
-			metricLabel: 'automáticas'
-		},
-		{
-			eyebrow: '◈ App do aluno',
-			title: 'Magic-link mobile',
-			body: 'Aluno acessa pelo celular sem login, sem app store. Hoje · Plano · Histórico. PWA instalável. Profissional acompanha aderência em tempo real.',
-			metric: 'PWA',
-			metricLabel: 'sem app store'
-		},
-		{
-			eyebrow: '⊕ Auditoria',
-			title: 'Cada decisão registrada',
-			body: 'Todo plano salva input prompt, chunks recuperados, modelo usado, tokens, latência e versão do system prompt. Drift de qualidade é mensurável.',
-			metric: 'ai_runs',
-			metricLabel: 'imutável'
+			eyebrow: 'Segurança clínica',
+			title: 'Motor de regras clínicas',
+			body: 'Cada plano passa por 23 regras clínicas (LCA, hipertensão, cardiopatia, gestação, DPOC...) que detectam contraindicações antes de você liberar para o aluno.',
+			metric: '23',
+			metricLabel: 'regras clínicas'
 		}
 	];
 
@@ -154,7 +143,6 @@
 		// Só métricas compriváveis — sem números de aderência/usuários fabricados
 		// (mesma política do /login; risco CDC/CONFEF)
 		{ v: '1.324', l: 'exercícios com vídeo' },
-		{ v: 'Brasil', l: 'servidores no país · LGPD' },
 		{ v: 'ACSM ★', l: 'prioridade nas fontes' }
 	];
 
@@ -169,96 +157,137 @@
 		},
 		{
 			title: 'IA genérica não serve',
-			body: 'ChatGPT não cita fonte, não prioriza ACSM e inventa com confiança. Para populações especiais, isso é inaceitável.'
+			body: 'ChatGPT e Gemini não citam fonte, não priorizam ACSM e inventam com confiança. Para populações especiais, isso é inaceitável.'
 		}
 	];
 
-	const PLANS = [
-		{
-			name: 'Grátis',
-			price: 'R$ 0',
-			period: 'para sempre',
-			desc: 'Para testar com seus primeiros alunos.',
-			items: ['Geração com PreceptorFISIC', 'Validação clínica automática', 'App do aluno via magic-link'],
-			cta: 'Começar grátis',
-			href: '/login?mode=signup',
-			featured: false
-		},
+	/** Ciclo de cobrança escolhido na seção de preços. */
+	let cycle = $state<'mensal' | 'anual'>('mensal');
+
+	type Tier = {
+		price: string;
+		period: string;
+		href: string;
+		/** Valor cheio riscado (12 meses avulsos) — só no ciclo anual. */
+		was?: string;
+		/** Equivalência mensal do anual, ex: "equivale a R$ 58,25/mês". */
+		equiv?: string;
+		/** Texto alternativo quando o plano não tem anual de autoatendimento. */
+		note?: string;
+	};
+	type Plan = {
+		name: string;
+		desc: string;
+		items: string[];
+		cta: string;
+		featured: boolean;
+		mensal: Tier;
+		anual: Tier;
+	};
+
+	const PLANS: Plan[] = [
 		{
 			name: 'Essencial',
-			price: 'R$ 69,90',
-			period: '/mês',
 			desc: 'Para o profissional em crescimento.',
-			items: ['Mais alunos ativos', 'Histórico completo de planos', 'Suporte por e-mail'],
-			cta: 'Começar grátis',
-			href: '/login?mode=signup',
-			featured: false
+			items: ['Até 60 alunos ativos', 'Até 20 treinos gerados por IA/mês', 'Histórico completo de planos', 'Suporte por e-mail'],
+			cta: 'Começar agora',
+			featured: false,
+			mensal: {
+				price: 'R$ 69,90',
+				period: '/mês',
+				href: 'https://www.asaas.com/c/5c8m1fhyd6c3tsaq'
+			},
+			anual: {
+				price: 'R$ 699,00',
+				period: '/ano',
+				was: 'R$ 838,80',
+				equiv: 'equivale a R$ 58,25/mês',
+				href: 'https://www.asaas.com/c/n2xcnopwqy3n305n'
+			}
 		},
 		{
 			name: 'Pro',
-			price: 'R$ 149,90',
-			period: '/mês',
 			desc: 'Para quem vive de prescrição clínica.',
-			items: ['Alunos ilimitados', 'Auditoria completa de cada plano', 'Prioridade na geração'],
-			cta: 'Começar grátis',
-			href: '/login?mode=signup',
-			featured: true
+			items: ['Até 150 alunos ativos', 'Até 50 treinos gerados por IA/mês', 'Auditoria completa de cada plano', 'Prioridade na geração'],
+			cta: 'Começar agora',
+			featured: true,
+			mensal: {
+				price: 'R$ 149,90',
+				period: '/mês',
+				href: 'https://www.asaas.com/c/qihvgcw48aajit37'
+			},
+			anual: {
+				price: 'R$ 1.498,80',
+				period: '/ano',
+				was: 'R$ 1.798,80',
+				equiv: 'equivale a R$ 124,90/mês',
+				href: 'https://www.asaas.com/c/9208gp2b2h8mduc7'
+			}
 		},
 		{
 			name: 'Institucional',
-			price: 'R$ 499,90',
-			period: 'a partir de · /mês',
 			desc: 'Para clínicas, academias e equipes.',
-			items: ['Múltiplos profissionais', 'Onboarding dedicado', 'Contrato e faturamento'],
+			items: ['Múltiplos profissionais', 'Até 100 treinos gerados por IA/mês', 'Onboarding dedicado', 'Contrato e faturamento'],
 			cta: 'Falar com o time',
-			href: 'mailto:castroomath7@gmail.com',
-			featured: false
+			featured: false,
+			mensal: {
+				price: 'R$ 499,90',
+				period: 'a partir de · /mês',
+				href: 'https://wa.me/553591481514?text=Ol%C3%A1%21%20Tenho%20interesse%20no%20plano%20Institucional%20do%20PreceptorFISIC.'
+			},
+			/** Sem link de autoatendimento: anual do Institucional é negociado no WhatsApp. */
+			anual: {
+				price: 'R$ 499,90',
+				period: 'a partir de · /mês',
+				note: 'Anual sob consulta',
+				href: 'https://wa.me/553591481514?text=Ol%C3%A1%21%20Tenho%20interesse%20no%20plano%20Institucional%20anual%20do%20PreceptorFISIC.'
+			}
 		}
 	];
 </script>
 
 <svelte:head>
-	<title>Preceptor Fisic · Prescrição clínica validada</title>
+	<title>PreceptorFISIC · Prescrição clínica validada</title>
 	<meta
 		name="description"
 		content="Plataforma para profissionais CREF/CREFITO que prescrevem exercícios para populações especiais. PreceptorFISIC com diretrizes ACSM, validação clínica automática, app mobile do aluno."
 	/>
 	<meta name="keywords" content="prescrição exercício, populações especiais, hipertensão, diabetes, cardiopatia, ACSM, fisioterapia, personal trainer, CREF, CREFITO" />
-	<meta name="author" content="Preceptor Fisic" />
-	<link rel="canonical" href="https://preceptor-fisic.vercel.app/" />
+	<meta name="author" content="PreceptorFISIC" />
+	<link rel="canonical" href={`${data.origin}/`} />
 
 	<!-- Open Graph (Facebook, LinkedIn, WhatsApp) -->
 	<meta property="og:type" content="website" />
-	<meta property="og:url" content="https://preceptor-fisic.vercel.app/" />
-	<meta property="og:title" content="Preceptor Fisic · Prescrição clínica validada" />
+	<meta property="og:url" content={`${data.origin}/`} />
+	<meta property="og:title" content="PreceptorFISIC · Prescrição clínica validada" />
 	<meta
 		property="og:description"
 		content="PreceptorFISIC com diretrizes ACSM · Validação clínica automática · App mobile do aluno. Plataforma para profissionais CREF/CREFITO."
 	/>
 	<!-- PNG (não SVG): WhatsApp/Facebook/LinkedIn/X não renderizam SVG em preview -->
-	<meta property="og:image" content="https://preceptor-fisic.vercel.app/og-image.png" />
+	<meta property="og:image" content={`${data.origin}/og-image.png`} />
 	<meta property="og:image:type" content="image/png" />
 	<meta property="og:image:width" content="1200" />
 	<meta property="og:image:height" content="630" />
-	<meta property="og:image:alt" content="Preceptor Fisic · Prescrição clínica validada" />
-	<meta property="og:site_name" content="Preceptor Fisic" />
+	<meta property="og:image:alt" content="PreceptorFISIC · Prescrição clínica validada" />
+	<meta property="og:site_name" content="PreceptorFISIC" />
 	<meta property="og:locale" content="pt_BR" />
 
 	<!-- Twitter Card -->
 	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:title" content="Preceptor Fisic · Prescrição clínica validada" />
+	<meta name="twitter:title" content="PreceptorFISIC · Prescrição clínica validada" />
 	<meta
 		name="twitter:description"
 		content="PreceptorFISIC com diretrizes ACSM · Validação clínica automática · App mobile do aluno."
 	/>
-	<meta name="twitter:image" content="https://preceptor-fisic.vercel.app/og-image.png" />
+	<meta name="twitter:image" content={`${data.origin}/og-image.png`} />
 
 	<!-- JSON-LD structured data (SoftwareApplication) -->
 	<script type="application/ld+json">
 	{
 		"@context": "https://schema.org",
 		"@type": "SoftwareApplication",
-		"name": "Preceptor Fisic",
+		"name": "PreceptorFISIC",
 		"applicationCategory": "HealthApplication",
 		"operatingSystem": "Web, iOS, Android",
 		"description": "Plataforma de prescrição clínica de exercícios com PreceptorFISIC fundamentado em diretrizes ACSM.",
@@ -279,9 +308,9 @@
 	<!-- Header -->
 	<header class="lp-header" class:scrolled>
 		<a href="/" class="lp-brand">
-			<div class="lp-logo">P</div>
+			<BrandMark size={30} />
 			<div>
-				<div class="lp-name">Preceptor Fisic</div>
+				<div class="lp-name">Preceptor<span class="lp-name-fisic">FISIC</span></div>
 				<div class="lp-sub">PRO · v3.2</div>
 			</div>
 		</a>
@@ -295,7 +324,7 @@
 		<div class="lp-cta">
 			<a href="/login" class="lp-btn lp-btn--ghost">Entrar</a>
 			<!-- CTAs de cadastro abrem /login já na aba "Criar conta" -->
-			<a href="/login?mode=signup" class="lp-btn lp-btn--primary">Começar grátis</a>
+			<a href="/login?mode=signup" class="lp-btn lp-btn--primary">Começar agora</a>
 		</div>
 	</header>
 
@@ -359,7 +388,7 @@
 
 			<div class="hero-actions">
 				<a href="/login?mode=signup" class="lp-btn lp-btn--primary lp-btn--lg">
-					Começar grátis
+					Começar agora
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M5 12h14M13 5l7 7-7 7" />
 					</svg>
@@ -381,6 +410,21 @@
 				<div class="hero-trust-item">
 					<span class="trust-dot info"></span>
 					Citações científicas reais
+				</div>
+			</div>
+
+			<div class="hero-reviewed">
+				<div class="hero-reviewed-label">Revisado por</div>
+				<div class="hero-reviewed-list">
+					<div class="reviewer">
+						<span class="reviewer-name">José Jonas de Oliveira</span><span class="reviewer-sep"> · </span><span class="reviewer-title">Doutor em Ciência do Movimento Humano</span>
+					</div>
+					<div class="reviewer">
+						<span class="reviewer-name">Anna Gabriela Silva Vilela Ribeiro</span><span class="reviewer-sep"> · </span><span class="reviewer-title">Doutora em Ciência do Movimento Humano</span>
+					</div>
+					<div class="reviewer">
+						<span class="reviewer-name">Alexandre de Souza e Silva</span><span class="reviewer-sep"> · </span><span class="reviewer-title">Doutor em Ciências do Desporto</span>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -422,14 +466,14 @@
 				</article>
 			{/each}
 		</div>
-		<p class="pain-bridge">É por isso que existe o Preceptor Fisic.</p>
+		<p class="pain-bridge">É por isso que existe o PreceptorFISIC.</p>
 	</section>
 
 	<!-- METRICS -->
 	<section class="metrics" id="metrics">
 		<div class="metrics-inner">
-			{#each METRICS as m, i (m.l)}
-				<div class="metric" class:divider={i > 0}>
+			{#each METRICS as m (m.l)}
+				<div class="metric">
 					<div class="num metric-v">{m.v}</div>
 					<div class="metric-l">{m.l}</div>
 				</div>
@@ -449,46 +493,40 @@
 					em saúde cardiovascular e menos detalhada em programação.
 				</p>
 				<p class="diff-quote">
-					O profissional que usa Preceptor sabe disso. O que usa ChatGPT não.
+					O profissional que usa PreceptorFISIC sabe disso. Quem joga no ChatGPT ou no
+					Gemini, não.
 				</p>
 			</div>
 			<div class="diff-panel">
-				<details class="diff-details">
-					<summary>Ver detalhes técnicos</summary>
-					<div class="diff-card">
+				<div class="diff-panel-label">As fontes por trás de uma recomendação real</div>
+				<div class="diff-card">
 						<div class="diff-card-head">
-							<span class="eyebrow">RAG context · top 8 chunks</span>
+							<span class="eyebrow">Exemplo real · prescrição para hipertenso</span>
 						</div>
 						<div class="diff-rows">
 							<div class="diff-row hi">
 								<span class="diff-tag acsm">★ ACSM</span>
 								<span class="diff-row-title">Position Stand on Hypertension and Exercise</span>
-								<span class="num diff-dist">0.142</span>
 							</div>
 							<div class="diff-row hi">
 								<span class="diff-tag acsm">★ ACSM</span>
 								<span class="diff-row-title">Guidelines for Exercise Testing and Prescription, 11ed</span>
-								<span class="num diff-dist">0.158</span>
 							</div>
 							<div class="diff-row">
 								<span class="diff-tag essa">◆ ESSA</span>
 								<span class="diff-row-title">Position Statement: Exercise and Type 2 Diabetes</span>
-								<span class="num diff-dist">0.171</span>
 							</div>
 							<div class="diff-row hi">
 								<span class="diff-tag acsm">★ ACSM</span>
 								<span class="diff-row-title">Pre-participation Cardiovascular Screening</span>
-								<span class="num diff-dist">0.183</span>
 							</div>
-							<div class="diff-row low">
+							<div class="diff-row">
 								<span class="diff-tag aha">○ AHA</span>
 								<span class="diff-row-title">Scientific Statement: Resistance Exercise</span>
-								<span class="num diff-dist">0.197</span>
 							</div>
 						</div>
-						<div class="diff-foot">org_distribution: <span class="num">acsm:3 · essa:1 · aha:1</span></div>
+						<div class="diff-foot">3 das 5 fontes desta recomendação são <span class="num">ACSM</span> ★</div>
 					</div>
-				</details>
 			</div>
 		</div>
 	</section>
@@ -502,8 +540,8 @@
 				<em>aguenta auditoria.</em>
 			</h2>
 			<p>
-				Quatro pilares que separam Preceptor Fisic de planilhas, ChatGPT genérico e apps de
-				academia. Construído pelo método clínico, não pelo marketing.
+				O que separa o PreceptorFISIC de planilhas, do ChatGPT genérico e de apps de
+				academia: método clínico, não marketing.
 			</p>
 		</div>
 
@@ -552,19 +590,52 @@
 		<div class="section-head">
 			<div class="eyebrow">◆ Preços</div>
 			<h2>Planos para cada fase. <em>Mesma ciência em todos.</em></h2>
-			<p>Mesma qualidade científica em todos os planos: diretrizes ACSM, validação clínica e auditoria completa desde o Grátis.</p>
+			<p>Mesma qualidade científica em todos os planos: diretrizes ACSM, validação clínica e auditoria completa desde o Essencial.</p>
+		</div>
+		<div class="cycle-toggle" role="group" aria-label="Ciclo de cobrança">
+			<button
+				type="button"
+				class="cycle-opt"
+				class:active={cycle === 'mensal'}
+				aria-pressed={cycle === 'mensal'}
+				onclick={() => (cycle = 'mensal')}
+			>
+				Mensal
+			</button>
+			<button
+				type="button"
+				class="cycle-opt"
+				class:active={cycle === 'anual'}
+				aria-pressed={cycle === 'anual'}
+				onclick={() => (cycle = 'anual')}
+			>
+				Anual
+				<span class="cycle-tag">2 meses grátis</span>
+			</button>
 		</div>
 		<div class="pricing-grid">
 			{#each PLANS as plan (plan.name)}
+				{@const tier = plan[cycle]}
 				<article class="price-card" class:featured={plan.featured}>
 					{#if plan.featured}
 						<div class="price-badge">Mais popular</div>
 					{/if}
 					<h3>{plan.name}</h3>
 					<div class="price-value">
-						<span class="num price-num">{plan.price}</span>
-						<span class="price-period">{plan.period}</span>
+						{#if tier.was}
+							<span class="price-was">{tier.was}</span>
+						{:else if cycle === 'anual'}
+							<!-- mantém os preços alinhados entre cards com e sem valor cheio -->
+							<span class="price-was price-was--ghost" aria-hidden="true">&nbsp;</span>
+						{/if}
+						<span class="num price-num">{tier.price}</span>
+						<span class="price-period">{tier.period}</span>
 					</div>
+					{#if tier.equiv}
+						<div class="price-equiv">{tier.equiv}</div>
+					{:else if tier.note}
+						<div class="price-equiv">{tier.note}</div>
+					{/if}
 					<p class="price-desc">{plan.desc}</p>
 					<ul class="price-items">
 						{#each plan.items as item (item)}
@@ -572,8 +643,10 @@
 						{/each}
 					</ul>
 					<a
-						href={plan.href}
+						href={tier.href}
 						class="lp-btn {plan.featured ? 'lp-btn--primary' : 'lp-btn--secondary'}"
+						target={tier.href.startsWith('http') ? '_blank' : null}
+						rel={tier.href.startsWith('http') ? 'noopener noreferrer' : null}
 					>
 						{plan.cta}
 					</a>
@@ -596,22 +669,17 @@
 				clínicas detectadas e citações reais.
 			</p>
 			<div class="cta-actions">
-				<a href="/login?mode=signup" class="lp-btn lp-btn--primary lp-btn--lg">Começar grátis →</a>
-				<!-- Email real do time — preceptorfisic.com não está registrado (bounce) -->
-				<a href="mailto:castroomath7@gmail.com" class="lp-btn lp-btn--secondary lp-btn--lg">
+				<a href="/login?mode=signup" class="lp-btn lp-btn--primary lp-btn--lg">Começar agora →</a>
+				<!-- WhatsApp direto do time -->
+				<a
+					href="https://wa.me/553591481514?text=Ol%C3%A1%21%20Quero%20falar%20com%20algu%C3%A9m%20do%20time%20do%20PreceptorFISIC."
+					class="lp-btn lp-btn--secondary lp-btn--lg"
+					target="_blank"
+					rel="noopener noreferrer"
+				>
 					Falar com um humano
 				</a>
 			</div>
-			<div class="cta-fineprint">
-				Sem cartão de crédito · Sem app store · Dados em São Paulo · LGPD compliant
-			</div>
-			<!-- Oferta de baixo compromisso pra quem não quer criar conta ainda -->
-			<a
-				class="cta-soft"
-				href="mailto:castroomath7@gmail.com?subject=Quero%20ver%20um%20plano%20de%20exemplo"
-			>
-				Não está pronto? Peça um plano de exemplo por e-mail →
-			</a>
 		</div>
 	</section>
 
@@ -619,9 +687,9 @@
 	<footer class="lp-footer">
 		<div class="footer-inner">
 			<div class="footer-brand">
-				<div class="lp-logo">P</div>
+				<BrandMark size={30} />
 				<div>
-					<div class="lp-name">Preceptor Fisic</div>
+					<div class="lp-name">Preceptor<span class="lp-name-fisic">FISIC</span></div>
 					<div class="lp-sub">© 2026 · v3.2</div>
 				</div>
 			</div>
@@ -654,14 +722,29 @@
 
 <style>
 	/* ─────────────────────────────────────────────
-	   LANDING PAGE — Preceptor Fisic
+	   LANDING PAGE — PreceptorFISIC
 	   Dark fit-tech · vídeo hero · contraste alto
 	   ───────────────────────────────────────────── */
 	.lp {
+		position: relative;
+		z-index: 0;
 		background: var(--bg-0);
 		color: var(--ink-0);
 		min-height: 100vh;
 		overflow-x: hidden;
+	}
+	/* Textura de pontos global — cobre a página inteira, sem emendas entre
+	   seções. z-index:-1 mantém os pontos atrás do conteúdo; painéis com fundo
+	   próprio (barra de métricas, cards) cobrem os pontos naturalmente. */
+	.lp::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background-image: radial-gradient(#363636 1.2px, transparent 1.4px);
+		background-size: 24px 24px;
+		opacity: 0.5;
+		pointer-events: none;
+		z-index: -1;
 	}
 	/* Âncoras do nav (#features/#how/#metrics) param abaixo do header fixo (~70px) */
 	section[id] {
@@ -697,23 +780,13 @@
 		gap: 11px;
 		text-decoration: none;
 	}
-	.lp-logo {
-		width: 32px;
-		height: 32px;
-		border-radius: 8px;
-		background: linear-gradient(135deg, var(--accent), var(--accent-dim));
-		color: var(--on-accent);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 700 16px var(--font-sans);
-		box-shadow: var(--glow-accent);
-		flex-shrink: 0;
-	}
 	.lp-name {
-		font: 600 15px var(--font-sans);
+		font: 500 15px var(--font-sans);
 		color: var(--ink-0);
 		letter-spacing: -0.015em;
+	}
+	.lp-name-fisic {
+		font-weight: 700;
 	}
 	.lp-sub {
 		font: 500 9.5px var(--font-mono);
@@ -1029,6 +1102,61 @@
 		box-shadow: 0 0 6px var(--info);
 	}
 
+	/* Revisado por — autoridade científica no hero */
+	.hero-reviewed {
+		margin-top: 18px;
+		padding-top: 16px;
+		border-top: 1px solid rgba(255, 255, 255, 0.08);
+		max-width: 640px;
+	}
+	.hero-reviewed-label {
+		font: 500 11px var(--font-mono);
+		color: var(--accent-2);
+		text-transform: uppercase;
+		letter-spacing: 0.12em;
+		margin-bottom: 10px;
+		text-shadow: 0 1px 4px rgba(15, 8, 30, 0.7);
+	}
+	.hero-reviewed-list {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.reviewer {
+		font: 400 13px var(--font-sans);
+		color: var(--ink-1);
+		line-height: 1.4;
+		text-shadow: 0 1px 5px rgba(15, 8, 30, 0.85);
+	}
+	.reviewer-name {
+		color: var(--ink-0);
+		font-weight: 600;
+	}
+	.reviewer-sep {
+		color: var(--ink-3);
+	}
+	.reviewer-title {
+		color: var(--ink-1);
+	}
+	@media (max-width: 768px) {
+		.hero-reviewed {
+			margin-top: 14px;
+			padding-top: 14px;
+		}
+		.hero-reviewed-list {
+			gap: 10px;
+		}
+		.reviewer {
+			display: flex;
+			flex-direction: column;
+			gap: 1px;
+			font-size: 12.5px;
+		}
+		.reviewer-sep {
+			display: none;
+		}
+	}
+
 	/* Trust strip no rodapé do hero */
 	.hero-strip {
 		position: relative;
@@ -1069,12 +1197,11 @@
 		margin: 0 auto;
 		padding: 28px 32px;
 		display: grid;
-		grid-template-columns: repeat(4, 1fr);
+		grid-template-columns: repeat(3, 1fr);
 		gap: 20px;
 	}
-	.metric.divider {
-		border-left: 1px solid var(--ink-line);
-		padding-left: 20px;
+	.metric {
+		text-align: center;
 	}
 	.metric-v {
 		font: 600 28px var(--font-mono);
@@ -1096,11 +1223,11 @@
 		margin-bottom: 56px;
 	}
 	.section-head .eyebrow {
-		font: 500 11px var(--font-mono);
-		color: var(--accent-2);
+		font: 600 17px var(--font-mono);
+		color: var(--accent);
 		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		margin-bottom: 12px;
+		letter-spacing: 0.14em;
+		margin-bottom: 16px;
 	}
 	.section-head h2 {
 		font: 500 clamp(32px, 4.5vw, 52px)/1.1 var(--font-sans);
@@ -1122,7 +1249,7 @@
 
 	/* PAIN */
 	.pain {
-		padding: 100px 32px;
+		padding: 100px 32px 56px;
 		max-width: 1200px;
 		margin: 0 auto;
 		width: 100%;
@@ -1140,10 +1267,10 @@
 		border-radius: var(--r-3);
 	}
 	.pain-card h3 {
-		font: 500 19px var(--font-sans);
+		font: 600 19px var(--font-sans);
 		letter-spacing: -0.015em;
 		margin: 0 0 8px;
-		color: var(--ink-0);
+		color: var(--accent);
 	}
 	.pain-card p {
 		font: 400 14px/1.55 var(--font-sans);
@@ -1151,10 +1278,12 @@
 		margin: 0;
 	}
 	.pain-bridge {
-		margin: 40px 0 0;
-		font: 400 clamp(18px, 2.2vw, 24px) var(--font-sans);
+		margin: 56px auto 0;
+		max-width: 900px;
+		text-align: center;
+		font: 600 clamp(34px, 5vw, 56px)/1.12 var(--font-sans);
 		font-style: italic;
-		letter-spacing: -0.015em;
+		letter-spacing: -0.025em;
 		color: var(--accent-2);
 	}
 
@@ -1314,11 +1443,11 @@
 		align-items: center;
 	}
 	.diff-side .eyebrow {
-		font: 500 11px var(--font-mono);
-		color: var(--accent-2);
+		font: 600 17px var(--font-mono);
+		color: var(--accent);
 		text-transform: uppercase;
-		letter-spacing: 0.1em;
-		margin-bottom: 12px;
+		letter-spacing: 0.14em;
+		margin-bottom: 16px;
 	}
 	.diff-side h2 {
 		font: 500 clamp(28px, 3.5vw, 40px)/1.1 var(--font-sans);
@@ -1346,18 +1475,12 @@
 		font-style: italic;
 		color: var(--ink-0);
 	}
-	.diff-details summary {
-		cursor: pointer;
-		font: 500 13px var(--font-sans);
-		color: var(--ink-1);
-		padding: 10px 0;
-		transition: color 140ms var(--ease);
-	}
-	.diff-details summary:hover {
-		color: var(--ink-0);
-	}
-	.diff-details[open] summary {
-		margin-bottom: 10px;
+	.diff-panel-label {
+		font: 500 12px var(--font-mono);
+		color: var(--ink-2);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		margin-bottom: 12px;
 	}
 	.diff-card {
 		background: var(--bg-1);
@@ -1384,7 +1507,7 @@
 	}
 	.diff-row {
 		display: grid;
-		grid-template-columns: 80px 1fr 60px;
+		grid-template-columns: 80px 1fr;
 		gap: 12px;
 		align-items: center;
 		padding: 10px 12px;
@@ -1394,9 +1517,6 @@
 	.diff-row.hi {
 		background: rgba(167, 139, 250, 0.1);
 		border: 1px solid rgba(167, 139, 250, 0.25);
-	}
-	.diff-row.low {
-		opacity: 0.5;
 	}
 	.diff-tag {
 		font: 600 10px var(--font-mono);
@@ -1428,12 +1548,6 @@
 	.diff-row.hi .diff-row-title {
 		color: var(--ink-0);
 	}
-	.diff-dist {
-		font: 500 12px var(--font-mono);
-		color: var(--ink-3);
-		text-align: right;
-		font-variant-numeric: tabular-nums;
-	}
 	.diff-foot {
 		margin-top: 14px;
 		padding-top: 12px;
@@ -1455,9 +1569,71 @@
 		width: 100%;
 		box-sizing: border-box;
 	}
+	/* Toggle mensal/anual */
+	.cycle-toggle {
+		display: flex;
+		width: fit-content;
+		gap: 4px;
+		padding: 4px;
+		margin: 0 auto 28px;
+		background: var(--bg-1);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-pill);
+	}
+	.cycle-opt {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 18px;
+		border: none;
+		border-radius: var(--r-pill);
+		background: transparent;
+		color: var(--ink-2);
+		font: 500 13px var(--font-sans);
+		cursor: pointer;
+		transition:
+			background 0.16s ease,
+			color 0.16s ease;
+	}
+	.cycle-opt:hover {
+		color: var(--ink-0);
+	}
+	.cycle-opt.active {
+		background: var(--accent);
+		color: #0a0a0a;
+	}
+	.cycle-tag {
+		font: 600 10px var(--font-mono);
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		padding: 2px 7px;
+		border-radius: var(--r-pill);
+		background: rgba(167, 139, 250, 0.16);
+		color: var(--accent);
+	}
+	.cycle-opt.active .cycle-tag {
+		background: rgba(10, 10, 10, 0.16);
+		color: #0a0a0a;
+	}
+	/* Preço cheio riscado + equivalência mensal no ciclo anual */
+	.price-was {
+		flex-basis: 100%;
+		font: 500 12px var(--font-mono);
+		color: var(--ink-3);
+		text-decoration: line-through;
+		font-variant-numeric: tabular-nums;
+	}
+	.price-was--ghost {
+		visibility: hidden;
+	}
+	.price-equiv {
+		font: 500 11.5px var(--font-mono);
+		color: var(--accent);
+		letter-spacing: 0.02em;
+	}
 	.pricing-grid {
 		display: grid;
-		grid-template-columns: repeat(4, 1fr);
+		grid-template-columns: repeat(3, 1fr);
 		gap: 14px;
 		align-items: stretch;
 	}
@@ -1547,7 +1723,6 @@
 		text-align: center;
 		overflow: hidden;
 		border-top: 1px solid var(--ink-line);
-		background: var(--bg-1);
 	}
 	.cta-glow {
 		position: absolute;
@@ -1567,10 +1742,10 @@
 		margin: 0 auto;
 	}
 	.cta-inner .eyebrow {
-		font: 500 11px var(--font-mono);
-		color: var(--accent-2);
+		font: 600 17px var(--font-mono);
+		color: var(--accent);
 		text-transform: uppercase;
-		letter-spacing: 0.1em;
+		letter-spacing: 0.14em;
 		margin-bottom: 16px;
 	}
 	.cta-inner h2 {
@@ -1594,25 +1769,6 @@
 		gap: 12px;
 		justify-content: center;
 		flex-wrap: wrap;
-	}
-	.cta-fineprint {
-		margin-top: 24px;
-		font: 500 11px var(--font-mono);
-		color: var(--ink-3);
-		text-transform: uppercase;
-		letter-spacing: 0.1em;
-	}
-	.cta-soft {
-		display: inline-block;
-		margin-top: 18px;
-		font: 400 13.5px var(--font-sans);
-		color: var(--ink-1);
-		text-decoration: underline;
-		text-underline-offset: 3px;
-		transition: color 140ms var(--ease);
-	}
-	.cta-soft:hover {
-		color: var(--ink-0);
 	}
 
 	/* FOOTER */
@@ -1721,14 +1877,6 @@
 			gap: 18px 24px;
 			padding: 22px 18px;
 		}
-		.metric.divider {
-			border-left: none;
-			padding-left: 0;
-		}
-		.metric.divider:nth-child(odd) {
-			border-left: 1px solid var(--ink-line);
-			padding-left: 24px;
-		}
 		.metric-v {
 			font-size: 22px;
 		}
@@ -1777,7 +1925,7 @@
 			gap: 36px;
 		}
 		.diff-row {
-			grid-template-columns: 60px 1fr 50px;
+			grid-template-columns: 60px 1fr;
 			gap: 8px;
 			padding: 8px 10px;
 		}
