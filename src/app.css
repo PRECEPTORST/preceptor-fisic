@@ -57,7 +57,13 @@
 	--radius-pill: 999px;
 }
 
-:root {
+/* `.lp` entra junto de propósito: a landing page é uma superfície escura por
+   design (vídeo escuro no hero, header de vidro escuro) e NÃO acompanha o tema
+   claro. Como custom property herda do ancestral declarante mais próximo,
+   declarar os tokens escuros no `.lp` mantém a landing escura mesmo com
+   [data-theme='light'] no <html> — sem depender de especificidade. */
+:root,
+.lp {
 	/* Escuro é o padrão do design system; o claro sobrescreve abaixo. */
 	color-scheme: dark;
 
