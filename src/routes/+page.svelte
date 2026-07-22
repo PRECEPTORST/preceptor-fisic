@@ -199,14 +199,14 @@
 			mensal: {
 				price: 'R$ 69,90',
 				period: '/mês',
-				href: '/login?mode=signup'
+				href: '/login?mode=signup&next=' + encodeURIComponent('/assinatura?plan=essencial_mensal')
 			},
 			anual: {
 				price: 'R$ 699,00',
 				period: '/ano',
 				was: 'R$ 838,80',
 				equiv: 'equivale a R$ 58,25/mês',
-				href: '/login?mode=signup'
+				href: '/login?mode=signup&next=' + encodeURIComponent('/assinatura?plan=essencial_anual')
 			}
 		},
 		{
@@ -218,14 +218,14 @@
 			mensal: {
 				price: 'R$ 149,90',
 				period: '/mês',
-				href: '/login?mode=signup'
+				href: '/login?mode=signup&next=' + encodeURIComponent('/assinatura?plan=pro_mensal')
 			},
 			anual: {
 				price: 'R$ 1.498,80',
 				period: '/ano',
 				was: 'R$ 1.798,80',
 				equiv: 'equivale a R$ 124,90/mês',
-				href: '/login?mode=signup'
+				href: '/login?mode=signup&next=' + encodeURIComponent('/assinatura?plan=pro_anual')
 			}
 		},
 		{

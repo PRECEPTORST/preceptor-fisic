@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Eyebrow, toast } from '$lib/components/ui';
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -8,7 +9,13 @@
 	const prof = $derived(data.professional);
 	const needsCpf = $derived(!prof.asaasCustomerId);
 
-	let annual = $state(false);
+	// Funil da LP: /assinatura?plan=pro_mensal pré-seleciona o plano escolhido
+	// antes do cadastro (o clique em "Assinar" na LP carrega o plano no next=).
+	const PLAN_KEYS = ['essencial_mensal', 'essencial_anual', 'pro_mensal', 'pro_anual'];
+	const planParam = page.url.searchParams.get('plan');
+	const preselected = planParam && PLAN_KEYS.includes(planParam) ? planParam : null;
+
+	let annual = $state(preselected?.endsWith('_anual') ?? false);
 	let cpf = $state('');
 	let submitting = $state<string | null>(null);
 
@@ -56,6 +63,17 @@
 		Pagamento seguro pelo Asaas, por Pix ou cartão. Ativação automática assim que o pagamento
 		confirmar.
 	</p>
+
+	{#if preselected && prof.subscriptionStatus !== 'active'}
+		<div
+			class="card"
+			style="padding:12px 16px;margin-bottom:20px;border-color:var(--accent);font:var(--body-sm);color:var(--ink-0)"
+		>
+			Falta pouco: confirme abaixo a assinatura do plano
+			<strong>{preselected.startsWith('pro') ? 'Pro' : 'Essencial'}
+				{preselected.endsWith('_anual') ? 'anual' : 'mensal'}</strong> que você escolheu.
+		</div>
+	{/if}
 
 	<!-- Status atual -->
 	<div class="card" style="padding:16px 18px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
@@ -137,7 +155,9 @@
 					method="POST"
 					action="?/subscribe"
 					class="card"
-					style="padding:20px;display:flex;flex-direction:column;gap:8px"
+					style="padding:20px;display:flex;flex-direction:column;gap:8px;{planKey === preselected
+						? 'border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)'
+						: ''}"
 					use:enhance={() => {
 						submitting = planKey;
 						return async ({ result, update }) => {
@@ -175,5 +195,39 @@
 			nossos servidores. Precisa do plano Institucional?
 			<a href="mailto:castroomath7@gmail.com" style="color:var(--accent)">Fale com o time</a>.
 		</p>
+
+		<!-- Upsell pós-assinatura: ebook ACSM (link de pagamento avulso do Asaas).
+		     Só aparece pra quem já pagou algum plano. -->
+		{#if prof.subscriptionStatus === 'active'}
+			<div
+				class="card"
+				style="margin-top:32px;padding:22px;display:flex;flex-direction:column;gap:8px;border-color:var(--accent)"
+			>
+				<div style="font:500 11px var(--font-mono);color:var(--accent);text-transform:uppercase;letter-spacing:0.1em">
+					◆ Oferta para assinantes
+				</div>
+				<div style="font:600 18px var(--font-sans);color:var(--ink-0)">
+					Ebook · Recomendações ACSM para população geral e populações especiais
+				</div>
+				<p style="font:var(--body-sm);color:var(--ink-2);margin:0">
+					O material de referência que fundamenta o PreceptorFISIC, organizado para consulta
+					rápida na prescrição do dia a dia.
+				</p>
+				<div style="display:flex;align-items:baseline;gap:10px;margin-top:4px">
+					<span style="font:500 14px var(--font-mono);color:var(--ink-3);text-decoration:line-through">
+						R$ 100,00
+					</span>
+					<span style="font:600 24px var(--font-mono);color:var(--accent)">R$ 29,90</span>
+				</div>
+				<a
+					href="https://www.asaas.com/c/mtnzj35g4ckbbukf"
+					target="_blank"
+					rel="noopener"
+					style="all:unset;cursor:pointer;text-align:center;padding:10px 0;margin-top:6px;border-radius:999px;background:var(--accent);color:#0a0a0a;font:600 14px var(--font-sans)"
+				>
+					Quero o ebook por R$ 29,90 →
+				</a>
+			</div>
+		{/if}
 	{/if}
 </div>

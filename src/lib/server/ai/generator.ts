@@ -596,15 +596,8 @@ function buildUserPrompt(ctx: StudentContext, ragContext: string, notes?: string
 	lines.push(formatCatalogForPrompt(ctx.catalog));
 	lines.push('');
 	lines.push('## TAREFA');
-	lines.push('Gere um plano de treino semanal estruturado conforme o schema. Regras:');
 	lines.push(
-		'1. PREFERIR exercícios do CATÁLOGO acima sempre que possível — quando usar um, preencha `catalog_id` da exercise com o external_id (formato 4-5 dígitos, ex: "0001"). Mira em ≥80% dos exercícios do bloco principal vindos do catálogo. Para aquecimento/desaquecimento, pode usar exercícios livres se necessário.'
-	);
-	lines.push(
-		'2. Para cada recomendação crítica, cite chunk_id do CONTEXTO CLÍNICO acima — preferindo chunks ACSM quando disponíveis. Se não estiver coberto, marque source.type = "inference".'
-	);
-	lines.push(
-		'3. Quando escolher do catálogo, use o nome EXATO do catálogo no campo `name` (não invente variações), e copie o external_id PRECISO em `catalog_id`.'
+		'Gere um plano de treino semanal estruturado conforme o schema, seguindo as REGRAS DA TAREFA definidas no system prompt. Regra adicional específica deste aluno:'
 	);
 	// Sugestão de distribuição semanal — spreading com pelo menos 1 dia de
 	// descanso entre treinos quando possível. Mesma tabela pra todos os
@@ -625,22 +618,50 @@ function buildUserPrompt(ctx: StudentContext, ragContext: string, notes?: string
 	};
 	const suggestedDays = DAY_DIST[N]?.join(', ') ?? 'seg, qua, sex';
 	lines.push(
-		`4. SESSÕES SEMANAIS: gere EXATAMENTE ${N} sessões — esse é o número que o aluno definiu na frequência alvo dele. OBRIGATÓRIO preencher \`day_of_week\` de CADA sessão (valores válidos: "seg" | "ter" | "qua" | "qui" | "sex" | "sab" | "dom"). Distribua os treinos pela semana com descanso entre eles — sugestão de distribuição pra ${N} sessões: ${suggestedDays}. CONCISÃO (o tempo de geração é limitado): \`execution_notes\` curto conforme o formato definido no system prompt (1-2 frases, 40-120 chars); \`summary\` = 2-3 frases; \`progression_strategy\` = 3-4 frases; monitoring_parameters: no máximo 3 itens; assessment_protocols: no máximo 2; restrictions: red/yellow só com red flag real — greens de alinhamento com diretriz continuam permitidas (1-2 num plano baixo-risco); warmup: no máximo 2 exercícios; cooldown: no máximo 1.`
-	);
-	lines.push(
-		'5. RESPEITE a Dificuldade-alvo dos exercícios definida nas PREFERÊNCIAS. A escolha dos exercícios deve refletir esse nível de complexidade técnica, independente do nível de experiência informado.'
-	);
-	lines.push(
-		'6. FICHA DE PRESCRIÇÃO — para CADA exercício de força (warmup e main), preencha SEMPRE estes campos curtos, no padrão de prescrição brasileiro: `intensity` = % de 1RM no formato "% 1RM" (ex: "80% 1RM", "60-80% 1RM"; em peso corporal/isometria pode omitir); `load_guidance` = PSE (Percepção Subjetiva de Esforço) no formato "PSE x-y" (ex: "PSE 6-7") — NUNCA escreva "RPE". `intensity` (% 1RM) e `load_guidance` (PSE) são complementares e aparecem lado a lado na ficha. `muscle_action` = um de "isotonica" | "isometrica" | "auxotonico" | "isocinetica" (isométrica p/ pranchas/isometrias); `cadence` = OBRIGATÓRIO em TODO exercício de força — tempo de execução excêntrica/concêntrica (ex: "2/2", "3/1"); use o campo `cadence` (NÃO `tempo`); default "2/2" quando não houver motivo pra outro. `range_of_motion` = amplitude (ex: "90°", "Full", "90° de flexão do cotovelo"); `rest_label` = pausa em texto (ex: "1min", "40s", "40s/1min"). Mantenha também `sets`, `reps`, `rest_seconds` numéricos. Use `series_label` SÓ quando as séries forem um esquema (ex: "2/2").'
-	);
-	lines.push(
-		'7. AERÓBIO — se o aluno tiver objetivo cardiovascular/emagrecimento ou modalidade aeróbia, gere `aerobic_prescriptions` (1 a 3 itens) no formato do modelo: `means` (ex: "Esteira", "Corrida na Rua"), `weekly_frequency` (ex: "2x semana"), `method` (ex: "Contínuo"), `pause` (ex: "-"), `intensity` (ex: "60-70%Fcmáx (150-167bpm)"), `volume` (ex: "50min"). Caso contrário, deixe a lista vazia.'
-	);
-	lines.push(
-		'8. CAPA — preencha `objective` com o objetivo do programa em 1-2 frases (ex: recomposição corporal, hipertrofia, condicionamento), e `program_weeks` com a duração total estimada do programa em semanas (tipicamente 8 a 16). Para cada sessão de força, preencha `observations` quando houver orientação geral (ex: "Executar os movimentos até 1-2 repetições de reserva.").'
+		`SESSÕES SEMANAIS: gere EXATAMENTE ${N} sessões — esse é o número que o aluno definiu na frequência alvo dele. Distribua os treinos pela semana com descanso entre eles — sugestão de distribuição pra ${N} sessões: ${suggestedDays}.`
 	);
 
 	return lines.join('\n');
+}
+
+/**
+ * Regras estáticas da tarefa — idênticas em TODA geração. Ficam no bloco de
+ * sistema CACHEADO (prompt caching Anthropic): junto do SYSTEM_PROMPT elas
+ * passam do mínimo cacheável do Opus 4.8 (4096 tokens) e são cobradas a
+ * ~0.1x nas gerações seguintes, em vez de preço cheio a cada plano.
+ * NÃO interpolar nada dinâmico aqui — um byte diferente invalida o cache.
+ */
+const STATIC_TASK_RULES = [
+	'## REGRAS DA TAREFA',
+	'1. PREFERIR exercícios do CATÁLOGO fornecido na mensagem sempre que possível — quando usar um, preencha `catalog_id` da exercise com o external_id (formato 4-5 dígitos, ex: "0001"). Mira em ≥80% dos exercícios do bloco principal vindos do catálogo. Para aquecimento/desaquecimento, pode usar exercícios livres se necessário.',
+	'2. Para cada recomendação crítica, cite chunk_id do CONTEXTO CLÍNICO fornecido na mensagem — preferindo chunks ACSM quando disponíveis. Se não estiver coberto, marque source.type = "inference".',
+	'3. Quando escolher do catálogo, use o nome EXATO do catálogo no campo `name` (não invente variações), e copie o external_id PRECISO em `catalog_id`.',
+	'4. OBRIGATÓRIO preencher `day_of_week` de CADA sessão (valores válidos: "seg" | "ter" | "qua" | "qui" | "sex" | "sab" | "dom"). CONCISÃO (o tempo de geração é limitado): `execution_notes` curto conforme o formato definido acima (1-2 frases, 40-120 chars); `summary` = 2-3 frases; `progression_strategy` = 3-4 frases; monitoring_parameters: no máximo 3 itens; assessment_protocols: no máximo 2; restrictions: red/yellow só com red flag real — greens de alinhamento com diretriz continuam permitidas (1-2 num plano baixo-risco); warmup: no máximo 2 exercícios; cooldown: no máximo 1.',
+	'5. RESPEITE a Dificuldade-alvo dos exercícios definida nas PREFERÊNCIAS da mensagem. A escolha dos exercícios deve refletir esse nível de complexidade técnica, independente do nível de experiência informado.',
+	'6. FICHA DE PRESCRIÇÃO — para CADA exercício de força (warmup e main), preencha SEMPRE estes campos curtos, no padrão de prescrição brasileiro: `intensity` = % de 1RM no formato "% 1RM" (ex: "80% 1RM", "60-80% 1RM"; em peso corporal/isometria pode omitir); `load_guidance` = PSE (Percepção Subjetiva de Esforço) no formato "PSE x-y" (ex: "PSE 6-7") — NUNCA escreva "RPE". `intensity` (% 1RM) e `load_guidance` (PSE) são complementares e aparecem lado a lado na ficha. `muscle_action` = um de "isotonica" | "isometrica" | "auxotonico" | "isocinetica" (isométrica p/ pranchas/isometrias); `cadence` = OBRIGATÓRIO em TODO exercício de força — tempo de execução excêntrica/concêntrica (ex: "2/2", "3/1"); use o campo `cadence` (NÃO `tempo`); default "2/2" quando não houver motivo pra outro. `range_of_motion` = amplitude (ex: "90°", "Full", "90° de flexão do cotovelo"); `rest_label` = pausa em texto (ex: "1min", "40s", "40s/1min"). Mantenha também `sets`, `reps`, `rest_seconds` numéricos. Use `series_label` SÓ quando as séries forem um esquema (ex: "2/2").',
+	'7. AERÓBIO — se o aluno tiver objetivo cardiovascular/emagrecimento ou modalidade aeróbia, gere `aerobic_prescriptions` (1 a 3 itens) no formato do modelo: `means` (ex: "Esteira", "Corrida na Rua"), `weekly_frequency` (ex: "2x semana"), `method` (ex: "Contínuo"), `pause` (ex: "-"), `intensity` (ex: "60-70%Fcmáx (150-167bpm)"), `volume` (ex: "50min"). Caso contrário, deixe a lista vazia.',
+	'8. CAPA — preencha `objective` com o objetivo do programa em 1-2 frases (ex: recomposição corporal, hipertrofia, condicionamento), e `program_weeks` com a duração total estimada do programa em semanas (tipicamente 8 a 16). Para cada sessão de força, preencha `observations` quando houver orientação geral (ex: "Executar os movimentos até 1-2 repetições de reserva.").'
+].join('\n');
+
+/** Bloco de sistema completo (estável, byte-idêntico entre gerações). */
+const CACHED_SYSTEM = `${SYSTEM_PROMPT_PT_BR}\n\n${STATIC_TASK_RULES}`;
+
+/**
+ * Mensagens com prompt caching: o system (prompt clínico + regras estáticas,
+ * ~4.5k tokens) leva cache_control ephemeral — 1ª geração paga 1.25x nele,
+ * as seguintes (mesmo profissional gerando vários planos, retry, fallback)
+ * pagam ~0.1x. O conteúdo por aluno (catálogo, RAG, dados) fica na mensagem
+ * de usuário, DEPOIS do breakpoint, onde variação não invalida nada.
+ */
+function buildMessages(userPrompt: string) {
+	return [
+		{
+			role: 'system' as const,
+			content: CACHED_SYSTEM,
+			providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
+		},
+		{ role: 'user' as const, content: userPrompt }
+	];
 }
 
 export type GenerateResult = {
@@ -766,8 +787,13 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					schemaName: 'TrainingPlan',
 					schemaDescription:
 						'Plano de treino clínico com sessões semanais, monitoramento, restrições e citações',
-					system: SYSTEM_PROMPT_PT_BR,
-					prompt: userPrompt,
+					messages: buildMessages(userPrompt),
+					// System vai em messages DE PROPÓSITO (cache_control do Anthropic
+					// só se aplica message-level). Conteúdo é estático do código.
+					allowSystemInMessages: true,
+					// Default do provider Anthropic é 4096 — truncaria um plano de
+					// 5-7 sessões no meio do JSON. 32k dá folga pro maior plano.
+					maxOutputTokens: 32_000,
 					maxRetries: 1,
 					// Aborta o stream antes do maxDuration da função pra sobrar
 					// tempo do catch persistir status=failed. Sem isso a função
@@ -932,8 +958,11 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					schemaName: 'TrainingPlan',
 					schemaDescription:
 						'Plano de treino clínico com sessões semanais, monitoramento, restrições e citações',
-					system: SYSTEM_PROMPT_PT_BR,
-					prompt: userPrompt,
+					// Mesmo prefixo cacheado da tentativa primária: o fallback LÊ o
+					// cache que ela escreveu (mesmo system + mesma userPrompt).
+					messages: buildMessages(userPrompt),
+					allowSystemInMessages: true,
+					maxOutputTokens: 32_000,
 					maxRetries: 1,
 					abortSignal: AbortSignal.timeout(120_000)
 				});
