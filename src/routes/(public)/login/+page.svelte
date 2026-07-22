@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Eyebrow } from '$lib/components/ui';
+	import { Button, Eyebrow, BrandMark } from '$lib/components/ui';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
 	import type { ActionData } from './$types';
@@ -48,7 +48,7 @@
 </script>
 
 <svelte:head>
-	<title>Entrar · Preceptor Fisic</title>
+	<title>Entrar · PreceptorFISIC</title>
 </svelte:head>
 
 <div class="login-grid">
@@ -58,15 +58,16 @@
 		<div class="login-glow login-glow--bottom"></div>
 
 		<div style="display:flex;align-items:center;gap:12px;position:relative">
-			<div class="login-logo">P</div>
-			<div style="font:600 18px var(--font-sans);letter-spacing:-0.02em">Preceptor Fisic</div>
+			<BrandMark size={34} />
+			<div style="font:500 18px var(--font-sans);letter-spacing:-0.02em">Preceptor<span style="font-weight:700">FISIC</span></div>
 		</div>
 
 		<div style="flex:1;display:flex;align-items:center;position:relative">
 			<div style="max-width:460px">
 				<div class="eyebrow" style="margin-bottom:18px">◆ Plataforma para profissionais</div>
-				<h1 style="font:500 56px/1.05 var(--font-sans);margin:0;letter-spacing:-0.03em;color:var(--ink-0)">
-					Prescreva treinos<br />com<span style="color:var(--accent)"> rigor clínico</span>.
+				<h1 class="login-h1">
+					Prescreva treinos<br />
+					com <span class="login-accent">rigor clínico.</span>
 				</h1>
 				<p style="font:400 16px/1.5 var(--font-sans);color:var(--ink-1);margin-top:24px;max-width:420px">
 					Plataforma para personal trainers, fisioterapeutas e clínicas que prescrevem exercícios para populações especiais.
@@ -78,14 +79,14 @@
 							style="display:flex;align-items:baseline;gap:14px;padding:12px 0;{i ? 'border-top:1px solid var(--ink-line)' : ''}"
 						>
 							<span class="num" style="font:var(--num-md);color:var(--ink-0);min-width:80px">{s.num}</span>
-							<span style="font:var(--label-mono);color:var(--ink-2)">{s.lbl}</span>
+							<span style="font:400 14px/1.45 var(--font-sans);color:var(--ink-1)">{s.lbl}</span>
 						</div>
 					{/each}
 				</div>
 			</div>
 		</div>
 
-		<div class="eyebrow" style="position:relative">v3.2.1 · São Paulo · Conformidade LGPD</div>
+		<div class="eyebrow" style="position:relative">v3.2.1 · Conformidade LGPD</div>
 	</div>
 
 	<!-- Direita — formulário -->
@@ -272,17 +273,19 @@
 		height: 380px;
 		background: radial-gradient(circle, rgba(167, 139, 250, 0.08) 0%, transparent 70%);
 	}
-	.login-logo {
-		width: 36px;
-		height: 36px;
-		border-radius: 8px;
-		background: linear-gradient(135deg, var(--accent), var(--accent-dim));
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font: 700 18px var(--font-sans);
-		color: #0a0a0a;
-		box-shadow: var(--glow-accent);
+	.login-h1 {
+		font: 500 clamp(44px, 4.4vw, 60px) / 1.02 var(--font-sans);
+		margin: 0;
+		letter-spacing: -0.035em;
+		color: var(--ink-0);
+	}
+	.login-accent {
+		background: linear-gradient(120deg, var(--accent) 0%, var(--accent-2) 50%, #e0d4ff 100%);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+		font-style: italic;
+		font-weight: 400;
 	}
 	.login-right {
 		display: flex;
