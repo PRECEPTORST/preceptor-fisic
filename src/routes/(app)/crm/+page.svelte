@@ -152,6 +152,38 @@
 		total > 0 ? Math.round((pagantesCount / total) * 100) : 0
 	);
 
+	// ─── Dashboard (saudação + KPIs + gráficos) ───
+	const greetDate = new Date().toLocaleDateString('pt-BR', {
+		weekday: 'long',
+		day: 'numeric',
+		month: 'long'
+	});
+	const firstName = $derived(
+		((data.professional?.name as string | undefined) ?? '').split(' ')[0] || 'time'
+	);
+	const novos7d = $derived(
+		leads.filter((l) => Date.now() - new Date(l.createdAt).getTime() < 7 * 86_400_000).length
+	);
+	/** Follow-ups vencidos de leads ainda vivos — o "o que fazer hoje" do CRM. */
+	const followUpsLate = $derived(
+		leads.filter(
+			(l) =>
+				l.nextFollowUpAt &&
+				new Date(l.nextFollowUpAt).getTime() < Date.now() &&
+				l.stage !== 'cancelado' &&
+				l.stage !== 'perdido'
+		).length
+	);
+	const stageMax = $derived(Math.max(1, ...STAGES.map((s) => counts[s.id])));
+	/** Distribuição por origem, ordenada por volume. Barras num só matiz
+	 *  (comparação de magnitude): identidade vem do rótulo, não da cor. */
+	const sourceRows = $derived(
+		SOURCES.map((s) => ({ ...s, n: leads.filter((l) => l.source === s.id).length }))
+			.filter((r) => r.n > 0)
+			.sort((a, b) => b.n - a.n)
+	);
+	const sourceMax = $derived(Math.max(1, ...sourceRows.map((r) => r.n)));
+
 	function fmtDate(d: Date | null): string {
 		if (!d) return '—';
 		return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
@@ -175,8 +207,8 @@
 <div class="crm-page">
 	<header class="crm-header">
 		<div style="min-width:0">
-			<Eyebrow>{total} leads · {novosCount} novos cadastros · {conversionRate}% pagantes</Eyebrow>
-			<h1 class="crm-h1">CRM</h1>
+			<div class="crm-date">{greetDate}</div>
+			<h1 class="crm-h1">Olá, {firstName}!</h1>
 			<p class="crm-sub">
 				Pipeline de leads do contato inicial até virar aluno ativo.
 			</p>
@@ -200,20 +232,65 @@
 		</div>
 	</header>
 
-	<!-- Funnel metrics row -->
-	<div class="funnel-row">
-		{#each STAGES as st (st.id)}
-			{@const n = counts[st.id]}
-			{@const pct = total > 0 ? Math.round((n / total) * 100) : 0}
-			<div class="funnel-card" style="border-left: 3px solid {st.color}">
-				<div class="eyebrow" style="color:{st.color};margin-bottom:6px">{st.label}</div>
-				<div style="display:flex;align-items:baseline;gap:6px">
-					<span class="num funnel-num">{n}</span>
-					<span class="funnel-pct">{pct}%</span>
+	<!-- ─── Dashboard: KPIs + gráficos (cards translúcidos sobre o glow) ─── -->
+	<section class="dash">
+		<div class="dash-glow" aria-hidden="true"></div>
+
+		<div class="kpi-row">
+			<div class="glass kpi">
+				<div class="kpi-label">Leads no funil</div>
+				<div class="num kpi-num">{total}</div>
+			</div>
+			<div class="glass kpi">
+				<div class="kpi-label">Novos · 7 dias</div>
+				<div class="num kpi-num">{novos7d}</div>
+			</div>
+			<div class="glass kpi">
+				<div class="kpi-label">Pagantes</div>
+				<div style="display:flex;align-items:baseline;gap:8px">
+					<div class="num kpi-num">{pagantesCount}</div>
+					<div class="kpi-sub">{conversionRate}% do funil</div>
 				</div>
 			</div>
-		{/each}
-	</div>
+			<div class="glass kpi" class:kpi--alert={followUpsLate > 0}>
+				<div class="kpi-label">Follow-ups atrasados</div>
+				<div class="num kpi-num">{followUpsLate}</div>
+			</div>
+		</div>
+
+		<div class="chart-grid">
+			<div class="glass chart-card">
+				<div class="chart-title">Leads por estágio</div>
+				{#each STAGES as st (st.id)}
+					{@const n = counts[st.id]}
+					<div class="bar-row" title="{st.label}: {n} {n === 1 ? 'lead' : 'leads'}">
+						<span class="bar-label">{st.label}</span>
+						<div class="bar-track">
+							<div class="bar-fill" style="width:{(n / stageMax) * 100}%;background:{st.color}"></div>
+						</div>
+						<span class="num bar-val">{n}</span>
+					</div>
+				{/each}
+			</div>
+
+			<div class="glass chart-card">
+				<div class="chart-title">Leads por origem</div>
+				{#if sourceRows.length === 0}
+					<p class="chart-empty">Sem leads ainda — as origens aparecem aqui.</p>
+				{:else}
+					{#each sourceRows as r (r.id)}
+						<div class="bar-row" title="{r.label}: {r.n} {r.n === 1 ? 'lead' : 'leads'}">
+							<span class="bar-label">{r.label}</span>
+							<div class="bar-track">
+								<div class="bar-fill" style="width:{(r.n / sourceMax) * 100}%;background:var(--accent)"></div>
+							</div>
+							<span class="num bar-val">{r.n}</span>
+						</div>
+					{/each}
+				{/if}
+			</div>
+		</div>
+	</section>
 
 	{#if total === 0}
 		<div class="card empty-state">
@@ -528,27 +605,122 @@
 		color: var(--ink-1);
 	}
 
-	/* ─── Funnel metric strip ─── */
-	.funnel-row {
-		display: grid;
-		grid-template-columns: repeat(7, 1fr);
-		gap: 10px;
-	}
-	.funnel-card {
-		padding: 14px 16px;
-		background: var(--bg-2);
-		border: 1px solid var(--ink-line);
-		border-left-width: 3px;
-		border-radius: var(--r-2);
-	}
-	.funnel-num {
-		font: 500 22px var(--font-mono);
-		color: var(--ink-0);
-		font-variant-numeric: tabular-nums;
-	}
-	.funnel-pct {
+	/* ─── Dashboard: saudação + KPIs + gráficos ─── */
+	.crm-date {
 		font: var(--label-mono);
 		color: var(--ink-3);
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+	}
+	.dash {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		/* Isola o glow pra ele não vazar por cima do kanban */
+		isolation: isolate;
+	}
+	/* Glow violeta suave atrás dos cards — dá o quê "translúcido" da
+	   referência sem sair da identidade (mesma técnica do cta-glow da LP) */
+	.dash-glow {
+		position: absolute;
+		inset: -40px -80px;
+		background: radial-gradient(ellipse 55% 70% at 22% 30%, var(--accent-glow) 0%, transparent 65%),
+			radial-gradient(ellipse 45% 60% at 85% 75%, rgba(96, 165, 250, 0.07) 0%, transparent 70%);
+		z-index: -1;
+		pointer-events: none;
+	}
+	.glass {
+		background: color-mix(in srgb, var(--bg-1) 78%, transparent);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-3);
+		backdrop-filter: blur(14px);
+		-webkit-backdrop-filter: blur(14px);
+	}
+	.kpi-row {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 12px;
+	}
+	.kpi {
+		padding: 16px 18px 14px;
+	}
+	.kpi-label {
+		font: var(--label-mono);
+		color: var(--ink-3);
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		margin-bottom: 8px;
+	}
+	.kpi-num {
+		font: 600 30px var(--font-mono);
+		color: var(--ink-0);
+		letter-spacing: -0.02em;
+		font-variant-numeric: tabular-nums;
+		line-height: 1;
+	}
+	.kpi-sub {
+		font: var(--label-mono);
+		color: var(--ink-3);
+	}
+	.kpi--alert .kpi-num {
+		color: var(--warn);
+	}
+
+	.chart-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 12px;
+	}
+	.chart-card {
+		padding: 18px 20px 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.chart-title {
+		font: 500 14px var(--font-sans);
+		color: var(--ink-0);
+		letter-spacing: -0.01em;
+		margin-bottom: 6px;
+	}
+	.chart-empty {
+		font: var(--body-sm);
+		color: var(--ink-3);
+		margin: 0;
+	}
+	/* Barras horizontais: marca fina, ponta arredondada no fim do valor,
+	   rótulo + número em tinta de texto (identidade nunca só pela cor) */
+	.bar-row {
+		display: grid;
+		grid-template-columns: 110px 1fr 36px;
+		align-items: center;
+		gap: 10px;
+	}
+	.bar-label {
+		font: 400 12.5px var(--font-sans);
+		color: var(--ink-1);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.bar-track {
+		height: 10px;
+		border-radius: 0 4px 4px 0;
+		background: color-mix(in srgb, var(--ink-line) 55%, transparent);
+		overflow: hidden;
+	}
+	.bar-fill {
+		height: 100%;
+		border-radius: 0 4px 4px 0;
+		min-width: 2px;
+		transition: width 300ms var(--ease);
+	}
+	.bar-val {
+		font: 500 12.5px var(--font-mono);
+		color: var(--ink-1);
+		text-align: right;
+		font-variant-numeric: tabular-nums;
 	}
 
 	.empty-state {
@@ -872,8 +1044,14 @@
 			width: 100%;
 			justify-content: space-between;
 		}
-		.funnel-row {
+		.kpi-row {
 			grid-template-columns: repeat(2, 1fr);
+		}
+		.chart-grid {
+			grid-template-columns: 1fr;
+		}
+		.bar-row {
+			grid-template-columns: 90px 1fr 32px;
 		}
 		.kanban {
 			grid-template-columns: repeat(7, minmax(200px, 220px));
