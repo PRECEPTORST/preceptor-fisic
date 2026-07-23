@@ -45,10 +45,13 @@ import {
 } from '$lib/server/clinical/validator';
 
 // Geração agora é Claude (Anthropic). Aliases sem sufixo de data: a Anthropic
-// mantém `claude-opus-4-8` etc. apontando pro snapshot estável atual.
+// mantém `claude-sonnet-5` etc. apontando pro snapshot estável atual.
 // Embeddings do RAG continuam no Gemini (ver provider.ts).
-// Override por env se preciso (ex: AI_MODEL_FAST=claude-haiku-4-5 pra baratear).
-const PRIMARY_MODEL = env.AI_MODEL_FAST ?? 'claude-opus-4-8';
+// Caminho primário (streaming, o que o cliente vê) é o Sonnet 5: bem mais
+// rápido que o Opus e ótima qualidade clínica. Override por env se preciso
+// (ex: AI_MODEL_FAST=claude-haiku-4-5 pra baratear, ou =claude-opus-4-8 pra
+// máxima profundidade). Fallback fica no Opus como rede de segurança de qualidade.
+const PRIMARY_MODEL = env.AI_MODEL_FAST ?? 'claude-sonnet-5';
 const FALLBACK_MODEL = env.AI_MODEL_PRIMARY ?? 'claude-opus-4-8';
 
 /** Teto da chamada de IA (ms). Fica ABAIXO do maxDuration da função (300s no
