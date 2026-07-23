@@ -102,6 +102,24 @@ export async function getAsaasCustomerEmail(customerId: string): Promise<string 
 	return c.email?.trim().toLowerCase() || null;
 }
 
+export async function getAsaasCustomer(
+	customerId: string
+): Promise<{ name: string | null; email: string | null }> {
+	const c = await asaasGet<{ name?: string | null; email?: string | null }>(
+		`/customers/${customerId}`
+	);
+	return { name: c.name ?? null, email: c.email?.trim().toLowerCase() || null };
+}
+
+/** Link de pagamento avulso do Ebook ACSM (R$ 29,90). Entrega manual via Drive. */
+export const EBOOK_PAYMENT_LINK_ID = 'mtnzj35g4ckbbukf';
+export const EBOOK_VALUE = 29.9;
+
+export function isEbookPayment(payment: AsaasPaymentPayload): boolean {
+	if (payment.paymentLink === EBOOK_PAYMENT_LINK_ID) return true;
+	return typeof payment.value === 'number' && Math.abs(payment.value - EBOOK_VALUE) < 0.01;
+}
+
 async function asaasPost<T>(path: string, body: unknown): Promise<T> {
 	if (!env.ASAAS_API_KEY) throw new Error('ASAAS_API_KEY não configurada');
 	const res = await fetch(`${BASE_URL}${path}`, {

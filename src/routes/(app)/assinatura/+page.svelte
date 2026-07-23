@@ -227,6 +227,24 @@
 				>
 					Quero o ebook por R$ 29,90 →
 				</a>
+				<!-- Entrega manual via Drive: o pagamento avisa o time por email
+				     automaticamente, e o comprador pode acelerar pelo WhatsApp. -->
+				<p style="font:var(--body-sm);color:var(--ink-2);margin:8px 0 0">
+					<strong style="color:var(--ink-0)">Como funciona a entrega:</strong> após o pagamento,
+					o time libera seu acesso ao ebook no Google Drive no email da sua conta. Pagou e quer
+					agilizar?
+					<a
+						href={'https://wa.me/553591481514?text=' +
+							encodeURIComponent(
+								`Olá! Acabei de comprar o Ebook ACSM pelo PreceptorFISIC. Sou ${prof.name} e meu email de acesso é ${prof.email}. Pode liberar meu acesso no Drive?`
+							)}
+						target="_blank"
+						rel="noopener"
+						style="color:var(--accent)"
+					>
+						Chame no WhatsApp com o comprovante →
+					</a>
+				</p>
 			</div>
 		{/if}
 	{/if}

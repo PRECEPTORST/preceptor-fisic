@@ -5,10 +5,13 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { asaasWebhookEvents, professionals } from '$lib/server/db/schema';
 import {
+	getAsaasCustomer,
 	getAsaasCustomerEmail,
+	isEbookPayment,
 	planFromPayment,
 	type AsaasPaymentPayload
 } from '$lib/server/asaas';
+import { sendEbookPurchaseAlert } from '$lib/server/email';
 import { logger } from '$lib/server/logger';
 
 /**
@@ -103,8 +106,21 @@ async function applyEvent(body: {
 	if (!relevant) return {}; // evento só arquivado, sem regra de negócio
 	if (!payment?.customer) return { skipped: 'sem customer no payload' };
 
+	// EBOOK (cobrança avulsa): entrega é manual via Drive — avisa o responsável
+	// por email com os dados do comprador e arquiva. Não mexe em assinatura.
+	if (ACTIVATE.has(event) && isEbookPayment(payment)) {
+		const buyer = await getAsaasCustomer(payment.customer);
+		await sendEbookPurchaseAlert({
+			buyerName: buyer.name,
+			buyerEmail: buyer.email,
+			paymentId: payment.id ?? '(sem id)',
+			value: typeof payment.value === 'number' ? payment.value : null
+		});
+		return { skipped: `ebook vendido — alerta enviado (comprador: ${buyer.email ?? '?'})` };
+	}
+
 	const plan = planFromPayment(payment);
-	// Cobrança que não é de plano (ex: ebook): arquiva sem mexer em assinatura.
+	// Cobrança que não é de plano nem ebook: arquiva sem mexer em assinatura.
 	if (!plan && ACTIVATE.has(event)) return { skipped: 'pagamento não mapeado a plano' };
 
 	// Match em 3 níveis, do determinístico pro heurístico:

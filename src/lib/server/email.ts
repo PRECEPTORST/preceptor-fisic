@@ -282,6 +282,39 @@ export async function sendAppointmentNotification(opts: {
 /**
  * Notifica profissional que o plano gerado pra um aluno está pronto.
  */
+/**
+ * Alerta interno de venda do EBOOK (cobrança avulsa no Asaas). A entrega é
+ * manual: quem recebe este email libera o acesso ao Drive pro comprador.
+ * Destinatário via EBOOK_NOTIFY_EMAIL (email do responsável pela liberação).
+ */
+export async function sendEbookPurchaseAlert(opts: {
+	buyerName: string | null;
+	buyerEmail: string | null;
+	paymentId: string;
+	value: number | null;
+}): Promise<EmailResult> {
+	const to = env.EBOOK_NOTIFY_EMAIL ?? 'castroomath7@gmail.com';
+	const buyerName = escapeHtml(opts.buyerName ?? 'não informado');
+	const buyerEmail = escapeHtml(opts.buyerEmail ?? 'não informado');
+	const value =
+		opts.value != null
+			? opts.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+			: '—';
+	const body = `
+<p style="margin:0 0 14px;">Venda confirmada do <strong style="color:#fafafa;">Ebook ACSM</strong> (${value}).</p>
+<p style="margin:0 0 14px;">Comprador: <strong style="color:#fafafa;">${buyerName}</strong><br/>
+Email: <strong style="color:#fafafa;">${buyerEmail}</strong><br/>
+Cobrança Asaas: ${escapeHtml(opts.paymentId)}</p>
+<p style="margin:0;">Ação: liberar o acesso do ebook no Drive pra esse email e avisar o comprador.</p>
+`;
+	return send({
+		to,
+		subject: `[Ebook] Venda confirmada — liberar acesso pra ${opts.buyerEmail ?? 'comprador'}`,
+		html: baseTemplate('Venda do ebook.', body),
+		tag: 'ebook.sale'
+	});
+}
+
 export async function sendPlanReady(opts: {
 	to: string;
 	professionalName: string;

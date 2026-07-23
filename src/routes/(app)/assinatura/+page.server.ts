@@ -19,6 +19,7 @@ export const load = (async ({ locals }) => {
 		.select({
 			id: professionals.id,
 			name: professionals.name,
+			email: professionals.email,
 			subscriptionStatus: professionals.subscriptionStatus,
 			subscriptionPlan: professionals.subscriptionPlan,
 			subscriptionExpiresAt: professionals.subscriptionExpiresAt,
