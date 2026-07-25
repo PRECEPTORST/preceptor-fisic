@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import Avatar from '../ui/avatar.svelte';
-		import NavIcon from './nav-icon.svelte';
+	import NavIcon from './nav-icon.svelte';
 	import { BrandMark } from '$lib/components/ui';
+	import { theme } from '$lib/theme.svelte';
 
 	type NavItem = {
 		id: string;
@@ -132,9 +133,17 @@
 				<span style="flex:1">{it.label}</span>
 			</a>
 		{/each}
-		<!-- Toggle de tema saiu daqui: a variante nav usava classes pf-navitem
-		     com escopo DESTE componente e renderizava sem estilo dentro do
-		     theme-toggle. Agora vive no canto superior direito do layout. -->
+		<!-- Tema aqui dentro, e não como componente separado: as classes
+		     pf-navitem têm escopo deste arquivo e não alcançariam o markup de
+		     outro componente. Flutuando no canto da tela ele cobria o botão de
+		     ação da página (ex.: "+ Novo aluno" em /alunos). -->
+		<button class="pf-navitem" type="button" style="width:100%" onclick={() => theme.toggle()}>
+			<span class="pf-navitem__indicator"></span>
+			<span class="pf-navitem__icon">
+				<NavIcon name={theme.resolved === 'dark' ? 'sol' : 'lua'} size={18} />
+			</span>
+			<span style="flex:1">{theme.resolved === 'dark' ? 'Tema claro' : 'Tema escuro'}</span>
+		</button>
 		<!-- Logout via POST (anti-CSRF) — GET /logout foi removido -->
 		<form method="POST" action="/logout" style="display:contents">
 			<button class="pf-navitem" type="submit" style="width:100%">
