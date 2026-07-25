@@ -3,14 +3,18 @@ import { eq } from 'drizzle-orm';
 import {
 	getStudentDetail,
 	getProfessionalByAuthId,
-	countPlansGeneratedRecent
+	countPlansGeneratedRecent,
+	countGenerationsSince
 } from '$lib/server/queries';
 import { db } from '$lib/server/db';
 import { trainingPreferences } from '$lib/server/db/schema';
 import { createPlanPlaceholder, generateTrainingPlanInBackground } from '$lib/server/ai/generator';
 import {
 	hasActiveSubscription,
-	SUBSCRIPTION_BLOCKED_MESSAGE
+	SUBSCRIPTION_BLOCKED_MESSAGE,
+	limitsFor,
+	currentCycleStart,
+	generationLimitMessage
 } from '$lib/server/subscription';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -74,6 +78,16 @@ export const actions: Actions = {
 		// nada de chamada à IA (o botão some na UI, mas POST direto cai aqui).
 		if (!hasActiveSubscription(professional)) {
 			return fail(402, { error: SUBSCRIPTION_BLOCKED_MESSAGE, subscriptionBlocked: true });
+		}
+
+		// Franquia de gerações do ciclo. Vem antes do rate limit porque é limite
+		// de plano (resolve com upgrade), não de uso momentâneo.
+		const genLimit = limitsFor(professional).generations;
+		if (genLimit != null) {
+			const used = await countGenerationsSince(professional.id, currentCycleStart(professional));
+			if (used >= genLimit) {
+				return fail(402, { error: generationLimitMessage(genLimit), limitReached: true });
+			}
 		}
 
 		// Rate limit check ANTES de criar placeholder ou chamar IA

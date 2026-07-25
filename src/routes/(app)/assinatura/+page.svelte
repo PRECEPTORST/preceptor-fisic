@@ -8,6 +8,7 @@
 
 	const prof = $derived(data.professional);
 	const needsCpf = $derived(!prof.asaasCustomerId);
+	const uso = $derived(data.uso);
 
 	// Funil da LP: /assinatura?plan=pro_mensal pré-seleciona o plano escolhido
 	// antes do cadastro (o clique em "Assinar" na LP carrega o plano no next=).
@@ -63,6 +64,47 @@
 		Pagamento seguro pelo Asaas, por Pix ou cartão. Ativação automática assim que o pagamento
 		confirmar.
 	</p>
+
+	{#if data.expirou}
+		<div
+			class="card"
+			style="padding:14px 18px;margin-bottom:20px;border-color:var(--warn);background:var(--warn-dim)"
+		>
+			<div style="font:600 15px var(--font-sans);color:var(--ink-0);margin-bottom:4px">
+				Seu acesso gratuito terminou
+			</div>
+			<div style="font:var(--body-sm);color:var(--ink-1)">
+				Escolha um plano abaixo para voltar a cadastrar alunos e gerar planos de treino. Seus
+				dados continuam salvos e voltam assim que a assinatura for confirmada.
+			</div>
+		</div>
+	{/if}
+
+	{#if uso && (uso.students.limit != null || uso.generations.limit != null)}
+		<div class="card" style="padding:16px 18px;margin-bottom:20px">
+			<Eyebrow>Uso do ciclo</Eyebrow>
+			<div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:10px">
+				{#if uso.students.limit != null}
+					<div>
+						<div style="font:500 20px var(--font-mono);color:var(--ink-0)">
+							{uso.students.used}<span style="color:var(--ink-3)">/{uso.students.limit}</span>
+						</div>
+						<div style="font:var(--body-sm);color:var(--ink-2)">alunos ativos</div>
+					</div>
+				{/if}
+				{#if uso.generations.limit != null}
+					<div>
+						<div style="font:500 20px var(--font-mono);color:var(--ink-0)">
+							{uso.generations.used}<span style="color:var(--ink-3)"
+								>/{uso.generations.limit}</span
+							>
+						</div>
+						<div style="font:var(--body-sm);color:var(--ink-2)">planos gerados</div>
+					</div>
+				{/if}
+			</div>
+		</div>
+	{/if}
 
 	{#if preselected && prof.subscriptionStatus !== 'active'}
 		<div

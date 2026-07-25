@@ -9,9 +9,11 @@ import {
 	PAYMENT_LINKS
 } from '$lib/server/asaas';
 import { logger } from '$lib/server/logger';
+import { countActiveStudents, countGenerationsSince } from '$lib/server/queries';
+import { limitsFor, currentCycleStart } from '$lib/server/subscription';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load = (async ({ locals }) => {
+export const load = (async ({ locals, url }) => {
 	if (!locals.user) error(401, 'não autenticado');
 	// O professional do layout é uma projeção enxuta (sem campos de billing) —
 	// busca aqui a linha com status/plano/vencimento/asaasCustomerId.
@@ -29,9 +31,24 @@ export const load = (async ({ locals }) => {
 		.where(eq(professionals.authUserId, locals.user.id))
 		.limit(1);
 	if (!professional) error(401, 'não autenticado');
+
+	// Consumo do ciclo, pra pessoa ver quanto já usou do plano antes de bater
+	// no limite.
+	const limits = limitsFor(professional);
+	const [studentsUsed, generationsUsed] = await Promise.all([
+		countActiveStudents(professional.id),
+		countGenerationsSince(professional.id, currentCycleStart(professional))
+	]);
+
 	return {
 		professional,
-		billingEnabled: asaasEnabled()
+		billingEnabled: asaasEnabled(),
+		// `motivo=expirado` vem do redirect do layout quando o acesso caiu.
+		expirou: url.searchParams.get('motivo') === 'expirado',
+		uso: {
+			students: { used: studentsUsed, limit: limits.students },
+			generations: { used: generationsUsed, limit: limits.generations }
+		}
 	};
 }) satisfies PageServerLoad;
 

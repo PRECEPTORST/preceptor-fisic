@@ -1,6 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
-import { getProfessionalByAuthId, createStudentTx } from '$lib/server/queries';
+import { getProfessionalByAuthId, createStudentTx, countActiveStudents } from '$lib/server/queries';
+import { limitsFor, studentLimitMessage } from '$lib/server/subscription';
 import { parseDateISO, parseDecimalBR } from '$lib/server/form-utils';
 import { localDateKey } from '$lib/server/tz';
 import { audit, clientFingerprint } from '$lib/server/audit';
@@ -75,6 +76,16 @@ export const actions: Actions = {
 		if (!locals.user) return fail(401, { error: 'não autenticado' });
 		const professional = await getProfessionalByAuthId(locals.user.id);
 		if (!professional) return fail(401, { error: 'professional não encontrado' });
+
+		// Teto de alunos ativos do plano. Vale para os dois modos (completo e
+		// link), por isso fica antes de bifurcar.
+		const studentCap = limitsFor(professional).students;
+		if (studentCap != null) {
+			const active = await countActiveStudents(professional.id);
+			if (active >= studentCap) {
+				return fail(402, { error: studentLimitMessage(studentCap), limitReached: true });
+			}
+		}
 
 		const fd = await request.formData();
 		const mode = String(fd.get('mode') ?? 'completo') === 'link' ? 'link' : 'completo';

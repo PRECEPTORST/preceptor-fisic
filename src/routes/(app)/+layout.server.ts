@@ -2,9 +2,10 @@ import { redirect } from '@sveltejs/kit';
 import { sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { getProfessionalByAuthId } from '$lib/server/queries';
+import { hasActiveSubscription } from '$lib/server/subscription';
 import type { LayoutServerLoad } from './$types';
 
-export const load = (async ({ locals }) => {
+export const load = (async ({ locals, url }) => {
 	if (!locals.user) {
 		// Sem auth (modo design) — devolve null pro layout/páginas tratarem
 		return { professional: null, user: null, sidebarCounts: null };
@@ -14,6 +15,14 @@ export const load = (async ({ locals }) => {
 	if (!professional) {
 		// Auth user existe mas não tem professional record → onboarding
 		redirect(303, '/onboarding');
+	}
+
+	// Sem assinatura válida, o app fica restrito à própria tela de Assinatura,
+	// onde a pessoa vê o motivo e assina. Configurações e logout seguem
+	// acessíveis pra ninguém ficar preso sem conseguir sair ou trocar de conta.
+	const LIVRE = ['/assinatura', '/configuracoes', '/logout'];
+	if (!hasActiveSubscription(professional) && !LIVRE.some((p) => url.pathname.startsWith(p))) {
+		redirect(303, '/assinatura?motivo=expirado');
 	}
 
 	// Counts do sidebar (1 query agregada — sem N+1).
