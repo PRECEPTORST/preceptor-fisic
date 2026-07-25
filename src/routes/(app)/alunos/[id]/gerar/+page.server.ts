@@ -11,7 +11,6 @@ import { trainingPreferences } from '$lib/server/db/schema';
 import { createPlanPlaceholder, generateTrainingPlanInBackground } from '$lib/server/ai/generator';
 import {
 	hasActiveSubscription,
-	SUBSCRIPTION_BLOCKED_MESSAGE,
 	limitsFor,
 	currentCycleStart,
 	generationLimitMessage
@@ -76,8 +75,11 @@ export const actions: Actions = {
 
 		// Gate de assinatura ANTES de qualquer custo: sem status ativo/trial,
 		// nada de chamada à IA (o botão some na UI, mas POST direto cai aqui).
+		// Sem assinatura, manda direto pra tela de Assinatura: não faz sentido
+		// deixar a pessoa parada numa tela que ela não pode usar. (O layout já
+		// redireciona na navegação; aqui cobre POST direto.)
 		if (!hasActiveSubscription(professional)) {
-			return fail(402, { error: SUBSCRIPTION_BLOCKED_MESSAGE, subscriptionBlocked: true });
+			redirect(303, '/assinatura?motivo=expirado');
 		}
 
 		// Franquia de gerações do ciclo. Vem antes do rate limit porque é limite

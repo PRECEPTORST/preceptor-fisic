@@ -1,7 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { getProfessionalByAuthId, createStudentTx, countActiveStudents } from '$lib/server/queries';
-import { limitsFor, studentLimitMessage } from '$lib/server/subscription';
+import { limitsFor, studentLimitMessage, hasActiveSubscription } from '$lib/server/subscription';
 import { parseDateISO, parseDecimalBR } from '$lib/server/form-utils';
 import { localDateKey } from '$lib/server/tz';
 import { audit, clientFingerprint } from '$lib/server/audit';
@@ -76,6 +76,13 @@ export const actions: Actions = {
 		if (!locals.user) return fail(401, { error: 'não autenticado' });
 		const professional = await getProfessionalByAuthId(locals.user.id);
 		if (!professional) return fail(401, { error: 'professional não encontrado' });
+
+		// Sem assinatura, vai pra tela de Assinatura em vez de ficar numa tela
+		// que não dá pra concluir. (O layout já barra na navegação; aqui cobre
+		// POST direto.)
+		if (!hasActiveSubscription(professional)) {
+			redirect(303, '/assinatura?motivo=expirado');
+		}
 
 		// Teto de alunos ativos do plano. Vale para os dois modos (completo e
 		// link), por isso fica antes de bifurcar.
