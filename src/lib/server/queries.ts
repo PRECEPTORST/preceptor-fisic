@@ -2270,6 +2270,39 @@ export async function countPlansGeneratedRecent(
 	return Number(row?.count ?? 0);
 }
 
+/** Alunos ativos do profissional (exclusão lógica não conta). */
+export async function countActiveStudents(professionalId: string): Promise<number> {
+	const result = await db.execute<{ count: number }>(sql`
+		SELECT COUNT(*)::int AS count
+		FROM students
+		WHERE professional_id = ${professionalId}
+		  AND deleted_at IS NULL
+	`);
+	const list = (result as unknown as { rows?: typeof result }).rows ?? result;
+	const row = (list as Array<{ count: number }>)[0];
+	return Number(row?.count ?? 0);
+}
+
+/**
+ * Gerações de plano feitas no ciclo atual da assinatura. Conta ai_runs
+ * kind='plan_generation', que é o registro do que teve custo de IA de fato.
+ */
+export async function countGenerationsSince(
+	professionalId: string,
+	since: Date
+): Promise<number> {
+	const result = await db.execute<{ count: number }>(sql`
+		SELECT COUNT(*)::int AS count
+		FROM ai_runs
+		WHERE professional_id = ${professionalId}
+		  AND kind = 'plan_generation'
+		  AND created_at >= ${since.toISOString()}
+	`);
+	const list = (result as unknown as { rows?: typeof result }).rows ?? result;
+	const row = (list as Array<{ count: number }>)[0];
+	return Number(row?.count ?? 0);
+}
+
 /* ────────── SESSION LOGS ────────── */
 
 /**
