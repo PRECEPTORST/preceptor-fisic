@@ -11,7 +11,8 @@
 	const NAV = [
 		{ href: '/crm', label: 'Visão geral', exact: true },
 		{ href: '/crm/leads', label: 'Leads', exact: false },
-		{ href: '/crm/feedbacks', label: 'Feedbacks', exact: false }
+		{ href: '/crm/feedbacks', label: 'Feedbacks', exact: false },
+		{ href: '/crm/contas', label: 'Contas', exact: false }
 	];
 	const isActive = (href: string, exact: boolean) =>
 		exact
