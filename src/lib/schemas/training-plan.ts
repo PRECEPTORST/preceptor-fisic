@@ -116,9 +116,13 @@ export const aerobicPrescriptionSchema = z.object({
 });
 export type AerobicPrescription = z.infer<typeof aerobicPrescriptionSchema>;
 
+/** Fonte única dos dias — usada pelo schema da sessão e pela moldura montada em código. */
+export const dayOfWeekSchema = z.enum(['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom']);
+export type DayOfWeek = z.infer<typeof dayOfWeekSchema>;
+
 export const sessionSchema = z.object({
 	label: z.string().min(2).max(300),
-	day_of_week: z.enum(['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom']).optional(),
+	day_of_week: dayOfWeekSchema.optional(),
 	focus: z.string().min(2).max(300),
 	duration_minutes: z.number().int().min(15).max(240),
 	warmup: z.array(exerciseSchema).default([]),
@@ -236,7 +240,7 @@ export type ProgramMetadata = z.infer<typeof programMetadataSchema>;
  */
 export type SessionOutline = {
 	label: string;
-	day_of_week: 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom';
+	day_of_week: DayOfWeek;
 	focus: string;
 	duration_minutes: number;
 	/** Quantos exercícios o bloco principal deve ter. */
@@ -251,48 +255,6 @@ export const sessionExercisesSchema = z.object({
 	observations: z.string().max(600).optional()
 });
 export type SessionExercises = z.infer<typeof sessionExercisesSchema>;
-
-/**
- * Remonta metadados + molduras + blocos de exercícios no formato final.
- * `sessions[i]` corresponde a `outlines[i]`; `null` = aquela sessão falhou e é
- * DESCARTADA (plano parcial) em vez de derrubar o plano inteiro.
- *
- * Não valida — quem chama passa o resultado por `trainingPlanSchema`.
- */
-export function assemblePlan(
-	metadata: ProgramMetadata,
-	outlines: SessionOutline[],
-	sessions: Array<SessionExercises | null>
-): unknown {
-	const weekly_sessions = outlines
-		.map((outline, i) => {
-			const filled = sessions[i];
-			if (!filled) return null;
-			return {
-				label: outline.label,
-				day_of_week: outline.day_of_week,
-				focus: outline.focus,
-				duration_minutes: outline.duration_minutes,
-				warmup: filled.warmup,
-				main: filled.main,
-				cooldown: filled.cooldown,
-				observations: filled.observations
-			};
-		})
-		.filter((s) => s !== null);
-
-	return {
-		summary: metadata.summary,
-		objective: metadata.objective,
-		program_weeks: metadata.program_weeks,
-		progression_strategy: metadata.progression_strategy,
-		weekly_sessions,
-		aerobic_prescriptions: metadata.aerobic_prescriptions,
-		monitoring_parameters: metadata.monitoring_parameters,
-		assessment_protocols: metadata.assessment_protocols,
-		restrictions: metadata.restrictions
-	};
-}
 
 export const generatePlanInputSchema = z.object({
 	notes: z.string().max(2000).optional()

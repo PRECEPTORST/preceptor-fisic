@@ -62,6 +62,9 @@ export const load = (async ({ params, parent, locals }) => {
 
 export const actions: Actions = {
 	generate: async ({ params, request, locals }) => {
+		// Marco do início da request: o orçamento de tempo da geração desconta
+		// tudo que roda antes da IA (auth, ownership, assinatura, placeholder).
+		const requestStartMs = Date.now();
 		// Em actions a gente não pode usar parent() — pega o professional pelo auth user
 		if (!locals.user) return fail(401, { error: 'não autenticado' });
 		const professional = await getProfessionalByAuthId(locals.user.id);
@@ -139,7 +142,8 @@ export const actions: Actions = {
 			professionalId: professional.id,
 			studentId: params.id!,
 			planId,
-			notes
+			notes,
+			requestStartMs
 		});
 
 		redirect(303, `/planos/${planId}`);
