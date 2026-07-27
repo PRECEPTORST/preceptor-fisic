@@ -5,11 +5,13 @@
  *   1. Carrega contexto do aluno (student + health + preferences)
  *   2. Deriva tags de condição
  *   3. RAG retrieval com ACSM > AHA preference (embeddings continuam Gemini)
- *   4. streamObject/generateObject (Claude Opus 4.8) com schema Zod
+ *   4. Geração faseada (divisão da semana → metadados + sessões em paralelo),
+ *      cada chamada validada por schema Zod. Fallback single-shot no Opus.
  *   5. Persiste em training_plans + ai_runs com auditoria completa
  */
 import { and, eq, inArray, desc } from 'drizzle-orm';
-import { generateObject, streamObject } from 'ai';
+import { generateObject, NoObjectGeneratedError } from 'ai';
+import type { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { waitUntil } from '@vercel/functions';
 import { dev as isDev } from '$app/environment';
@@ -34,7 +36,18 @@ import {
 } from '$lib/server/db/schema';
 import { env } from '$env/dynamic/private';
 import { logger } from '$lib/server/logger';
-import { trainingPlanSchema, type TrainingPlanOutput } from '$lib/schemas/training-plan';
+import { buildOutlines, suggestedDaysFor } from './outlines';
+import { unwrapParametersEnvelope } from './structured';
+import {
+	trainingPlanSchema,
+	weeklySplitSchema,
+	programMetadataSchema,
+	sessionExercisesSchema,
+	assemblePlan,
+	type TrainingPlanOutput,
+	type SessionOutline,
+	type SessionExercises
+} from '$lib/schemas/training-plan';
 import { retrieveRelevantChunks, formatContextForPrompt, type RetrievedChunk } from './rag';
 import { deriveTagsFromDiagnosisLabels } from '$lib/clinical/condition-tags';
 import { SYSTEM_PROMPT_PT_BR, SYSTEM_PROMPT_VERSION } from './system-prompt';
@@ -47,23 +60,81 @@ import {
 // Geração agora é Claude (Anthropic). Aliases sem sufixo de data: a Anthropic
 // mantém `claude-sonnet-5` etc. apontando pro snapshot estável atual.
 // Embeddings do RAG continuam no Gemini (ver provider.ts).
-// Caminho primário (streaming, o que o cliente vê) é o Sonnet 5: bem mais
-// rápido que o Opus e ótima qualidade clínica. Override por env se preciso
+// Caminho primário (as chamadas em fases) é o Sonnet 5: bem mais rápido que o
+// Opus e ótima qualidade clínica. Override por env se preciso
 // (ex: AI_MODEL_FAST=claude-haiku-4-5 pra baratear, ou =claude-opus-4-8 pra
 // máxima profundidade). Fallback fica no Opus como rede de segurança de qualidade.
 const PRIMARY_MODEL = env.AI_MODEL_FAST ?? 'claude-sonnet-5';
 const FALLBACK_MODEL = env.AI_MODEL_PRIMARY ?? 'claude-opus-4-8';
 
-/** Teto da chamada de IA (ms). Fica ABAIXO do maxDuration da função (300s no
- * Pro) pra sobrar tempo de validar + persistir o plano (ou marcar failed).
- * 280s dá folga generosa pra IA fechar o plano completo num paciente
- * complexo. Em dev local (Node persistente) 120s basta. Se você estiver no
- * plano Hobby da Vercel (maxDuration 60), baixe via env AI_GEN_TIMEOUT_MS=56000. */
-const AI_GEN_TIMEOUT_MS = Number(env.AI_GEN_TIMEOUT_MS ?? (isDev ? '120000' : '280000'));
+/** Teto da FUNÇÃO (ms) — precisa casar com o maxDuration do adapter em
+ * svelte.config.js (300s no plano Pro; 60s no Hobby, aí use
+ * AI_GEN_FUNCTION_BUDGET_MS=60000). Em dev local (Node persistente) o teto
+ * é nosso, 120s basta. */
+/** Env mal digitada não pode virar NaN e derrubar TODA geração: um
+ *  AbortSignal.timeout(NaN) aborta na hora. Valor inválido cai no default. */
+function envMs(raw: string | undefined, fallback: number): number {
+	const n = Number(raw);
+	return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+const FUNCTION_BUDGET_MS = envMs(
+	env.AI_GEN_FUNCTION_BUDGET_MS ?? env.AI_GEN_TIMEOUT_MS,
+	isDev ? 120_000 : 300_000
+);
+
+/** Reserva descontada do orçamento pra VALIDAR + PERSISTIR o plano (ou marcar
+ * failed / salvar o partial) depois que a IA devolve. Sem essa folga o runtime
+ * mata a função no meio do catch e o plano fica em 'generating' pra sempre. */
+const POST_GEN_RESERVE_MS = envMs(env.AI_GEN_POST_RESERVE_MS, 25_000);
+
+/**
+ * Quanto tempo a chamada de IA ainda pode gastar, contado do início da REQUEST
+ * (não do início da chamada de IA). Carregar contexto + RAG consome dezenas de
+ * segundos antes da IA começar — um timeout fixo de 280s somado a esse preparo
+ * estourava os 300s da função, então o abort nunca chegava a disparar.
+ * Piso de 15s pra a chamada não nascer abortada quando o preparo já queimou
+ * quase tudo (aí ela falha rápido e o erro é persistido, que é o certo).
+ */
+function remainingGenBudgetMs(startMs: number): number {
+	return Math.max(15_000, FUNCTION_BUDGET_MS - POST_GEN_RESERVE_MS - (Date.now() - startMs));
+}
+
+/**
+ * Opções de provider comuns a TODAS as chamadas de geração.
+ *
+ * `structuredOutputMode: 'jsonTool'` é OBRIGATÓRIO aqui, não preferência. No
+ * modo 'auto' o AI SDK usa structured outputs nativos e a API rejeita nossos
+ * schemas com 400: "Schemas contains too many optional parameters (limit: 24)"
+ * — a ficha de prescrição sozinha tem ~10 campos opcionais por exercício
+ * (medido: 81 opcionais no plano inteiro, 51 numa sessão, 31 no esqueleto).
+ * O modo jsonTool passa o schema como tool e não tem esse teto. A alternativa
+ * seria amputar campos clínicos do schema, o que não vale.
+ *
+ * `thinking: disabled` porque Sonnet 5 liga thinking adaptativo por DEFAULT
+ * quando o campo é omitido (mudança em relação ao Opus 4.8). Medindo a mesma
+ * sessão: com thinking, 1 de 2 tentativas voltou "response did not match
+ * schema"; sem thinking, 2 de 2 passaram, ~30s cada e ~15% mais rápido. O
+ * plano já vem estruturado por schema, então o raciocínio livre só atrapalha —
+ * e dividia o teto de max_tokens com o JSON.
+ */
+const GEN_PROVIDER_OPTIONS = {
+	anthropic: {
+		structuredOutputMode: 'jsonTool' as const,
+		thinking: { type: 'disabled' as const }
+	}
+};
 
 function isQuotaError(err: unknown): boolean {
 	const msg = err instanceof Error ? err.message : String(err);
 	return /quota|rate.?limit|429|RESOURCE_EXHAUSTED/i.test(msg);
+}
+
+/** Abort do nosso orçamento de tempo — retentar só queimaria o que resta. */
+function isAbortError(err: unknown): boolean {
+	if (err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError'))
+		return true;
+	return /abort|timed?.?out/i.test(err instanceof Error ? err.message : String(err));
 }
 
 export type GenerateOptions = {
@@ -434,7 +505,13 @@ async function loadStudentContext(
 	};
 }
 
-function buildUserPrompt(ctx: StudentContext, ragContext: string, notes?: string): string {
+/**
+ * Bloco de dados do aluno + RAG + catálogo. Não contém a TAREFA de propósito:
+ * é IDÊNTICO nas duas fases da geração e em todas as chamadas paralelas de
+ * sessão, então leva cache_control e é cobrado a ~0.1x depois da 1ª chamada
+ * (ver buildPhasedMessages). A tarefa, que varia, vem depois do breakpoint.
+ */
+function buildUserPromptBase(ctx: StudentContext, ragContext: string, notes?: string): string {
 	const s = ctx.student;
 	const h = ctx.health;
 	const p = ctx.preferences;
@@ -597,31 +674,125 @@ function buildUserPrompt(ctx: StudentContext, ragContext: string, notes?: string
 	);
 	lines.push('');
 	lines.push(formatCatalogForPrompt(ctx.catalog));
-	lines.push('');
+
+	return lines.join('\n');
+}
+
+/**
+ * Prévia pra UI durante a geração: as molduras viradas em `weekly_sessions`,
+ * com os exercícios das sessões que já fecharam e blocos vazios nas que ainda
+ * estão rodando. É o que faz o plano se materializar na tela sessão por sessão
+ * — a prévia usa optional chaining em warmup/main/cooldown, então bloco vazio
+ * renderiza sem quebrar.
+ */
+function sessionsPreview(
+	outlines: SessionOutline[],
+	filled: Array<SessionExercises | null> = []
+): unknown {
+	return {
+		weekly_sessions: outlines.map((o, i) => ({
+			label: o.label,
+			day_of_week: o.day_of_week,
+			focus: o.focus,
+			duration_minutes: o.duration_minutes,
+			warmup: filled[i]?.warmup ?? [],
+			main: filled[i]?.main ?? [],
+			cooldown: filled[i]?.cooldown ?? []
+		}))
+	};
+}
+
+/** Nº de sessões pedido pelo aluno, com o mesmo clamp usado no prompt e na UI. */
+function targetSessionCount(ctx: StudentContext): number {
+	return Math.max(1, Math.min(7, ctx.preferences?.weeklySessions ?? 3));
+}
+
+/**
+ * FASE 1a — só a divisão da semana. Schema mínimo e tarefa curta: é a chamada
+ * mais barata do fluxo (~6s) e a única que precisa acertar de primeira, porque
+ * tudo depois depende dela.
+ */
+function buildSplitTask(ctx: StudentContext): string {
+	const N = targetSessionCount(ctx);
+	return [
+		'## TAREFA — DIVISÃO DA SEMANA',
+		`Defina a divisão semanal deste aluno: EXATAMENTE ${N} strings em \`session_focus\`, uma por sessão, na ordem dos dias (${suggestedDaysFor(N)}).`,
+		'Cada string = o foco daquela sessão + os grupamentos musculares que ela treina. Ex: "Full body A — peitoral, dorsal, quadríceps, core".',
+		'Respeite a Estrutura do treino e o volume-alvo definidos nas PREFERÊNCIAS, e distribua os grupamentos entre os dias sem sobreposição desnecessária.',
+		'NÃO gere exercícios, nem resumo, nem mais nenhum campo — só a divisão.'
+	].join('\n');
+}
+
+/**
+ * FASE 1b — metadados do programa. Roda em PARALELO com as sessões: o perfil
+ * clínico completo (diagnósticos, limitações, risco CV, RAG) já está no prompt
+ * base que as sessões também recebem, então elas não precisam esperar por isto.
+ */
+function buildMetadataTask(focos: string[]): string {
+	return [
+		'## TAREFA — PROGRAMA (SEM EXERCÍCIOS)',
+		'A divisão semanal já foi definida (abaixo) e os exercícios de cada dia estão sendo prescritos em outra chamada. Aqui você descreve o PROGRAMA.',
+		'',
+		'### DIVISÃO JÁ DEFINIDA',
+		...focos.map((f, i) => `- Sessão ${i + 1}: ${f}`),
+		'',
+		'Preencha `summary`, `objective`, `program_weeks`, `progression_strategy`, `aerobic_prescriptions`, `monitoring_parameters`, `assessment_protocols` e `restrictions`, com as citações (`source_refs`) exigidas pelas REGRAS DA TAREFA. Restrições e monitoramento valem pro programa todo.',
+		'NÃO gere exercícios nem sessões.'
+	].join('\n');
+}
+
+/**
+ * FASE 2 — tarefa de UMA sessão. Recebe também as outras molduras: as N
+ * chamadas rodam em paralelo e nenhuma vê o output da outra, então cada uma
+ * precisa saber o que os outros dias cobrem pra não repetir o estímulo.
+ */
+function buildSessionTask(outlines: SessionOutline[], index: number): string {
+	const outline = outlines[index]!;
+	const others = outlines
+		.map((o, i) => (i === index ? null : `- ${o.day_of_week}: ${o.focus}`))
+		.filter((l) => l !== null);
+
+	const lines = [
+		'## TAREFA — EXERCÍCIOS DE UMA SESSÃO',
+		`O programa já foi definido. Gere APENAS os exercícios da sessão de ${outline.day_of_week}, seguindo as REGRAS DA TAREFA do system prompt (ficha de prescrição completa em cada exercício de força).`,
+		'',
+		'### SESSÃO A GERAR',
+		`- Dia: ${outline.day_of_week}`,
+		`- Foco e grupamentos: ${outline.focus}`,
+		`- Duração: ${outline.duration_minutes} min`,
+		`- Bloco principal: gere EXATAMENTE ${outline.main_exercise_count} exercícios em \`main\`.`,
+		'- `warmup`: no máximo 2 exercícios. `cooldown`: no máximo 1.',
+		'- `observations`: orientação geral da sessão, se houver.',
+		// A regra 6 do system já pede a ficha completa, mas esta chamada vê só
+		// uma sessão: sem o lembrete, `cadence` vinha vazio em parte dos
+		// exercícios e a ficha impressa saía furada.
+		'- FICHA COMPLETA em CADA exercício de força: `intensity` (% 1RM), `load_guidance` (PSE x-y), `cadence` (obrigatório, default "2/2"), `muscle_action`, `range_of_motion`, `rest_label`, além de `sets`/`reps`/`rest_seconds`.',
+		''
+	];
+
+	if (others.length > 0) {
+		lines.push('### OUTRAS SESSÕES DA SEMANA (NÃO gere estas — só evite duplicar o estímulo)');
+		lines.push(...others);
+	}
+
+	return lines.join('\n');
+}
+
+/**
+ * Bloco "## TAREFA" da geração em UMA chamada (usado pelo fallback de quota).
+ * Sai depois do breakpoint de cache porque interpola dados do aluno.
+ */
+function buildSingleShotTask(ctx: StudentContext): string {
+	const lines: string[] = [];
 	lines.push('## TAREFA');
 	lines.push(
 		'Gere um plano de treino semanal estruturado conforme o schema, seguindo as REGRAS DA TAREFA definidas no system prompt. Regra adicional específica deste aluno:'
 	);
-	// Sugestão de distribuição semanal — spreading com pelo menos 1 dia de
-	// descanso entre treinos quando possível. Mesma tabela pra todos os
-	// splits (full-body/upper-lower/PPL). LLM pode desviar se for clínicamente
-	// melhor, mas o default cobre 95% dos casos.
-	// Honra a frequência real do aluno (até 7x — preferências validam 1–7).
 	// Antes o cap era 5: quem pedia 6–7 recebia só 5 sessões e a aderência
 	// (sessions7 / weeklySessions) ficava distorcida.
-	const N = Math.max(1, Math.min(7, ctx.preferences?.weeklySessions ?? 3));
-	const DAY_DIST: Record<number, string[]> = {
-		1: ['seg'],
-		2: ['seg', 'qui'],
-		3: ['seg', 'qua', 'sex'],
-		4: ['seg', 'ter', 'qui', 'sex'],
-		5: ['seg', 'ter', 'qua', 'qui', 'sex'],
-		6: ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
-		7: ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom']
-	};
-	const suggestedDays = DAY_DIST[N]?.join(', ') ?? 'seg, qua, sex';
+	const N = targetSessionCount(ctx);
 	lines.push(
-		`SESSÕES SEMANAIS: gere EXATAMENTE ${N} sessões — esse é o número que o aluno definiu na frequência alvo dele. Distribua os treinos pela semana com descanso entre eles — sugestão de distribuição pra ${N} sessões: ${suggestedDays}.`
+		`SESSÕES SEMANAIS: gere EXATAMENTE ${N} sessões — esse é o número que o aluno definiu na frequência alvo dele. Distribua os treinos pela semana com descanso entre eles — sugestão de distribuição pra ${N} sessões: ${suggestedDaysFor(N)}.`
 	);
 
 	return lines.join('\n');
@@ -664,6 +835,33 @@ function buildMessages(userPrompt: string) {
 			providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
 		},
 		{ role: 'user' as const, content: userPrompt }
+	];
+}
+
+/**
+ * Mensagens da geração em 2 fases. DOIS breakpoints de cache (o limite da API
+ * é 4): o system e o bloco de dados do aluno — ambos byte-idênticos entre a
+ * fase 1 e as N chamadas de sessão. A tarefa, que muda por chamada, vai numa
+ * terceira mensagem DEPOIS dos breakpoints.
+ *
+ * A ordem importa pro cache valer algo: a fase 1 roda primeiro e ESCREVE o
+ * prefixo; as chamadas paralelas da fase 2 então o LEEM a ~0.1x. Se a fase 2
+ * rodasse primeiro (ou junto), as N chamadas concorrentes pagariam preço cheio
+ * — cache só fica legível depois que a primeira resposta começa a chegar.
+ */
+function buildPhasedMessages(promptBase: string, task: string) {
+	return [
+		{
+			role: 'system' as const,
+			content: CACHED_SYSTEM,
+			providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
+		},
+		{
+			role: 'user' as const,
+			content: promptBase,
+			providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } }
+		},
+		{ role: 'user' as const, content: task }
 	];
 }
 
@@ -739,24 +937,22 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 			})
 			.where(eq(trainingPlans.id, planId));
 
-		const userPrompt = buildUserPrompt(ctx, ragContext, opts.notes);
+		// Base compartilhada por TODAS as chamadas (fase 1, fase 2, fallback):
+		// dados do aluno + RAG + catálogo. Fica antes do breakpoint de cache.
+		const promptBase = buildUserPromptBase(ctx, ragContext, opts.notes);
 		const genStartMs = Date.now();
 
-		// streamObject = AI gera incrementalmente. Persistimos partial no DB
-		// throttled (a cada 700ms) pra UI mostrar o plano materializando em tempo real.
-		// Se Flash der quota, fallback pra Pro com generateObject (não-streaming).
 		let plan: TrainingPlanOutput;
 		let usage: { inputTokens?: number; outputTokens?: number } | undefined;
-		/** Preenchido quando o plano veio do salvage de partial (stream abortado). */
+		/** Preenchido quando alguma sessão falhou e o plano saiu parcial. */
 		let salvaged: { kept: number; of: number } | undefined;
 
-		// Timer de progresso — garante movimento visual mesmo se o stream não
-		// emitir incrementalmente (caso comum: o modelo entrega tudo no fim).
-		// Aproxima de 88 de forma assintótica (ease-out): avança rápido no
-		// começo e vai diminuindo o passo, então a barra NUNCA parece travada
-		// mesmo numa geração longa (Pro pode levar minutos). Cap em 88 pra os
-		// passos pós-geração (91/95/100) sempre irem pra frente. Compartilhado
-		// entre o stream primário e o fallback Pro (que também leva minutos).
+		// Timer de progresso — as chamadas não são streamadas, então sem ele a
+		// barra ficaria congelada durante cada fase. Aproxima de 88 de forma
+		// assintótica (ease-out): avança rápido no começo e vai diminuindo o
+		// passo, então nunca parece travada. Cap em 88 pra os passos
+		// pós-geração (91/95/100) sempre irem pra frente. Compartilhado entre a
+		// fase das sessões e o fallback single-shot (que leva minutos).
 		const startProgressTimer = (startPct: number) => {
 			let pct = startPct;
 			return setInterval(() => {
@@ -769,178 +965,204 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 			}, 4000);
 		};
 
-		const streamPlan = async (model: string) => {
-			let lastWriteAt = 0;
-			let lastSessionsCount = 0;
-			/** Última partial structured emitida — usada como salvamento
-			 *  se o stream abortar antes de terminar. */
-			let lastPartial: unknown = null;
+		/** Soma o usage de todas as chamadas (fase 1 + N sessões). */
+		const accumulateUsage = (u?: { inputTokens?: number; outputTokens?: number }) => {
+			if (!u) return;
+			usage = {
+				inputTokens: (usage?.inputTokens ?? 0) + (u.inputTokens ?? 0),
+				outputTokens: (usage?.outputTokens ?? 0) + (u.outputTokens ?? 0)
+			};
+		};
 
-			const progressTimer = startProgressTimer(55);
-
-			// Texto bruto acumulado do stream (alimenta UI "Gemini escrevendo").
-			// Truncado em sliding window pra não bloar o DB row.
-			let accumulatedText = '';
-			let lastTextWrite = 0;
-
-			try {
-				const result = streamObject({
+		/**
+		 * Uma chamada estruturada, resiliente aos dois modos de falha que
+		 * medimos no Sonnet 5 + @ai-sdk/anthropic 3.0.100:
+		 *
+		 * 1) A tool call às vezes chega embrulhada — `{"parameters": {...}}` ou
+		 *    `{"parameters": "<json string>"}` — e o SDK desiste com "response
+		 *    did not match schema" mesmo com o conteúdo perfeito (~25% das
+		 *    chamadas na medição). Aqui a gente desembrulha e valida na mão.
+		 * 2) Uma reprovação genuína de schema (campo faltando, string longa
+		 *    demais) normalmente passa na segunda tentativa.
+		 *
+		 * Erro de quota e abort do orçamento sobem direto: o primeiro tem
+		 * fallback próprio, o segundo não tem tempo pra retentar.
+		 */
+		const generateStructured = async <T>(
+			label: string,
+			schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+			schemaName: string,
+			task: string,
+			maxOutputTokens: number,
+			model: string
+		): Promise<T> => {
+			const call = async (): Promise<T> => {
+				const gen = await generateObject({
 					model: anthropic(model),
-					schema: trainingPlanSchema,
-					schemaName: 'TrainingPlan',
-					schemaDescription:
-						'Plano de treino clínico com sessões semanais, monitoramento, restrições e citações',
-					messages: buildMessages(userPrompt),
+					schema,
+					schemaName,
+					// Mesmo prefixo (system + base do aluno) em todas as chamadas →
+					// as que vêm depois da primeira leem o cache a ~0.1x.
+					messages: buildPhasedMessages(promptBase, task),
 					// System vai em messages DE PROPÓSITO (cache_control do Anthropic
 					// só se aplica message-level). Conteúdo é estático do código.
 					allowSystemInMessages: true,
-					// Default do provider Anthropic é 4096 — truncaria um plano de
-					// 5-7 sessões no meio do JSON. 32k dá folga pro maior plano.
-					maxOutputTokens: 32_000,
+					maxOutputTokens,
 					maxRetries: 1,
-					// Aborta o stream antes do maxDuration da função pra sobrar
-					// tempo do catch persistir status=failed. Sem isso a função
-					// é morta pelo runtime e o plano fica em "generating" pra sempre.
-					abortSignal: AbortSignal.timeout(AI_GEN_TIMEOUT_MS)
+					providerOptions: GEN_PROVIDER_OPTIONS,
+					abortSignal: AbortSignal.timeout(remainingGenBudgetMs(startMs))
 				});
+				accumulateUsage(gen.usage);
+				return gen.object;
+			};
 
-				// fullStream emite eventos token-por-token (text-delta) +
-				// object-parsed-throttled (object). Consumindo ambos num loop
-				// só nos dá: texto raw streaming + structured partial. UI mostra
-				// o texto chegando estilo ChatGPT enquanto a estrutura também
-				// vai materializando.
-				for await (const event of result.fullStream) {
-					const now = Date.now();
+			/** Resgata o objeto quando o provider embrulha a tool call. */
+			const unwrap = (err: unknown): T | null => {
+				if (!NoObjectGeneratedError.isInstance(err)) return null;
+				const rescued = unwrapParametersEnvelope(err.text, schema);
+				if (rescued) log.warn({ label }, 'plan.generate.unwrapped_parameters_envelope');
+				return rescued;
+			};
 
-					if (event.type === 'text-delta') {
-						accumulatedText += (event as { textDelta?: string }).textDelta ?? '';
-						// Throttle write a cada 1500ms. Cada write é round-trip
-						// Postgres (~80ms). Em 180ms o overhead acumulado consumia
-						// >20s da função em runs longos — não cabia no maxDuration.
-						if (now - lastTextWrite < 1500) continue;
-						lastTextWrite = now;
-						// Mantém só últimos ~6KB (suficiente pra encher viewport
-						// com texto mono) — evita row gigante no DB
-						const slice = accumulatedText.slice(-6000);
-						await db
-							.update(trainingPlans)
-							.set({ streamText: slice, updatedAt: new Date() })
-							.where(eq(trainingPlans.id, planId))
-							.catch(() => {});
-					} else if (event.type === 'object') {
-						// Salva antes do throttle — partial mais recente sempre
-						// disponível pra fallback se abortar.
-						lastPartial = event.object;
-						const sessions =
-							(event.object as { weekly_sessions?: unknown[] }).weekly_sessions ?? [];
-						const sessionsCount = Array.isArray(sessions) ? sessions.length : 0;
+			try {
+				return await call();
+			} catch (err) {
+				if (isQuotaError(err) || isAbortError(err)) throw err;
+				const rescued = unwrap(err);
+				if (rescued) return rescued;
+				log.warn(
+					{ label, err: String(err).slice(0, 200) },
+					'plan.generate.structured_retrying_once'
+				);
+				try {
+					return await call();
+				} catch (retryErr) {
+					if (isQuotaError(retryErr) || isAbortError(retryErr)) throw retryErr;
+					const rescuedRetry = unwrap(retryErr);
+					if (rescuedRetry) return rescuedRetry;
+					throw retryErr;
+				}
+			}
+		};
 
-						// Throttle 1500ms OU quando nova sessão completa. Cada write é
-						// um round-trip Postgres (~80ms gru1↔Supabase); throttle apertado
-						// somava ~5s de overhead na função, que tem só 60s no Hobby.
-						if (now - lastWriteAt < 1500 && sessionsCount === lastSessionsCount) continue;
-						lastWriteAt = now;
-						lastSessionsCount = sessionsCount;
+		/**
+		 * Orquestra as três chamadas. A divisão da semana vem primeiro porque
+		 * tudo depende dela; depois os metadados do programa e as N sessões
+		 * disparam JUNTOS, então o tempo de parede é o da chamada mais lenta e
+		 * não a soma — foi a serialização de tudo numa chamada só que estourava
+		 * o teto da função. Sessão que falha vira `null` e é descartada na
+		 * remontagem (plano parcial), em vez de derrubar o plano todo.
+		 */
+		const runPhasedGeneration = async (model: string) => {
+			const split = await generateStructured(
+				'split',
+				weeklySplitSchema,
+				'WeeklySplit',
+				buildSplitTask(ctx),
+				2_000,
+				model
+			);
+			const outlines = buildOutlines(
+				targetSessionCount(ctx),
+				ctx.preferences?.minutesPerSession ?? 60,
+				split.session_focus
+			);
+			const total = outlines.length;
+			log.info({ sessions: total, model }, 'plan.generate.split.ready');
 
-						// Nº real de sessões pedidas — mesmo clamp do prompt (regra 4).
-						const targetSessions = Math.max(1, Math.min(7, ctx.preferences?.weeklySessions ?? 3));
-						const phase =
-							sessionsCount === 0
-								? 'estruturando plano clínico'
-								: sessionsCount < targetSessions
-									? `bloco ${sessionsCount} de ${targetSessions}: compondo exercícios`
-									: 'finalizando monitoramento e restrições';
+			await db
+				.update(trainingPlans)
+				.set({
+					progressPct: 62,
+					progressPhase: `compondo ${total} sessões em paralelo`,
+					planData: sessionsPreview(outlines) as TrainingPlanOutput,
+					updatedAt: new Date()
+				})
+				.where(eq(trainingPlans.id, planId));
 
+			const progressTimer = startProgressTimer(65);
+			const filled: Array<SessionExercises | null> = new Array(total).fill(null);
+			let done = 0;
+
+			try {
+				const [metadata] = await Promise.all([
+					generateStructured(
+						'metadata',
+						programMetadataSchema,
+						'ProgramMetadata',
+						buildMetadataTask(split.session_focus),
+						6_000,
+						model
+					),
+					...outlines.map(async (outline, i) => {
+						try {
+							filled[i] = await generateStructured(
+								`session:${outline.day_of_week}`,
+								sessionExercisesSchema,
+								'SessionExercises',
+								buildSessionTask(outlines, i),
+								8_000,
+								model
+							);
+						} catch (sessionErr) {
+							// Quota tem que subir: o fallback single-shot gera o plano
+							// inteiro no Opus, o que é melhor que um plano furado.
+							if (isQuotaError(sessionErr)) throw sessionErr;
+							log.warn(
+								{ day: outline.day_of_week, err: String(sessionErr).slice(0, 200) },
+								'plan.generate.session.failed'
+							);
+							return;
+						}
+						done++;
+						// Cada sessão que fecha aparece na prévia na hora, com os
+						// exercícios — sem isso a tela ficaria com as molduras vazias
+						// do começo até o fim da geração.
 						await db
 							.update(trainingPlans)
 							.set({
-								progressPhase: phase,
-								planData: event.object as TrainingPlanOutput,
+								progressPhase: `sessões prontas: ${done} de ${total}`,
+								planData: sessionsPreview(outlines, filled) as TrainingPlanOutput,
 								updatedAt: new Date()
 							})
 							.where(eq(trainingPlans.id, planId))
 							.catch(() => {});
-					}
-				}
+					})
+				]);
 
-				// Flush final do texto acumulado (último chunk pode ter ficado
-				// abaixo do throttle de 180ms)
-				if (accumulatedText) {
-					await db
-						.update(trainingPlans)
-						.set({ streamText: accumulatedText.slice(-6000), updatedAt: new Date() })
-						.where(eq(trainingPlans.id, planId))
-						.catch(() => {});
-				}
+				const ok = filled.filter((s) => s !== null).length;
+				if (ok === 0) throw new Error('Nenhuma sessão do plano pôde ser gerada.');
 
-				return { object: await result.object, usage: await result.usage, salvaged: undefined };
-			} catch (streamErr) {
-				// Quota relança direto pro catch externo: o fallback Pro gera o
-				// plano COMPLETO — salvar truncado aqui desperdiçaria essa rota.
-				if (isQuotaError(streamErr)) throw streamErr;
-				// Salvamento: tenta aproveitar o último partial SEMPRE que existir
-				// — não só em timeout/abort. Dois cenários levam aqui:
-				//   1) abort do nosso timeout (corta no meio de uma sessão);
-				//   2) o objeto FINAL falhou a validação do schema (ex.: última
-				//      sessão incompleta, um campo curto demais).
-				// Em ambos, o partial truncado costuma validar. Antes, só (1)
-				// era tratado — (2) ia direto pra "Geração falhou" mesmo tendo
-				// um plano quase pronto e válido em mãos.
-				const msg = streamErr instanceof Error ? streamErr.message : String(streamErr);
-				if (lastPartial) {
-					// O corte quase sempre deixa a ÚLTIMA sessão com exercício
-					// incompleto e o schema rejeita o plano inteiro. Tenta validar
-					// versões truncadas: completo, depois sem a última sessão,
-					// depois sem as 2 últimas... Plano com 2 de 3 sessões é muito
-					// melhor que "failed" na cara do user.
-					const base = lastPartial as Record<string, unknown>;
-					const sessions = Array.isArray(base.weekly_sessions) ? base.weekly_sessions : [];
-					for (let keep = sessions.length; keep >= 1; keep--) {
-						const candidate = {
-							...base,
-							weekly_sessions: sessions.slice(0, keep),
-							monitoring_parameters: Array.isArray(base.monitoring_parameters)
-								? base.monitoring_parameters
-								: [],
-							assessment_protocols: Array.isArray(base.assessment_protocols)
-								? base.assessment_protocols
-								: [],
-							restrictions: Array.isArray(base.restrictions) ? base.restrictions : [],
-							aerobic_prescriptions: Array.isArray(base.aerobic_prescriptions)
-								? base.aerobic_prescriptions
-								: []
-						};
-						const parsed = trainingPlanSchema.safeParse(candidate);
-						if (parsed.success) {
-							log.warn(
-								{ kept: keep, of: sessions.length, reason: msg.slice(0, 120) },
-								'plan.generate.salvaged_partial'
-							);
-							return {
-								object: parsed.data,
-								usage: undefined,
-								salvaged: { kept: keep, of: sessions.length }
-							};
-						}
-					}
-					log.warn({ msg: msg.slice(0, 150) }, 'plan.generate.salvage_failed_partial_invalid');
+				const parsed = trainingPlanSchema.safeParse(assemblePlan(metadata, outlines, filled));
+				if (!parsed.success) {
+					// Remontagem inválida é bug nosso ou violação que os schemas das
+					// partes não pegaram — loga o motivo real em vez de deixar
+					// "Geração falhou" sem rastro.
+					throw new Error(
+						`Plano remontado não validou: ${parsed.error.issues
+							.slice(0, 3)
+							.map((i) => `${i.path.join('.')}: ${i.message}`)
+							.join('; ')}`
+					);
 				}
-				throw streamErr;
+				return {
+					object: parsed.data,
+					salvaged: ok < total ? { kept: ok, of: total } : undefined
+				};
 			} finally {
 				clearInterval(progressTimer);
 			}
 		};
 
 		try {
-			const r = await streamPlan(PRIMARY_MODEL);
+			const r = await runPhasedGeneration(PRIMARY_MODEL);
 			plan = r.object;
-			usage = r.usage;
 			salvaged = r.salvaged;
 		} catch (primaryErr) {
 			if (!isQuotaError(primaryErr)) throw primaryErr;
 			log.warn({ err: String(primaryErr).slice(0, 200) }, 'plan.generate.primary_quota_fallback');
-			// Limpa o streamText do Flash abortado — sem isso a UI "escrevendo"
-			// exibe texto morto da tentativa anterior enquanto o Pro gera.
+			// Limpa o streamText de tentativas anteriores — sem isso a prévia
+			// exibe texto morto enquanto o fallback gera.
 			await db
 				.update(trainingPlans)
 				.set({
@@ -949,9 +1171,12 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					updatedAt: new Date()
 				})
 				.where(eq(trainingPlans.id, planId));
-			// Fallback NÃO streaming pra simplicidade — Pro raramente é tocado.
-			// 120s: o erro de quota geralmente vem cedo, então sobra tempo no
-			// maxDuration (300s) pro Pro gerar o plano completo e ainda validar.
+			// Fallback: plano INTEIRO numa chamada só (sem o fatiamento em fases)
+			// — o Opus é raramente tocado e aqui o que importa é não voltar de
+			// mãos vazias, mesmo que a chamada seja longa.
+			// O teto vem do MESMO orçamento da função: o erro de quota costuma
+			// vir cedo, então sobra tempo pro Opus gerar e ainda validar — mas
+			// se vier tarde, o abort dispara antes do runtime matar a função.
 			// Timer próprio: sem ele a barra congelava por até 2 min no Pro.
 			const fbTimer = startProgressTimer(58);
 			try {
@@ -961,16 +1186,17 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					schemaName: 'TrainingPlan',
 					schemaDescription:
 						'Plano de treino clínico com sessões semanais, monitoramento, restrições e citações',
-					// Mesmo prefixo cacheado da tentativa primária: o fallback LÊ o
-					// cache que ela escreveu (mesmo system + mesma userPrompt).
-					messages: buildMessages(userPrompt),
+					// Mesmo system cacheado da tentativa primária: o fallback LÊ o
+					// cache que ela escreveu.
+					messages: buildMessages(`${promptBase}\n\n${buildSingleShotTask(ctx)}`),
 					allowSystemInMessages: true,
 					maxOutputTokens: 32_000,
 					maxRetries: 1,
-					abortSignal: AbortSignal.timeout(120_000)
+					providerOptions: GEN_PROVIDER_OPTIONS,
+					abortSignal: AbortSignal.timeout(remainingGenBudgetMs(startMs))
 				});
 				plan = fallbackGen.object;
-				usage = fallbackGen.usage;
+				accumulateUsage(fallbackGen.usage);
 			} finally {
 				clearInterval(fbTimer);
 			}
@@ -1149,7 +1375,11 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 				provider: 'google',
 				input: {
 					system_prompt_version: SYSTEM_PROMPT_VERSION,
-					user_prompt: userPrompt,
+					// Base do prompt (dados do aluno + RAG + catálogo). As tarefas de
+					// cada fase são derivadas dela + do esqueleto, e ficam de fora pra
+					// não multiplicar o row por N sessões.
+					user_prompt: promptBase,
+					generation_strategy: 'two_phase',
 					rag_chunk_ids: chunkIds,
 					rag_org_distribution: orgDistribution,
 					rag_failed: ragFailed,
