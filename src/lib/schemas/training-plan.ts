@@ -95,18 +95,23 @@ export type Exercise = z.infer<typeof exerciseSchema>;
  * do modelo. Separada das sessões de força (weekly_sessions).
  */
 export const aerobicPrescriptionSchema = z.object({
+	// Os max() daqui são folgados de propósito: são campos de EXIBIÇÃO da
+	// tabela aeróbia, sem significado clínico no limite. Com teto apertado
+	// (weekly_frequency tinha 60), o modelo escrevendo "3x/semana (seg, qua e
+	// sex), após o treino de força" reprovava o schema e derrubava o PLANO
+	// INTEIRO — uma linha de tabela custando a geração toda.
 	/** "Meio" — ex: "Esteira", "Corrida na Rua", "Bike". */
 	means: z.string().min(2).max(200),
 	/** Frequência semanal, ex: "2x semana". Exibida junto do meio. */
-	weekly_frequency: z.string().max(60).optional(),
+	weekly_frequency: z.string().max(160).optional(),
 	/** "Método" — ex: "Contínuo", "Intervalado". */
-	method: z.string().min(2).max(120),
+	method: z.string().min(2).max(200),
 	/** "Pausa" — ex: "-", "1min". */
-	pause: z.string().max(60).default('-'),
+	pause: z.string().max(160).default('-'),
 	/** "Intensidade" — ex: "60-70%Fcmáx (150-167bpm)". */
-	intensity: z.string().min(2).max(200),
+	intensity: z.string().min(2).max(240),
 	/** "Volume" — ex: "50min", "8km". */
-	volume: z.string().min(1).max(120),
+	volume: z.string().min(1).max(200),
 	observations: z.string().max(600).optional()
 });
 export type AerobicPrescription = z.infer<typeof aerobicPrescriptionSchema>;
@@ -168,6 +173,126 @@ export const trainingPlanSchema = z.object({
 	restrictions: z.array(restrictionSchema).default([])
 });
 export type TrainingPlanOutput = z.infer<typeof trainingPlanSchema>;
+
+// ───────────────────────────────────────────────────────────────────────────
+// Geração em fases
+//
+// Gerar o plano inteiro numa chamada só fazia o modelo cuspir 20-30k tokens de
+// saída em série: 250s+ de tempo de parede, acima do teto da função serverless.
+// Agora são três chamadas, e as pesadas rodam em paralelo:
+//
+//   1a) divisão semanal  — decide o foco de cada dia. Schema mínimo, ~6s.
+//   1b) metadados        — resumo, progressão, monitoramento, restrições.
+//   2 ) sessões          — os exercícios de cada dia, N chamadas concorrentes.
+//
+// (1b) e (2) disparam juntas depois de (1a): o tempo total é o da chamada mais
+// lenta, não a soma. O resultado é remontado e validado contra
+// `trainingPlanSchema`.
+//
+// Por que (1a) existe em vez de vir junto com (1b): medindo o Sonnet 5, um
+// schema que misturava os metadados do plano com um campo NOVO (a lista de
+// sessões) fazia o modelo preencher só os campos que ele reconhece de um plano
+// e OMITIR a lista — 2 de 3 tentativas, mesmo com o campo marcado required e
+// descrito. Isolada num schema que só tem ela, a lista sai em 5 de 5.
+// ───────────────────────────────────────────────────────────────────────────
+
+/**
+ * FASE 1a — a divisão da semana, uma string por sessão. Array de strings de
+ * propósito: é o formato mais simples que o modelo entrega de forma confiável
+ * (ver nota acima). Dias, rótulos, duração e nº de exercícios NÃO vêm daqui —
+ * são derivados em código (`buildOutlines`), o que também garante dias únicos.
+ */
+export const weeklySplitSchema = z.object({
+	session_focus: z
+		.array(z.string().min(3).max(400))
+		.min(1)
+		.max(7)
+		.describe(
+			'Uma string por sessão semanal, na ordem dos dias: foco da sessão + grupamentos musculares que ela treina. Ex: "Full body A — peitoral, dorsal, quadríceps, core".'
+		)
+});
+export type WeeklySplit = z.infer<typeof weeklySplitSchema>;
+
+/**
+ * FASE 1b — tudo do plano que não é exercício nem sessão. Só campos que o
+ * modelo já reconhece como parte de um plano de treino.
+ */
+export const programMetadataSchema = z.object({
+	summary: z.string().min(80).max(2000),
+	objective: z.string().max(800).optional(),
+	program_weeks: z.number().int().min(1).max(104).optional(),
+	progression_strategy: z.string().min(120).max(3000),
+	aerobic_prescriptions: z.array(aerobicPrescriptionSchema).default([]),
+	monitoring_parameters: z.array(monitoringParameterSchema).default([]),
+	assessment_protocols: z.array(assessmentProtocolSchema).default([]),
+	restrictions: z.array(restrictionSchema).default([])
+});
+export type ProgramMetadata = z.infer<typeof programMetadataSchema>;
+
+/**
+ * Moldura de uma sessão — montada em CÓDIGO a partir da divisão da fase 1a e
+ * das preferências do aluno. Não é output de IA: é o contrato que a fase 2
+ * recebe (o que gerar) e que a remontagem usa (onde encaixar).
+ */
+export type SessionOutline = {
+	label: string;
+	day_of_week: 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom';
+	focus: string;
+	duration_minutes: number;
+	/** Quantos exercícios o bloco principal deve ter. */
+	main_exercise_count: number;
+};
+
+/** FASE 2 — os três blocos de UMA sessão. */
+export const sessionExercisesSchema = z.object({
+	warmup: z.array(exerciseSchema).default([]),
+	main: z.array(exerciseSchema).min(3),
+	cooldown: z.array(exerciseSchema).default([]),
+	observations: z.string().max(600).optional()
+});
+export type SessionExercises = z.infer<typeof sessionExercisesSchema>;
+
+/**
+ * Remonta metadados + molduras + blocos de exercícios no formato final.
+ * `sessions[i]` corresponde a `outlines[i]`; `null` = aquela sessão falhou e é
+ * DESCARTADA (plano parcial) em vez de derrubar o plano inteiro.
+ *
+ * Não valida — quem chama passa o resultado por `trainingPlanSchema`.
+ */
+export function assemblePlan(
+	metadata: ProgramMetadata,
+	outlines: SessionOutline[],
+	sessions: Array<SessionExercises | null>
+): unknown {
+	const weekly_sessions = outlines
+		.map((outline, i) => {
+			const filled = sessions[i];
+			if (!filled) return null;
+			return {
+				label: outline.label,
+				day_of_week: outline.day_of_week,
+				focus: outline.focus,
+				duration_minutes: outline.duration_minutes,
+				warmup: filled.warmup,
+				main: filled.main,
+				cooldown: filled.cooldown,
+				observations: filled.observations
+			};
+		})
+		.filter((s) => s !== null);
+
+	return {
+		summary: metadata.summary,
+		objective: metadata.objective,
+		program_weeks: metadata.program_weeks,
+		progression_strategy: metadata.progression_strategy,
+		weekly_sessions,
+		aerobic_prescriptions: metadata.aerobic_prescriptions,
+		monitoring_parameters: metadata.monitoring_parameters,
+		assessment_protocols: metadata.assessment_protocols,
+		restrictions: metadata.restrictions
+	};
+}
 
 export const generatePlanInputSchema = z.object({
 	notes: z.string().max(2000).optional()
