@@ -342,3 +342,30 @@ export async function sendPlanReady(opts: {
 		tag: 'plan.ready'
 	});
 }
+
+/**
+ * Link de redefinição de senha.
+ *
+ * Enviado por aqui, e não pelo SMTP do Supabase: o SMTP padrão dele limita a
+ * poucos envios por hora e só entrega pra endereços do time, então e-mail de
+ * cliente (gmail, hotmail) não chegava. O link é gerado no servidor com a
+ * service_role e apontado direto pro nosso domínio, o que também contorna a
+ * allowlist de Redirect URLs do projeto (que estava em localhost).
+ */
+export async function sendPasswordResetLink(opts: {
+	to: string;
+	resetUrl: string;
+}): Promise<EmailResult> {
+	const body = `
+<p style="margin:0 0 14px;">Recebemos um pedido para redefinir a senha da sua conta no PreceptorFISIC.</p>
+<p style="margin:0 0 14px;">Clique no botão abaixo para escolher uma nova senha. <strong style="color:#fafafa;">O link vale por uma hora</strong> e só pode ser usado uma vez.</p>
+<p style="margin:0;">Se não foi você que pediu, ignore este e-mail. Sua senha atual continua valendo.</p>
+`;
+	return send({
+		to: opts.to,
+		subject: 'Redefinir sua senha do PreceptorFISIC',
+		html: baseTemplate('Redefinir senha.', body, opts.resetUrl, 'Criar nova senha →'),
+		text: `Para redefinir sua senha do PreceptorFISIC, acesse: ${opts.resetUrl} (o link vale por uma hora). Se não foi você que pediu, ignore este e-mail.`,
+		tag: 'auth.password_reset'
+	});
+}
