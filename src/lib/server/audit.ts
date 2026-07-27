@@ -36,6 +36,9 @@ export type AuditAction =
 	| 'auth.signup'
 	| 'auth.password_reset_request'
 	| 'auth.password_changed'
+	// Admin gerou link de nova senha pra outra conta (suporte via WhatsApp).
+	// Ação sensível: registra quem gerou e pra quem.
+	| 'admin.password_reset_link_generated'
 	| 'auth.mfa_enrolled'
 	| 'appointment.create'
 	| 'appointment.update'
