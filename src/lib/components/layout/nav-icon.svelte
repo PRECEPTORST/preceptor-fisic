@@ -1,5 +1,5 @@
 <script lang="ts">
-	type IconName = 'home' | 'alunos' | 'planos' | 'exer' | 'msgs' | 'agenda' | 'aluno' | 'crm' | 'config' | 'logout' | 'feedback';
+	type IconName = 'home' | 'alunos' | 'planos' | 'exer' | 'msgs' | 'agenda' | 'aluno' | 'crm' | 'config' | 'logout' | 'feedback' | 'guia' | 'sol' | 'lua';
 	type Props = { name: IconName; size?: number };
 	let { name, size = 18 }: Props = $props();
 </script>
@@ -36,6 +36,11 @@
 	{:else if name === 'config'}
 		<circle cx="12" cy="12" r="3" />
 		<path d="M19.4 14.5c.1-.4.1-.8.1-1.2v-1c0-.4 0-.8-.1-1.2l2-1.5-2-3.4-2.4.7c-.6-.5-1.3-.9-2-1.2L14.5 3h-5l-.5 2.5c-.7.3-1.4.7-2 1.2l-2.4-.7-2 3.4 2 1.5c-.1.4-.1.8-.1 1.2v1c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.4-.7c.6.5 1.3.9 2 1.2L9.5 21h5l.5-2.5c.7-.3 1.4-.7 2-1.2l2.4.7 2-3.4z" />
+	{:else if name === 'sol'}
+		<circle cx="12" cy="12" r="4" />
+		<path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+	{:else if name === 'lua'}
+		<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5z" />
 	{:else if name === 'logout'}
 		<path d="M14 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-2" />
 		<path d="M9 12h13l-3-3M22 12l-3 3" />
@@ -43,5 +48,9 @@
 		<!-- Balão de conversa com coração (feedback) -->
 		<path d="M4 5h16v11H9l-5 4z" />
 		<path d="M12 8.5c-1-1.2-3-.6-3 1 0 1.3 1.6 2.2 3 3.2 1.4-1 3-1.9 3-3.2 0-1.6-2-2.2-3-1z" />
+	{:else if name === 'guia'}
+		<!-- Livro aberto (guia de uso) -->
+		<path d="M12 6c-1.5-1-3.5-1.5-5.5-1.5C5 4.5 4 4.7 4 4.7v13S5 17.5 6.5 17.5c2 0 4 .5 5.5 1.5" />
+		<path d="M12 6c1.5-1 3.5-1.5 5.5-1.5C19 4.5 20 4.7 20 4.7v13S19 17.5 17.5 17.5c-2 0-4 .5-5.5 1.5z" />
 	{/if}
 </svg>
