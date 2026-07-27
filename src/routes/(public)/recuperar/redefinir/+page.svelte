@@ -8,9 +8,9 @@
 	let confirm = $state('');
 	let submitting = $state(false);
 
-	// O load do server consome o token (?token_hash ou ?code) e cria a sessão
-	// de recovery. Se falhou, data.tokenError desabilita o form — sem sessão
-	// o updateUser da action falharia de qualquer jeito.
+	// O token NÃO é validado ao abrir a página (senão o preview do WhatsApp
+	// queima o link). Ele viaja em campos ocultos e é validado no envio.
+	// tokenError só aparece quando não há token nenhum na URL.
 	const disabled = $derived(Boolean(data.tokenError));
 </script>
 
@@ -47,6 +47,10 @@
 			}}
 			style="margin-top:24px"
 		>
+			<!-- Token viaja aqui, validado só no POST (não no GET). -->
+			<input type="hidden" name="token_hash" value={data.tokenHash ?? ''} />
+			<input type="hidden" name="code" value={data.code ?? ''} />
+
 			{#if data.tokenError}
 				<div class="err-banner">
 					⚠ {data.tokenError}

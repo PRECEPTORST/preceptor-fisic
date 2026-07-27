@@ -1,13 +1,16 @@
 /**
- * Redefinir senha — destino do link enviado por email.
+ * Redefinir senha — destino do link enviado por e-mail ou WhatsApp.
  *
- * O load consome o token da URL e cria a sessão de recovery via cookies
- * (createServerClient do hooks). Dois formatos aceitos:
- *   ?token_hash=...&type=recovery → verifyOtp (template customizado,
- *     funciona cross-device — preferido)
- *   ?code=...                     → exchangeCodeForSession (template default
- *     PKCE do Supabase; só funciona no mesmo navegador que pediu o reset)
- * Com a sessão criada, a action atualiza a senha via updateUser.
+ * O token de recovery é de USO ÚNICO. Por isso o load NÃO o consome: ele só
+ * lê o token da URL e entrega pro formulário. Se consumíssemos no load (GET),
+ * qualquer pré-carregamento da URL queimaria o token antes de a pessoa clicar,
+ * e é exatamente o que o robô de preview do WhatsApp (além de antivírus e
+ * prefetch de navegador) faz. Resultado antigo: a pessoa clicava e via "link
+ * inválido", porque o preview já tinha gasto o token.
+ *
+ * A validação do token acontece só no POST, quando a nova senha é enviada:
+ *   ?token_hash=...&type=recovery → verifyOtp (cross-device, preferido)
+ *   ?code=...                     → exchangeCodeForSession (PKCE, same-browser)
  */
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
@@ -15,38 +18,22 @@ import type { Actions, PageServerLoad } from './$types';
 const TOKEN_ERROR = 'Link inválido ou expirado — solicite um novo em "Esqueci minha senha".';
 
 export const load = (async ({ url, locals }) => {
-	if (!locals.supabase) return { tokenError: 'Auth não configurado.' };
+	if (!locals.supabase) return { tokenError: 'Auth não configurado.', tokenHash: '', code: '' };
 
-	const tokenHash = url.searchParams.get('token_hash');
+	const tokenHash = url.searchParams.get('token_hash') ?? '';
 	const type = url.searchParams.get('type');
-	const code = url.searchParams.get('code');
+	const code = url.searchParams.get('code') ?? '';
 
-	if (tokenHash && type === 'recovery') {
-		const { error } = await locals.supabase.auth.verifyOtp({
-			type: 'recovery',
-			token_hash: tokenHash
-		});
-		if (error) {
-			// Token é single-use: num reload a sessão já pode existir — segue.
-			const { session } = await locals.safeGetSession();
-			if (!session) return { tokenError: TOKEN_ERROR };
-		}
-		return {};
+	// Tem token na URL: entrega pro form SEM consumir. A validação é no POST.
+	if ((tokenHash && type === 'recovery') || code) {
+		return { tokenHash, code };
 	}
 
-	if (code) {
-		const { error } = await locals.supabase.auth.exchangeCodeForSession(code);
-		if (error) {
-			const { session } = await locals.safeGetSession();
-			if (!session) return { tokenError: TOKEN_ERROR };
-		}
-		return {};
-	}
-
-	// Sem token na URL: só é válido se já existe sessão (ex.: reload pós-verify).
+	// Sem token: só vale se já existe sessão de recovery ativa (ex.: a pessoa
+	// recarregou a página depois de já ter enviado a senha uma vez).
 	const { session } = await locals.safeGetSession();
-	if (!session) return { tokenError: TOKEN_ERROR };
-	return {};
+	if (!session) return { tokenError: TOKEN_ERROR, tokenHash: '', code: '' };
+	return { tokenHash: '', code: '' };
 }) satisfies PageServerLoad;
 
 export const actions: Actions = {
@@ -57,12 +44,37 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const password = String(data.get('password') ?? '');
 		const confirm = String(data.get('confirm') ?? '');
+		const tokenHash = String(data.get('token_hash') ?? '');
+		const code = String(data.get('code') ?? '');
 
+		// Valida a senha ANTES de tocar no token: um erro de digitação não pode
+		// queimar o link, senão a pessoa erra a confirmação e perde o acesso.
 		if (password.length < 8) {
 			return fail(400, { error: 'Senha precisa ter pelo menos 8 caracteres.' });
 		}
 		if (password !== confirm) {
 			return fail(400, { error: 'As senhas não coincidem.' });
+		}
+
+		// Só agora consome o token e abre a sessão de recovery.
+		let hasSession = false;
+		if (tokenHash) {
+			const { error } = await locals.supabase.auth.verifyOtp({
+				type: 'recovery',
+				token_hash: tokenHash
+			});
+			hasSession = !error;
+		} else if (code) {
+			const { error } = await locals.supabase.auth.exchangeCodeForSession(code);
+			hasSession = !error;
+		}
+		// Reenvio depois de um verify que já rodou: a sessão pode já existir.
+		if (!hasSession) {
+			const { session } = await locals.safeGetSession();
+			hasSession = Boolean(session);
+		}
+		if (!hasSession) {
+			return fail(400, { error: TOKEN_ERROR });
 		}
 
 		const { error } = await locals.supabase.auth.updateUser({ password });
