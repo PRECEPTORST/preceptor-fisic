@@ -121,6 +121,27 @@ export const actions: Actions = {
 			return fail(400, { email, error: msg });
 		}
 
+		// E-mail JÁ CADASTRADO não vem como erro: pra ninguém descobrir quem tem
+		// conta testando e-mails, o Supabase devolve um usuário falso e sucesso.
+		// A marca é identities vazio. Sem checar isso a pessoa via "conta criada"
+		// e logo em seguida "credenciais inválidas" (o login da linha abaixo
+		// usava a senha nova contra a conta antiga), sem nenhuma pista de que o
+		// caminho era recuperar a senha. Também sujava a auditoria com cadastro
+		// que nunca aconteceu.
+		if (authData.user && (authData.user.identities?.length ?? 0) === 0) {
+			audit({
+				action: 'auth.signup',
+				entityType: 'auth',
+				payload: { ok: false, email: email.slice(0, 80), reason: 'email_ja_cadastrado' },
+				...fp
+			});
+			return fail(400, {
+				email,
+				error: 'Este e-mail já tem conta. Entre com sua senha ou use "Esqueci minha senha".',
+				jaCadastrado: true
+			});
+		}
+
 		audit({
 			action: 'auth.signup',
 			entityType: 'auth',
