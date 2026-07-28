@@ -361,6 +361,12 @@
 					confirmado, sem espera manual.
 				</p>
 				<p>
+					Na primeira assinatura a plataforma pede seu CPF ou CNPJ. Ele é usado para emitir a
+					cobrança e fica guardado, então nas trocas de plano e nas renovações seguintes o campo
+					não aparece de novo. O pagamento em si acontece na fatura do Asaas, e nenhum dado de
+					cartão passa pelos servidores da plataforma.
+				</p>
+				<p>
 					Com a assinatura em dia, tudo funciona normalmente. Se o pagamento ficar pendente ou a
 					assinatura for cancelada, a geração de novos planos é bloqueada até a regularização. O
 					restante continua acessível: você entra na plataforma, consulta os alunos, revisa os
