@@ -205,7 +205,18 @@
 					<div
 						class="form-error"
 						style="padding:10px 12px;border-radius:var(--r-2);background:var(--danger-dim);border:1px solid var(--danger);color:var(--danger);font:var(--body-sm)"
-					>{form.error}</div>
+					>
+						{form.error}
+						<!-- No cadastro o link de recuperar senha não aparece na tela (só no
+						     modo entrar), e é justamente aqui que a pessoa precisa dele. -->
+						{#if (form as any)?.jaCadastrado && mode === 'signup'}
+							<a
+								href="/recuperar"
+								style="display:block;margin-top:8px;color:inherit;font-weight:600"
+								>Recuperar minha senha</a
+							>
+						{/if}
+					</div>
 				{/if}
 
 				{#if (form as any)?.success && (form as any)?.message}
