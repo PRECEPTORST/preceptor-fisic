@@ -5,6 +5,8 @@
 import { eq, and, desc, asc, isNull, sql, count, gte, lte, inArray } from 'drizzle-orm';
 import { db } from './db';
 import { isUuid } from './validation';
+import { encryptCpf, hashCpf } from './cpf';
+import { TRIAL_DAYS, TRIAL_PLAN } from './subscription';
 import { localDateKey, startOfLocalDay, startOfLocalWeek, formatLocal } from './tz';
 import { classifyExercise, tonnagePerSet } from '$lib/exercise-load';
 import {
@@ -1358,9 +1360,42 @@ export type CreateProfessionalInput = {
 		| 'personal'
 		| 'pilates'
 		| 'outro';
+	/** CPF/CNPJ já normalizado (só dígitos, DV conferido). */
+	cpfDigits?: string | null;
 };
 
-export async function createProfessional(input: CreateProfessionalInput): Promise<string> {
+/**
+ * Cria o profissional e decide o trial na mesma transação lógica.
+ *
+ * O CPF é a trava: um período gratuito por pessoa. Se o hash já existe, a
+ * conta é criada mesmo assim, só que SEM trial — quem já testou não é
+ * impedido de virar cliente, apenas não ganha outro teste de graça. Nesse
+ * caso o hash não é gravado (o UNIQUE é de quem chegou primeiro), mas o CPF
+ * cifrado é, pra não pedir de novo no checkout.
+ */
+export async function createProfessional(
+	input: CreateProfessionalInput
+): Promise<{ id: string; trialGranted: boolean }> {
+	const digits = input.cpfDigits ?? null;
+	let cpfHash: string | null = null;
+	let cpfEncrypted: string | null = null;
+	let trialGranted = false;
+
+	if (digits) {
+		cpfEncrypted = encryptCpf(digits);
+		const hash = hashCpf(digits);
+		const [jaUsou] = await db
+			.select({ id: professionals.id })
+			.from(professionals)
+			.where(eq(professionals.cpfHash, hash))
+			.limit(1);
+		if (!jaUsou) {
+			cpfHash = hash;
+			trialGranted = true;
+		}
+	}
+
+	const now = new Date();
 	const [row] = await db
 		.insert(professionals)
 		.values({
@@ -1369,11 +1404,21 @@ export async function createProfessional(input: CreateProfessionalInput): Promis
 			name: input.name,
 			cref: input.cref ?? null,
 			specialty: input.specialty ?? 'prescricao_clinica',
-			onboardingCompleted: true
+			onboardingCompleted: true,
+			cpfEncrypted,
+			cpfHash,
+			subscriptionStatus: 'trial',
+			subscriptionPlan: trialGranted ? TRIAL_PLAN : null,
+			trialStartedAt: trialGranted ? now : null,
+			// Sem trial, expira no passado: hasActiveSubscription reprova e a
+			// pessoa cai direto no muro de assinatura.
+			subscriptionExpiresAt: trialGranted
+				? new Date(now.getTime() + TRIAL_DAYS * 86_400_000)
+				: new Date(now.getTime() - 1000)
 		})
 		.returning({ id: professionals.id });
 	if (!row) throw new Error('falha ao criar professional');
-	return row.id;
+	return { id: row.id, trialGranted };
 }
 
 export async function updateProfessional(input: UpdateProfessionalInput): Promise<void> {

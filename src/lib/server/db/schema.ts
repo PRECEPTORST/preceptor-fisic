@@ -154,6 +154,13 @@ export const professionals = pgTable(
 		subscriptionStatus: subscriptionStatusEnum('subscription_status').default('trial').notNull(),
 		subscriptionPlan: text('subscription_plan'),
 		subscriptionExpiresAt: timestamp('subscription_expires_at', { withTimezone: true }),
+		/** Início do trial. A contagem de gerações do período gratuito parte
+		 *  daqui, e não do currentCycleStart (que retrocede um mês). */
+		trialStartedAt: timestamp('trial_started_at', { withTimezone: true }),
+		/** CPF/CNPJ cifrado (AES-256-GCM) — reusado no checkout do Asaas. */
+		cpfEncrypted: text('cpf_encrypted'),
+		/** HMAC do CPF, com UNIQUE parcial: um trial por pessoa. Ver cpf.ts. */
+		cpfHash: text('cpf_hash'),
 		/** Customer no Asaas (cus_...) — criado na 1ª assinatura de dentro do app.
 		 *  Permite match determinístico no webhook (não depende do email digitado). */
 		asaasCustomerId: text('asaas_customer_id').unique(),

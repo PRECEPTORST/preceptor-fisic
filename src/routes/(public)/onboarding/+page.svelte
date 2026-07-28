@@ -18,8 +18,23 @@
 	let step = $state<1 | 2 | 3>(1);
 	let name = $state(data.suggestedName ?? '');
 	let cref = $state('');
+	let cpf = $state('');
 	let specialty = $state<Specialty>('prescricao_clinica');
 	let submitting = $state(false);
+
+	// Duplicado do server de propósito: o texto do formulário precisa do número
+	// antes de existir resposta de action.
+	const TRIAL_DAYS = 7;
+
+	// Máscara enquanto digita. O servidor normaliza de novo — máscara é conforto
+	// de digitação, nunca validação.
+	function mascaraCpf(v: string): string {
+		const d = v.replace(/\D/g, '').slice(0, 11);
+		return d
+			.replace(/^(\d{3})(\d)/, '$1.$2')
+			.replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+			.replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4');
+	}
 
 	// Quando action retorna sucesso, avança pra step 3.
 	$effect(() => {
@@ -195,6 +210,25 @@
 						autocomplete="name"
 						autofocus
 					/>
+				</div>
+
+				<div style="margin-bottom:18px">
+					<label class="lbl" for="onb-cpf">CPF *</label>
+					<input
+						id="onb-cpf"
+						class="inp"
+						name="cpf"
+						value={cpf}
+						oninput={(e) => (cpf = mascaraCpf(e.currentTarget.value))}
+						required
+						inputmode="numeric"
+						placeholder="000.000.000-00"
+						autocomplete="off"
+					/>
+					<div class="hint">
+						Libera seus {TRIAL_DAYS} dias de teste e evita pedir o documento de novo na hora de
+						assinar. Fica guardado cifrado.
+					</div>
 				</div>
 
 				<div style="margin-bottom:18px">
