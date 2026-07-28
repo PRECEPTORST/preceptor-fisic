@@ -9,11 +9,10 @@ import {
 	PAYMENT_LINKS
 } from '$lib/server/asaas';
 import { logger } from '$lib/server/logger';
-import { countActiveStudents, countGenerationsSince } from '$lib/server/queries';
-import { limitsFor, currentCycleStart } from '$lib/server/subscription';
+import { hasActiveSubscription } from '$lib/server/subscription';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load = (async ({ locals, url }) => {
+export const load = (async ({ locals }) => {
 	if (!locals.user) error(401, 'não autenticado');
 	// O professional do layout é uma projeção enxuta (sem campos de billing) —
 	// busca aqui a linha com status/plano/vencimento/asaasCustomerId.
@@ -32,23 +31,23 @@ export const load = (async ({ locals, url }) => {
 		.limit(1);
 	if (!professional) error(401, 'não autenticado');
 
-	// Consumo do ciclo, pra pessoa ver quanto já usou do plano antes de bater
-	// no limite.
-	const limits = limitsFor(professional);
-	const [studentsUsed, generationsUsed] = await Promise.all([
-		countActiveStudents(professional.id),
-		countGenerationsSince(professional.id, currentCycleStart(professional))
-	]);
+	// Distingue quem NUNCA teve acesso (conta recém-criada, trial sem data) de
+	// quem tinha acesso e perdeu. O layout manda todo bloqueado pra cá com
+	// motivo=expirado, mas dizer "seu acesso terminou" pra quem acabou de criar
+	// a conta é mentira: essa pessoa nunca teve período gratuito.
+	const semAssinatura = !hasActiveSubscription(professional);
+	const nuncaTeveAcesso =
+		professional.subscriptionStatus === 'trial' && professional.subscriptionExpiresAt == null;
+	const situacao: 'ativo' | 'novo' | 'expirado' = !semAssinatura
+		? 'ativo'
+		: nuncaTeveAcesso
+			? 'novo'
+			: 'expirado';
 
 	return {
 		professional,
 		billingEnabled: asaasEnabled(),
-		// `motivo=expirado` vem do redirect do layout quando o acesso caiu.
-		expirou: url.searchParams.get('motivo') === 'expirado',
-		uso: {
-			students: { used: studentsUsed, limit: limits.students },
-			generations: { used: generationsUsed, limit: limits.generations }
-		}
+		situacao
 	};
 }) satisfies PageServerLoad;
 
