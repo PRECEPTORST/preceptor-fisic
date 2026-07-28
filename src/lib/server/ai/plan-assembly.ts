@@ -148,3 +148,39 @@ export function assemblePlan(
 		restrictions: metadata.restrictions
 	};
 }
+
+/**
+ * Esqueleto de plano pra montagem MANUAL: as mesmas molduras de sessão que a
+ * geração usa, com os blocos vazios pro profissional preencher no editor que
+ * já existe na revisão do plano.
+ *
+ * Reaproveita `buildOutlines` de propósito. Dia da semana, rótulo e duração já
+ * eram determinísticos na geração (não vinham da IA), então plano manual e
+ * plano gerado nascem com a MESMA estrutura. É isso que faz o editor, a
+ * validação clínica, a impressão e o app do aluno funcionarem nos dois sem
+ * nenhum caso especial.
+ *
+ * Não valida contra `trainingPlanSchema`: o esqueleto é incompleto por
+ * definição (summary e progression_strategy nascem vazios, e o schema exige 80
+ * e 120 caracteres). Quem preenche é o profissional, no editor.
+ */
+export function buildManualPlanData(input: {
+	sessions: number;
+	minutesPerSession: number;
+	focos: string[];
+	objective?: string;
+	programWeeks?: number;
+}): unknown {
+	const outlines = buildOutlines(input.sessions, input.minutesPerSession, input.focos);
+	return {
+		...(sessionsPreview(outlines) as object),
+		summary: '',
+		objective: input.objective?.slice(0, 800) ?? '',
+		program_weeks: input.programWeeks ?? 12,
+		progression_strategy: '',
+		aerobic_prescriptions: [],
+		monitoring_parameters: [],
+		assessment_protocols: [],
+		restrictions: []
+	};
+}

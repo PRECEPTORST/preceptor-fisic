@@ -523,13 +523,23 @@
 			<div>
 				<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
 					<div class="eyebrow">{plans.length} {plans.length === 1 ? 'plano' : 'planos'} · {plans.filter((p) => p.isActive).length} ativos</div>
-					<Button onclick={() => goto(`/alunos/${student.id}/gerar`)}>+ Gerar novo plano</Button>
+					<div style="display:flex;gap:8px">
+						<Button variant="secondary" onclick={() => goto(`/alunos/${student.id}/manual`)}
+							>Montar na mão</Button
+						>
+						<Button onclick={() => goto(`/alunos/${student.id}/gerar`)}>+ Gerar novo plano</Button>
+					</div>
 				</div>
 				{#if plans.length === 0}
 					<div class="card" style="padding:48px;text-align:center">
 						<div style="font:500 16px var(--font-sans);color:var(--ink-0);margin-bottom:8px">Nenhum plano ainda</div>
-						<div style="font:var(--body);color:var(--ink-2);margin-bottom:20px">Gere o primeiro plano baseado nas preferências e perfil clínico.</div>
-						<Button onclick={() => goto(`/alunos/${student.id}/gerar`)}>+ Gerar plano</Button>
+						<div style="font:var(--body);color:var(--ink-2);margin-bottom:20px">Gere o primeiro plano baseado nas preferências e perfil clínico, ou monte na mão escolhendo cada exercício.</div>
+						<div style="display:flex;gap:8px;justify-content:center">
+							<Button variant="secondary" onclick={() => goto(`/alunos/${student.id}/manual`)}
+								>Montar na mão</Button
+							>
+							<Button onclick={() => goto(`/alunos/${student.id}/gerar`)}>+ Gerar plano</Button>
+						</div>
 					</div>
 				{:else}
 					<div style="display:flex;flex-direction:column;gap:12px">
