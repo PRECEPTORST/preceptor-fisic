@@ -65,13 +65,26 @@
 		confirmar.
 	</p>
 
-	{#if data.expirou}
+	{#if data.situacao === 'novo'}
+		<div
+			class="card"
+			style="padding:14px 18px;margin-bottom:20px;border-color:var(--accent);background:var(--accent-wash)"
+		>
+			<div style="font:600 15px var(--font-sans);color:var(--ink-0);margin-bottom:4px">
+				Escolha seu plano para começar
+			</div>
+			<div style="font:var(--body-sm);color:var(--ink-1)">
+				Assine para cadastrar seus alunos e gerar planos de treino com validação clínica. A
+				ativação é automática assim que o pagamento confirmar.
+			</div>
+		</div>
+	{:else if data.situacao === 'expirado'}
 		<div
 			class="card"
 			style="padding:14px 18px;margin-bottom:20px;border-color:var(--warn);background:var(--warn-dim)"
 		>
 			<div style="font:600 15px var(--font-sans);color:var(--ink-0);margin-bottom:4px">
-				Seu acesso gratuito terminou
+				Seu acesso terminou
 			</div>
 			<div style="font:var(--body-sm);color:var(--ink-1)">
 				Escolha um plano abaixo para voltar a cadastrar alunos e gerar planos de treino. Seus
@@ -80,7 +93,7 @@
 		</div>
 	{/if}
 
-	{#if uso && (uso.students.limit != null || uso.generations.limit != null)}
+	{#if data.situacao !== 'novo' && uso && (uso.students.limit != null || uso.generations.limit != null)}
 		<div class="card" style="padding:16px 18px;margin-bottom:20px">
 			<Eyebrow>Uso do ciclo</Eyebrow>
 			<div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:10px">
@@ -121,7 +134,9 @@
 	<div class="card" style="padding:16px 18px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
 		<div>
 			<div style="font:600 15px var(--font-sans);color:var(--ink-0)">
-				{STATUS_LABEL[prof.subscriptionStatus] ?? prof.subscriptionStatus}
+				{data.situacao === 'novo'
+					? 'Sem assinatura ativa'
+					: (STATUS_LABEL[prof.subscriptionStatus] ?? prof.subscriptionStatus)}
 				{#if prof.subscriptionPlan}
 					· {prof.subscriptionPlan.charAt(0).toUpperCase() + prof.subscriptionPlan.slice(1)}
 				{/if}
