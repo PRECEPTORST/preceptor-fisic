@@ -213,10 +213,11 @@
 						<!-- Explicar o motivo reduz abandono mais do que esconder o campo:
 						     o CPF é obrigatório pra emitir a cobrança e não dá pra pedir
 						     depois (o cliente no Asaas precisa existir antes da fatura). -->
-						<div class="note">
-							Usado só para emitir a cobrança. O pagamento acontece no ambiente seguro do Asaas,
-							e nenhum dado de cartão passa por aqui.
-						</div>
+						<!-- Só o motivo do CPF: a garantia sobre cartão já está no rodapé
+						     da tela, e repetir a mesma frase duas vezes enfraquece ela. -->
+						<!-- nbsp em "vez só": no celular a quebra deixava o "só." sozinho
+						     na última linha. -->
+						<div class="note">Usado só para emitir a cobrança. Pedimos uma vez&nbsp;só.</div>
 					</div>
 				{/if}
 
