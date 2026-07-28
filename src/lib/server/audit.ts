@@ -23,6 +23,7 @@ export type AuditAction =
 	| 'student.magic_link_resent'
 	| 'student.link_revoke'
 	| 'plan.create'
+	| 'plan.create_manual'
 	| 'plan.publish'
 	| 'plan.archive'
 	| 'plan.unarchive'

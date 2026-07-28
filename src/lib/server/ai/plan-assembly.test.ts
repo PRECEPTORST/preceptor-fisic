@@ -8,7 +8,13 @@
  * Pra rodar: `npm test`
  */
 import { describe, it, expect } from 'vitest';
-import { assemblePlan, buildOutlines, buildSession, sessionsPreview } from './plan-assembly';
+import {
+	assemblePlan,
+	buildManualPlanData,
+	buildOutlines,
+	buildSession,
+	sessionsPreview
+} from './plan-assembly';
 import {
 	programMetadataSchema,
 	sessionExercisesSchema,
@@ -188,5 +194,52 @@ describe('buildSession', () => {
 			typeof makeSession
 		>;
 		expect(sessionSchema.safeParse(buildSession(outline, semExercicios)).success).toBe(false);
+	});
+});
+
+describe('buildManualPlanData', () => {
+	type Skeleton = {
+		weekly_sessions: Array<{ day_of_week: string; warmup: unknown[]; main: unknown[]; cooldown: unknown[] }>;
+		program_weeks: number;
+		objective: string;
+		restrictions: unknown[];
+	};
+
+	it('nasce com os blocos vazios e um dia distinto por sessão', () => {
+		// O plano manual entra no MESMO editor do plano gerado, que indexa por
+		// sessão e por bloco. Bloco faltando quebraria o addExercise.
+		const p = buildManualPlanData({ sessions: 3, minutesPerSession: 60, focos: [] }) as Skeleton;
+		expect(p.weekly_sessions).toHaveLength(3);
+		for (const s of p.weekly_sessions) {
+			expect(s.warmup).toEqual([]);
+			expect(s.main).toEqual([]);
+			expect(s.cooldown).toEqual([]);
+		}
+		expect(new Set(p.weekly_sessions.map((s) => s.day_of_week)).size).toBe(3);
+	});
+
+	it('respeita o teto de 7 sessões', () => {
+		const p = buildManualPlanData({ sessions: 99, minutesPerSession: 60, focos: [] }) as Skeleton;
+		expect(p.weekly_sessions).toHaveLength(7);
+	});
+
+	it('NÃO valida no trainingPlanSchema — é esqueleto, não plano pronto', () => {
+		// Guarda contra alguém tentar publicar direto: summary e
+		// progression_strategy nascem vazios e o schema exige texto.
+		const p = buildManualPlanData({ sessions: 2, minutesPerSession: 60, focos: [] });
+		expect(trainingPlanSchema.safeParse(p).success).toBe(false);
+	});
+
+	it('guarda objetivo e duração do programa', () => {
+		const p = buildManualPlanData({
+			sessions: 1,
+			minutesPerSession: 45,
+			focos: ['posterior de coxa'],
+			objective: 'pós-operatório de LCA',
+			programWeeks: 8
+		}) as Skeleton;
+		expect(p.objective).toBe('pós-operatório de LCA');
+		expect(p.program_weeks).toBe(8);
+		expect(p.restrictions).toEqual([]);
 	});
 });
