@@ -6,7 +6,9 @@
 
 	let { data }: { data: PageData } = $props();
 	const prof = $derived(data.professional);
-	const needsCpf = $derived(!prof.asaasCustomerId);
+	// Só pede CPF quem ainda não é cliente no Asaas E não informou no cadastro.
+	// Contas criadas antes do CPF no onboarding continuam vendo o campo.
+	const needsCpf = $derived(!prof.asaasCustomerId && !data.cpfNoCadastro);
 	const ativo = $derived(data.situacao === 'ativo');
 
 	type PlanDef = {

@@ -10,6 +10,7 @@ import {
 } from '$lib/server/asaas';
 import { logger } from '$lib/server/logger';
 import { hasActiveSubscription } from '$lib/server/subscription';
+import { decryptCpf, normalizeCpfCnpj } from '$lib/server/cpf';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load = (async ({ locals }) => {
@@ -24,7 +25,9 @@ export const load = (async ({ locals }) => {
 			subscriptionStatus: professionals.subscriptionStatus,
 			subscriptionPlan: professionals.subscriptionPlan,
 			subscriptionExpiresAt: professionals.subscriptionExpiresAt,
-			asaasCustomerId: professionals.asaasCustomerId
+			asaasCustomerId: professionals.asaasCustomerId,
+			cpfEncrypted: professionals.cpfEncrypted,
+			trialStartedAt: professionals.trialStartedAt
 		})
 		.from(professionals)
 		.where(eq(professionals.authUserId, locals.user.id))
@@ -36,8 +39,12 @@ export const load = (async ({ locals }) => {
 	// motivo=expirado, mas dizer "seu acesso terminou" pra quem acabou de criar
 	// a conta é mentira: essa pessoa nunca teve período gratuito.
 	const semAssinatura = !hasActiveSubscription(professional);
+	// Sem trial_started_at a pessoa nunca teve período gratuito: ou é conta
+	// antiga (anterior ao trial), ou o CPF dela já tinha usado o teste. Nos dois
+	// casos dizer "seu acesso terminou" é mentira.
 	const nuncaTeveAcesso =
-		professional.subscriptionStatus === 'trial' && professional.subscriptionExpiresAt == null;
+		professional.subscriptionStatus === 'trial' &&
+		(professional.subscriptionExpiresAt == null || professional.trialStartedAt == null);
 	const situacao: 'ativo' | 'novo' | 'expirado' = !semAssinatura
 		? 'ativo'
 		: nuncaTeveAcesso
@@ -47,25 +54,14 @@ export const load = (async ({ locals }) => {
 	return {
 		professional,
 		billingEnabled: asaasEnabled(),
-		situacao
+		situacao,
+		// A tela esconde o campo de CPF quando já temos o documento guardado.
+		// Só o booleano vai pro cliente, nunca o número.
+		cpfNoCadastro: decryptCpf(professional.cpfEncrypted) != null
 	};
 }) satisfies PageServerLoad;
 
 const PLAN_KEYS = Object.keys(PAYMENT_LINKS) as (keyof typeof PAYMENT_LINKS)[];
-
-/** Valida CPF (11 dígitos + dígitos verificadores) ou CNPJ (14 dígitos, só formato). */
-function validCpfCnpj(raw: string): string | null {
-	const d = raw.replace(/\D/g, '');
-	if (d.length === 14) return d; // CNPJ: Asaas valida os DVs
-	if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return null;
-	const dv = (slice: number) => {
-		let sum = 0;
-		for (let i = 0; i < slice; i++) sum += Number(d[i]) * (slice + 1 - i);
-		const r = (sum * 10) % 11;
-		return r === 10 ? 0 : r;
-	};
-	return dv(9) === Number(d[9]) && dv(10) === Number(d[10]) ? d : null;
-}
 
 export const actions: Actions = {
 	subscribe: async ({ request, locals }) => {
@@ -82,7 +78,8 @@ export const actions: Actions = {
 				id: professionals.id,
 				name: professionals.name,
 				email: professionals.email,
-				asaasCustomerId: professionals.asaasCustomerId
+				asaasCustomerId: professionals.asaasCustomerId,
+				cpfEncrypted: professionals.cpfEncrypted
 			})
 			.from(professionals)
 			.where(eq(professionals.authUserId, locals.user.id))
@@ -91,7 +88,10 @@ export const actions: Actions = {
 
 		let customerId = prof.asaasCustomerId;
 		if (!customerId) {
-			const cpfCnpj = validCpfCnpj(cpfRaw);
+			// CPF guardado no cadastro tem precedência: quem já informou não
+			// digita de novo na hora de pagar. O campo do formulário fica só
+			// como saída pras contas antigas (e pra quem quer cobrar no CNPJ).
+			const cpfCnpj = decryptCpf(prof.cpfEncrypted) ?? normalizeCpfCnpj(cpfRaw);
 			if (!cpfCnpj) return fail(400, { error: 'CPF/CNPJ inválido' });
 			try {
 				customerId = await createAsaasCustomer({
