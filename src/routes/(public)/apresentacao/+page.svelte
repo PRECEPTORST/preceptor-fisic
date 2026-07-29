@@ -127,7 +127,7 @@
 			<BrandMark size={30} />
 			<span class="wm"><span class="wm-a">Preceptor</span><span class="wm-b">FISIC</span></span>
 		</a>
-		<a class="btn btn-sm" href="/login?mode=signup">Começar agora</a>
+		<a class="btn btn-sm" href="/login?mode=signup">Testar grátis</a>
 	</header>
 
 	<section class="hero">

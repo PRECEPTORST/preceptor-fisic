@@ -9,7 +9,7 @@ import {
 	PAYMENT_LINKS
 } from '$lib/server/asaas';
 import { logger } from '$lib/server/logger';
-import { hasActiveSubscription } from '$lib/server/subscription';
+import { hasActiveSubscription, isTrialing, trialDaysLeft } from '$lib/server/subscription';
 import { decryptCpf, normalizeCpfCnpj } from '$lib/server/cpf';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -45,16 +45,24 @@ export const load = (async ({ locals }) => {
 	const nuncaTeveAcesso =
 		professional.subscriptionStatus === 'trial' &&
 		(professional.subscriptionExpiresAt == null || professional.trialStartedAt == null);
-	const situacao: 'ativo' | 'novo' | 'expirado' = !semAssinatura
-		? 'ativo'
-		: nuncaTeveAcesso
-			? 'novo'
-			: 'expirado';
+	// Quem está em teste NÃO é "ativo": tem acesso, mas precisa ver os planos e
+	// conseguir assinar. Tratar trial como assinante deixava a tela dizendo
+	// "sua assinatura está ativa" sem nenhum botão de compra, e é justamente
+	// pra cá que a faixa do topo manda a pessoa.
+	const emTrial = isTrialing(professional);
+	const situacao: 'ativo' | 'trial' | 'novo' | 'expirado' = emTrial
+		? 'trial'
+		: !semAssinatura
+			? 'ativo'
+			: nuncaTeveAcesso
+				? 'novo'
+				: 'expirado';
 
 	return {
 		professional,
 		billingEnabled: asaasEnabled(),
 		situacao,
+		diasDeTrial: emTrial ? trialDaysLeft(professional) : 0,
 		// A tela esconde o campo de CPF quando já temos o documento guardado.
 		// Só o booleano vai pro cliente, nunca o número.
 		cpfNoCadastro: decryptCpf(professional.cpfEncrypted) != null

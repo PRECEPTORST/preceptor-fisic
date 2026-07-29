@@ -106,7 +106,9 @@
 						{mode === 'login' ? 'Bem-vindo de volta' : 'Crie sua conta'}
 					</h2>
 					<p style="font:var(--body);color:var(--ink-2);margin:0 0 28px">
-						{mode === 'login' ? 'Acesse sua área de profissional' : 'Crie sua conta de profissional'}
+						{mode === 'login'
+							? 'Acesse sua área de profissional'
+							: '7 dias grátis para testar. Sem cartão.'}
 					</p>
 				</div>
 			{/key}
