@@ -3,6 +3,7 @@
 	import { goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
+	import { CONTATO_EMAIL } from '$lib/contato';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -335,7 +336,7 @@
 		Seus dados são tratados conforme a
 		<a href="/legal/privacidade" target="_blank" rel="noopener">Política de Privacidade</a>.
 		Pra corrigir ou excluir seus dados, fale com seu treinador ou escreva pra
-		<a href="mailto:castroomath7@gmail.com">castroomath7@gmail.com</a>.
+		<a href="mailto:{CONTATO_EMAIL}">{CONTATO_EMAIL}</a>.
 	</div>
 
 	<!-- Bottom tab bar -->
