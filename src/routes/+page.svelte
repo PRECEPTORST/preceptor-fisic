@@ -231,7 +231,11 @@
 		{
 			name: 'Institucional',
 			desc: 'Para clínicas, academias e equipes.',
-			items: ['Múltiplos profissionais', 'Até 100 treinos gerados por IA/mês', 'Onboarding dedicado', 'Contrato e faturamento'],
+			// "Múltiplos profissionais" saiu daqui: não existe estrutura de equipe
+			// no produto (nem tabela de organização, nem convite, nem conta
+			// vinculada). Cada profissional tem conta própria e as contas não se
+			// enxergam. Volta quando existir de verdade.
+			items: ['Alunos ilimitados', 'Até 100 treinos gerados por IA/mês', 'Onboarding dedicado', 'Contrato e faturamento'],
 			cta: 'Falar com o time',
 			featured: false,
 			mensal: {

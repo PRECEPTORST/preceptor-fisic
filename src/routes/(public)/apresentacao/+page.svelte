@@ -243,13 +243,16 @@
 					<h3>Institucional</h3>
 					<div class="preco">R$ 499,90<span>a partir de · /mês</span></div>
 					<p class="plano-para">
-						Para clínicas de fisioterapia, estúdios de pilates e academias com mais de um
-						profissional atendendo.
+						Para clínicas de fisioterapia, estúdios de pilates e academias com volume alto de
+						prescrição.
 					</p>
 					<ul>
-						<li>Múltiplos profissionais na mesma conta</li>
+						<!-- Saíram daqui "múltiplos profissionais na mesma conta" e "relatório
+						     consolidado da equipe": nenhum dos dois existe. Cada profissional tem
+						     conta própria e as contas não se enxergam. -->
+						<li>Alunos ilimitados</li>
 						<li>Até 100 treinos gerados por mês</li>
-						<li>Relatório consolidado dos alunos da equipe</li>
+						<li>Volume maior de prescrição por um preço fechado</li>
 						<li>Onboarding dedicado</li>
 						<li>Contrato e faturamento</li>
 					</ul>

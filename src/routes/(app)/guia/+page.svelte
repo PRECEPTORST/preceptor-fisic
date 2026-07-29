@@ -342,7 +342,9 @@
 				<div class="eyebrow">Conta</div>
 				<h2>Assinatura e acesso</h2>
 				<p>
-					O acesso à plataforma depende de assinatura ativa. Os planos se diferenciam pelo limite
+					Toda conta nova começa com 7 dias de teste, com 2 treinos gerados por IA e até 10
+					alunos. Montar plano na mão não consome essa franquia. Depois disso o acesso
+					depende de assinatura ativa. Os planos se diferenciam pelo limite
 					de alunos ativos e pelo número de treinos gerados por mês:
 				</p>
 				<ul class="plain">
@@ -351,8 +353,8 @@
 					</li>
 					<li><strong>Pro</strong>, até 150 alunos ativos e 50 treinos gerados por mês</li>
 					<li>
-						<strong>Institucional</strong>, para equipes, com múltiplos profissionais e 100 treinos
-						gerados por mês
+						<strong>Institucional</strong>, alunos ilimitados e 100 treinos gerados por mês,
+						contratado direto com o time
 					</li>
 				</ul>
 				<p>

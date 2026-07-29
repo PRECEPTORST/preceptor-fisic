@@ -292,7 +292,9 @@
 					</div>
 					<p class="desc">Para clínicas, academias e equipes.</p>
 					<ul>
-						<li>Múltiplos profissionais</li>
+						<!-- Sem "Múltiplos profissionais": não existe equipe no produto. -->
+						<li>Alunos ilimitados</li>
+						<li>Até 100 treinos por IA/mês</li>
 						<li>Onboarding dedicado</li>
 						<li>Contrato e faturamento</li>
 					</ul>
