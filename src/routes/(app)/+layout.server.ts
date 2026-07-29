@@ -2,7 +2,12 @@ import { redirect } from '@sveltejs/kit';
 import { sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { getProfessionalByAuthId } from '$lib/server/queries';
-import { hasActiveSubscription } from '$lib/server/subscription';
+import {
+	hasActiveSubscription,
+	isTrialing,
+	trialDaysLeft,
+	trialLabel
+} from '$lib/server/subscription';
 import type { LayoutServerLoad } from './$types';
 
 export const load = (async ({ locals, url }) => {
@@ -17,12 +22,15 @@ export const load = (async ({ locals, url }) => {
 		redirect(303, '/onboarding');
 	}
 
-	// Sem assinatura válida, o app fica restrito à própria tela de Assinatura,
-	// onde a pessoa vê o motivo e assina. Configurações e logout seguem
-	// acessíveis pra ninguém ficar preso sem conseguir sair ou trocar de conta.
-	const LIVRE = ['/assinatura', '/configuracoes', '/logout'];
+	// Sem assinatura válida, o app fica restrito ao muro (/upgrade), que mora
+	// DENTRO da casca do app: a pessoa continua vendo a barra lateral e o que
+	// construiu, em vez de ser cuspida numa tela de preço sem contexto.
+	// Configurações e logout seguem acessíveis pra ninguém ficar preso sem
+	// conseguir sair ou trocar de conta. O guia fica livre porque quem está
+	// decidindo se assina é justamente quem mais precisa da documentação.
+	const LIVRE = ['/upgrade', '/assinatura', '/configuracoes', '/guia', '/logout'];
 	if (!hasActiveSubscription(professional) && !LIVRE.some((p) => url.pathname.startsWith(p))) {
-		redirect(303, '/assinatura?motivo=expirado');
+		redirect(303, '/upgrade');
 	}
 
 	// Counts do sidebar (1 query agregada — sem N+1).
@@ -72,6 +80,11 @@ export const load = (async ({ locals, url }) => {
 			isAdmin: professional.isAdmin
 		},
 		user: { id: locals.user.id, email: locals.user.email },
+		// Contador do topo. Só existe durante o período gratuito: assinante
+		// pagante não precisa de faixa nenhuma na tela.
+		trial: isTrialing(professional)
+			? { diasRestantes: trialDaysLeft(professional), label: trialLabel(trialDaysLeft(professional)) }
+			: null,
 		sidebarCounts: {
 			students: Number(counts?.students_count ?? 0),
 			unreadMessages: Number(counts?.unread_messages ?? 0),
