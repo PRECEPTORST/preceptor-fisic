@@ -3,9 +3,14 @@
 	import { goto } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import SbcRiskCalculator from '$lib/components/SbcRiskCalculator.svelte';
-	import type { ActionData } from './$types';
+	import type { ActionData, PageData } from './$types';
 
-	let { form }: { form: ActionData } = $props();
+	let { data, form }: { data: PageData; form: ActionData } = $props();
+
+	// Seletor de responsável só existe pra quem administra clínica. Pra todo
+	// mundo, `equipe` vem vazio e o aluno fica com quem cadastrou.
+	const equipe = $derived(data.equipe ?? []);
+	let responsavelId = $state(data.euId ?? '');
 
 	const GOALS = [
 		{ id: 'emagrecimento', label: 'Emagrecimento' },
@@ -138,6 +143,29 @@
 			style="padding:24px 32px 32px;max-width:780px;margin:0 auto"
 		>
 			<input type="hidden" name="mode" value={mode} />
+
+			{#if equipe.length > 1}
+				<div style="margin-bottom:20px">
+					<label
+						for="responsavel"
+						style="display:block;font:var(--label-mono);text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-2);margin-bottom:6px"
+						>Profissional responsável</label
+					>
+					<select
+						id="responsavel"
+						name="responsavelId"
+						bind:value={responsavelId}
+						style="width:100%;background:var(--bg-2);border:1px solid var(--ink-line);border-radius:var(--r-2);padding:10px 14px;color:var(--ink-0);font:var(--body-sm)"
+					>
+						{#each equipe as p (p.id)}
+							<option value={p.id}>{p.name}{p.id === data.euId ? ' (você)' : ''}</option>
+						{/each}
+					</select>
+					<div style="font:var(--body-sm);color:var(--ink-3);margin-top:6px">
+						Quem atende o aluno e enxerga a ficha clínica dele.
+					</div>
+				</div>
+			{/if}
 
 			{#if form?.error}
 				<div

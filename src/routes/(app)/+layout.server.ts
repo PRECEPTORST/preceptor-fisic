@@ -90,7 +90,8 @@ export const load = (async ({ locals, url }) => {
 			cref: professional.cref,
 			specialty: professional.specialty,
 			avatarUrl: professional.avatarUrl,
-			isAdmin: professional.isAdmin
+			isAdmin: professional.isAdmin,
+			organizationId: professional.organizationId
 		},
 		user: { id: locals.user.id, email: locals.user.email },
 		// Só quem administra a clínica vê o item Equipe no menu.
