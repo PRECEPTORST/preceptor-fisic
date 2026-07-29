@@ -11,6 +11,7 @@
 	const unreadMessages = $derived(data.sidebarCounts?.unreadMessages ?? 0);
 	const newLeadsCount = $derived(data.sidebarCounts?.newLeads ?? 0);
 	const isAdmin = $derived(data.professional?.isAdmin ?? false);
+	const isOrgOwner = $derived(data.isOrgOwner ?? false);
 	const trial = $derived(data.trial ?? null);
 
 	let moreOpen = $state(false);
@@ -25,7 +26,15 @@
 
 <div class="app-shell">
 	<!-- Sidebar — desktop only -->
-	<Sidebar {userName} {userCref} {studentsCount} {unreadMessages} {newLeadsCount} {isAdmin} />
+	<Sidebar
+		{userName}
+		{userCref}
+		{studentsCount}
+		{unreadMessages}
+		{newLeadsCount}
+		{isAdmin}
+		{isOrgOwner}
+	/>
 
 	<!-- Conteúdo: topbar mobile + main + tabbar mobile -->
 	<div class="app-stack">

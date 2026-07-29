@@ -19,7 +19,7 @@ import { getStudentDetail, getProfessionalByAuthId } from '$lib/server/queries';
 import { db } from '$lib/server/db';
 import { trainingPlans } from '$lib/server/db/schema';
 import { buildManualPlanData } from '$lib/server/ai/plan-assembly';
-import { hasActiveSubscription } from '$lib/server/subscription';
+import { hasAccess } from '$lib/server/organization';
 import { audit, clientFingerprint } from '$lib/server/audit';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -46,8 +46,8 @@ export const actions: Actions = {
 
 		// Assinatura continua valendo: o que o plano manual não gasta é a
 		// franquia de gerações, não o direito de usar a plataforma.
-		if (!hasActiveSubscription(professional)) {
-			redirect(303, '/assinatura?motivo=expirado');
+		if (!(await hasAccess(professional))) {
+			redirect(303, '/upgrade');
 		}
 
 		const fd = await request.formData();

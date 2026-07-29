@@ -12,7 +12,7 @@ import { redirect, error } from '@sveltejs/kit';
 import { sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { getProfessionalByAuthId } from '$lib/server/queries';
-import { hasActiveSubscription } from '$lib/server/subscription';
+import { hasAccess } from '$lib/server/organization';
 import type { PageServerLoad } from './$types';
 
 export const load = (async ({ locals }) => {
@@ -21,7 +21,9 @@ export const load = (async ({ locals }) => {
 	if (!professional) redirect(303, '/onboarding');
 
 	// Quem tem acesso não tem o que fazer aqui.
-	if (hasActiveSubscription(professional)) redirect(303, '/dashboard');
+	// hasAccess: membro de clínica tem acesso sem assinatura própria e não
+	// deveria ver o muro.
+	if (await hasAccess(professional)) redirect(303, '/dashboard');
 
 	// Sem trial_started_at a pessoa nunca teve período gratuito: ou a conta é
 	// anterior ao trial, ou o CPF dela já tinha usado. Dizer "seu teste

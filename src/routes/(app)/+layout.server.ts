@@ -8,6 +8,7 @@ import {
 	trialDaysLeft,
 	trialLabel
 } from '$lib/server/subscription';
+import { hasAccess, getOrganization } from '$lib/server/organization';
 import type { LayoutServerLoad } from './$types';
 
 export const load = (async ({ locals, url }) => {
@@ -28,9 +29,21 @@ export const load = (async ({ locals, url }) => {
 	// Configurações e logout seguem acessíveis pra ninguém ficar preso sem
 	// conseguir sair ou trocar de conta. O guia fica livre porque quem está
 	// decidindo se assina é justamente quem mais precisa da documentação.
-	const LIVRE = ['/upgrade', '/assinatura', '/configuracoes', '/guia', '/logout'];
-	if (!hasActiveSubscription(professional) && !LIVRE.some((p) => url.pathname.startsWith(p))) {
+	// /convite entra aqui: quem é convidado normalmente não tem assinatura
+	// própria, e o muro engoliria o convite antes de ele poder valer.
+	const LIVRE = ['/upgrade', '/assinatura', '/configuracoes', '/guia', '/convite', '/logout'];
+	// hasAccess, e não hasActiveSubscription: no Institucional quem paga é o
+	// dono da clínica, e o membro herda o acesso dele.
+	if (!(await hasAccess(professional)) && !LIVRE.some((p) => url.pathname.startsWith(p))) {
 		redirect(303, '/upgrade');
+	}
+
+	// Dono de clínica: uma consulta só, e apenas quando a conta pertence a uma
+	// organização. Conta individual (a maioria) não paga esse custo.
+	let ehDonoDeClinica = false;
+	if (professional.organizationId) {
+		const org = await getOrganization(professional.organizationId);
+		ehDonoDeClinica = org?.ownerProfessionalId === professional.id;
 	}
 
 	// Counts do sidebar (1 query agregada — sem N+1).
@@ -80,6 +93,8 @@ export const load = (async ({ locals, url }) => {
 			isAdmin: professional.isAdmin
 		},
 		user: { id: locals.user.id, email: locals.user.email },
+		// Só quem administra a clínica vê o item Equipe no menu.
+		isOrgOwner: ehDonoDeClinica,
 		// Contador do topo. Só existe durante o período gratuito: assinante
 		// pagante não precisa de faixa nenhuma na tela.
 		trial: isTrialing(professional)

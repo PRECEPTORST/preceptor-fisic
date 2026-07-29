@@ -231,7 +231,7 @@
 		{
 			name: 'Institucional',
 			desc: 'Para clínicas, academias e equipes.',
-			items: ['Múltiplos profissionais', 'Até 100 treinos gerados por IA/mês', 'Onboarding dedicado', 'Contrato e faturamento'],
+			items: ['Até 5 profissionais na mesma clínica', 'Até 100 treinos por IA/mês, divididos pela equipe', 'Alunos ilimitados', 'Onboarding dedicado'],
 			cta: 'Falar com o time',
 			featured: false,
 			mensal: {

@@ -247,9 +247,9 @@
 						profissional atendendo.
 					</p>
 					<ul>
-						<li>Múltiplos profissionais na mesma conta</li>
+						<li>Até 5 profissionais na mesma clínica</li>
 						<li>Até 100 treinos gerados por mês</li>
-						<li>Relatório consolidado dos alunos da equipe</li>
+						<li>Painel com alunos, planos e uso de IA por profissional</li>
 						<li>Onboarding dedicado</li>
 						<li>Contrato e faturamento</li>
 					</ul>
