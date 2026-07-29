@@ -1,3 +1,7 @@
+<script lang="ts">
+	import { CONTATO_EMAIL } from '$lib/contato';
+</script>
+
 <svelte:head>
 	<title>Política de Privacidade · PreceptorFISIC</title>
 	<meta name="description" content="Política de Privacidade e tratamento de dados — LGPD." />
@@ -20,7 +24,7 @@
 	encarregado conforme art. 41 da LGPD.
 </p>
 <ul>
-	<li>Encarregado (DPO): <a href="mailto:castroomath7@gmail.com">castroomath7@gmail.com</a></li>
+	<li>Encarregado (DPO): <a href="mailto:{CONTATO_EMAIL}">{CONTATO_EMAIL}</a></li>
 	<li>Razão social: a definir</li>
 </ul>
 
@@ -114,7 +118,7 @@
 </ul>
 <p>
 	Para exercer qualquer direito, escreva para
-	<a href="mailto:castroomath7@gmail.com">castroomath7@gmail.com</a>. Respondemos em até
+	<a href="mailto:{CONTATO_EMAIL}">{CONTATO_EMAIL}</a>. Respondemos em até
 	15 dias úteis (art. 19, §1º).
 </p>
 
@@ -157,7 +161,7 @@
 
 <p>
 	<strong>Encarregado (DPO)</strong>:
-	<a href="mailto:castroomath7@gmail.com">castroomath7@gmail.com</a><br />
+	<a href="mailto:{CONTATO_EMAIL}">{CONTATO_EMAIL}</a><br />
 	<strong>Reclamação à ANPD</strong>:
 	<a href="https://www.gov.br/anpd" target="_blank" rel="noopener">gov.br/anpd</a>
 </p>

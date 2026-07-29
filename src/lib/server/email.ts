@@ -294,7 +294,7 @@ export async function sendEbookPurchaseAlert(opts: {
 	paymentId: string;
 	value: number | null;
 }): Promise<EmailResult> {
-	const to = env.EBOOK_NOTIFY_EMAIL ?? 'castroomath7@gmail.com';
+	const to = env.EBOOK_NOTIFY_EMAIL ?? 'preceptorfisic@ospreceptores.com';
 	const buyerName = escapeHtml(opts.buyerName ?? 'não informado');
 	const buyerEmail = escapeHtml(opts.buyerEmail ?? 'não informado');
 	const value =

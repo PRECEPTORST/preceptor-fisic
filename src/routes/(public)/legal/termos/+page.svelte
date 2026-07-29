@@ -1,3 +1,7 @@
+<script lang="ts">
+	import { CONTATO_EMAIL } from '$lib/contato';
+</script>
+
 <svelte:head>
 	<title>Termos de Uso · PreceptorFISIC</title>
 	<meta name="description" content="Termos de uso da plataforma PreceptorFISIC." />
@@ -129,5 +133,5 @@
 <hr />
 
 <p>
-	Dúvidas: <a href="mailto:castroomath7@gmail.com">castroomath7@gmail.com</a>
+	Dúvidas: <a href="mailto:{CONTATO_EMAIL}">{CONTATO_EMAIL}</a>
 </p>
