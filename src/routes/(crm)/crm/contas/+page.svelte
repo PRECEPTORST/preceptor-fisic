@@ -29,16 +29,34 @@
 	const linkGerado = $derived(gerado?.url ?? null);
 	const emailDoLink = $derived(gerado?.email ?? null);
 
+	/**
+	 * Dias que faltam, arredondando pra cima — mesma regra do contador que o
+	 * profissional vê no topo do app, pra suporte e usuário lerem o mesmo
+	 * número. Calculado no cliente a partir da data, então atualiza sozinho
+	 * conforme o tempo passa, sem depender de job nenhum.
+	 */
+	function diasRestantes(expira: Date | string | null): number {
+		if (!expira) return 0;
+		const ms = new Date(expira).getTime() - Date.now();
+		return ms <= 0 ? 0 : Math.ceil(ms / 86_400_000);
+	}
+
 	function situacao(c: (typeof contas)[number]) {
 		const venceu = c.subscriptionExpiresAt
 			? new Date(c.subscriptionExpiresAt).getTime() < Date.now()
 			: true;
+		const dias = diasRestantes(c.subscriptionExpiresAt);
 		if (c.subscriptionStatus === 'active' && !venceu)
-			return { label: 'Ativa', cor: 'var(--success)' };
+			return { label: 'Ativa', cor: 'var(--success)', dias: 0 };
 		if (c.subscriptionStatus === 'trial' && !venceu)
-			return { label: 'Prazo', cor: 'var(--warn)' };
-		if (c.subscriptionStatus === 'past_due') return { label: 'Pendente', cor: 'var(--warn)' };
-		return { label: 'Sem acesso', cor: 'var(--ink-3)' };
+			return {
+				label: dias === 1 ? 'Teste · 1 dia' : `Teste · ${dias} dias`,
+				cor: dias <= 2 ? 'var(--warn)' : 'var(--accent)',
+				dias
+			};
+		if (c.subscriptionStatus === 'past_due')
+			return { label: 'Pendente', cor: 'var(--warn)', dias: 0 };
+		return { label: 'Sem acesso', cor: 'var(--ink-3)', dias: 0 };
 	}
 
 	async function copiar(texto: string) {
@@ -298,7 +316,8 @@
 	}
 	.linha {
 		display: grid;
-		grid-template-columns: 34px 1fr 130px 110px auto;
+		/* 3ª coluna passou de 130px pra 150px: "Teste · 7 dias" não cabia. */
+		grid-template-columns: 34px 1fr 150px 110px auto;
 		align-items: center;
 		gap: 14px;
 		padding: 12px 14px;

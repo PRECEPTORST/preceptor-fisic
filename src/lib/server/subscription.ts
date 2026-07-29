@@ -101,11 +101,14 @@ export function trialDaysLeft(professional: SubscriptionFields): number {
 	return ms <= 0 ? 0 : Math.ceil(ms / 86_400_000);
 }
 
-/** "termina hoje" / "resta 1 dia" / "restam 5 dias" */
+/**
+ * Só a parte da contagem. Quem chama já diz "Teste gratuito", então repetir
+ * "de teste" aqui deixaria a faixa com a palavra duas vezes.
+ */
 export function trialLabel(diasRestantes: number): string {
-	if (diasRestantes <= 0) return 'seu teste terminou';
-	if (diasRestantes === 1) return 'resta 1 dia de teste';
-	return `restam ${diasRestantes} dias de teste`;
+	if (diasRestantes <= 0) return 'terminou';
+	if (diasRestantes === 1) return 'último dia';
+	return `restam ${diasRestantes} dias`;
 }
 
 export const SUBSCRIPTION_BLOCKED_MESSAGE =

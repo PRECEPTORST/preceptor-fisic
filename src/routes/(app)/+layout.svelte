@@ -11,6 +11,7 @@
 	const unreadMessages = $derived(data.sidebarCounts?.unreadMessages ?? 0);
 	const newLeadsCount = $derived(data.sidebarCounts?.newLeads ?? 0);
 	const isAdmin = $derived(data.professional?.isAdmin ?? false);
+	const trial = $derived(data.trial ?? null);
 
 	let moreOpen = $state(false);
 </script>
@@ -29,6 +30,17 @@
 	<!-- Conteúdo: topbar mobile + main + tabbar mobile -->
 	<div class="app-stack">
 		<MobileTopbar {userName} />
+
+		<!-- Faixa do período gratuito. Some sozinha quando vira assinatura paga
+		     (o server só manda `trial` durante o teste). Fica FORA do
+		     {#key pathname} pra não reanimar a cada navegação. -->
+		{#if trial}
+			<a class="trial-bar" class:urgente={trial.diasRestantes <= 2} href="/assinatura">
+				<span class="ponto"></span>
+				<span class="txt">Teste gratuito · {trial.label}</span>
+				<span class="cta">Assinar agora →</span>
+			</a>
+		{/if}
 
 		<main class="pf-main">
 			<!-- {#key pathname} remonta o conteúdo a cada troca de rota, re-disparando
@@ -80,6 +92,62 @@
 		min-width: 0;
 		min-height: 0;
 		overflow-y: auto;
+	}
+
+	/* Faixa do trial: fora da .pf-main de propósito, pra não rolar junto com o
+	   conteúdo. flex-shrink 0 senão o shell de altura fixa a espreme. */
+	.trial-bar {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 9px 20px;
+		background: var(--accent-wash, rgba(167, 139, 250, 0.1));
+		border-bottom: 1px solid var(--ink-line);
+		font: 500 13px var(--font-sans);
+		color: var(--ink-1);
+		text-decoration: none;
+	}
+	.trial-bar:hover {
+		background: color-mix(in srgb, var(--accent) 16%, transparent);
+	}
+	.trial-bar .ponto {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--accent);
+		flex-shrink: 0;
+	}
+	.trial-bar .txt {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.trial-bar .cta {
+		flex-shrink: 0;
+		color: var(--accent-2);
+		font-weight: 600;
+	}
+	/* Últimos dois dias: sai do roxo institucional pro tom de aviso. */
+	.trial-bar.urgente {
+		background: var(--warn-dim);
+		border-bottom-color: var(--warn);
+	}
+	.trial-bar.urgente .ponto {
+		background: var(--warn);
+	}
+	.trial-bar.urgente .cta {
+		color: var(--warn);
+	}
+
+	@media (max-width: 600px) {
+		.trial-bar {
+			padding: 8px 14px;
+			font-size: 12.5px;
+			gap: 8px;
+		}
 	}
 	.page-enter {
 		display: flex;
