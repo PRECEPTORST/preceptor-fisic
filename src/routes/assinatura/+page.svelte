@@ -245,6 +245,14 @@
 						Escolha um plano para voltar. Seus alunos e planos continuam salvos e voltam assim que a
 						assinatura confirmar.
 					</p>
+				{:else if data.situacao === 'trial'}
+					<h1>Continue depois do teste.</h1>
+					<p class="sub">
+						{data.diasDeTrial === 1
+							? 'Hoje é o último dia do seu teste.'
+							: `Ainda restam ${data.diasDeTrial} dias de teste.`}
+						Assinando agora, você não perde o acesso quando ele terminar.
+					</p>
 				{:else}
 					<h1>Falta um passo pra começar.</h1>
 					<p class="sub">Escolha seu plano. A liberação é na hora em que o pagamento confirma.</p>

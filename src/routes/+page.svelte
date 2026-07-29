@@ -328,7 +328,9 @@
 		<div class="lp-cta">
 			<a href="/login" class="lp-btn lp-btn--ghost">Entrar</a>
 			<!-- CTAs de cadastro abrem /login já na aba "Criar conta" -->
-			<a href="/login?mode=signup" class="lp-btn lp-btn--primary">Começar agora</a>
+			<!-- No topo fica só "grátis": o botão é pequeno e a barra é fixa,
+			     então "Começar 7 dias grátis" quebra em duas linhas no celular. -->
+			<a href="/login?mode=signup" class="lp-btn lp-btn--primary">Testar grátis</a>
 		</div>
 	</header>
 
@@ -392,13 +394,17 @@
 
 			<div class="hero-actions">
 				<a href="/login?mode=signup" class="lp-btn lp-btn--primary lp-btn--lg">
-					Começar agora
+					Começar 7 dias grátis
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M5 12h14M13 5l7 7-7 7" />
 					</svg>
 				</a>
 				<a href="#how" class="lp-btn lp-btn--secondary lp-btn--lg">Como funciona →</a>
 			</div>
+
+			<!-- O que o teste inclui, logo abaixo do botão: "grátis" sem dizer o
+			     que entra deixa a pessoa desconfiada de pegadinha. -->
+			<p class="hero-trial">Sem cartão. 2 treinos gerados por IA e cadastro de alunos liberado.</p>
 
 			<div class="hero-trust">
 				<div class="hero-trust-item">
@@ -595,6 +601,13 @@
 			<div class="eyebrow">◆ Preços</div>
 			<h2>Planos para cada fase. <em>Mesma ciência em todos.</em></h2>
 			<p>Mesma qualidade científica em todos os planos: diretrizes ACSM, validação clínica e auditoria completa desde o Essencial.</p>
+			<!-- O aviso do teste fica aqui, e não no botão de cada plano: o CTA
+			     do card leva pro checkout daquele plano, então prometer "grátis"
+			     nele e cair numa tela de pagamento seria promessa quebrada. -->
+			<p class="pricing-trial">
+				<span class="pricing-trial-dot"></span>
+				<span>Todo cadastro começa com <strong>7 dias grátis</strong>, sem cartão.</span>
+			</p>
 		</div>
 		<div class="cycle-toggle" role="group" aria-label="Ciclo de cobrança">
 			<button
@@ -673,7 +686,9 @@
 				clínicas detectadas e citações reais.
 			</p>
 			<div class="cta-actions">
-				<a href="/login?mode=signup" class="lp-btn lp-btn--primary lp-btn--lg">Começar agora →</a>
+				<a href="/login?mode=signup" class="lp-btn lp-btn--primary lp-btn--lg"
+					>Começar 7 dias grátis →</a
+				>
 				<!-- WhatsApp direto do time -->
 				<a
 					href="https://wa.me/553591481514?text=Ol%C3%A1%21%20Quero%20falar%20com%20algu%C3%A9m%20do%20time%20do%20PreceptorFISIC."
@@ -1063,6 +1078,35 @@
 		gap: 12px;
 		flex-wrap: wrap;
 		margin-top: 8px;
+	}
+	.hero-trial {
+		margin: 12px 0 0;
+		font: var(--body-sm);
+		/* ink-3 aqui dava ~2,2:1 sobre o fundo do hero: some da tela. */
+		color: var(--ink-2);
+	}
+	.pricing-trial {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		margin: 14px 0 0;
+		padding: 7px 16px;
+		border-radius: var(--r-pill);
+		background: rgba(167, 139, 250, 0.1);
+		border: 1px solid rgba(167, 139, 250, 0.3);
+		font: var(--body-sm);
+		color: var(--ink-1);
+	}
+	.pricing-trial strong {
+		color: var(--accent-2);
+		font-weight: 600;
+	}
+	.pricing-trial-dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--accent);
+		flex-shrink: 0;
 	}
 	.hero-trust {
 		display: flex;
