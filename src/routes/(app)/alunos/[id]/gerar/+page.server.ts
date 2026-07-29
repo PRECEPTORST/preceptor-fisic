@@ -15,6 +15,12 @@ import {
 	currentCycleStart,
 	generationLimitMessage
 } from '$lib/server/subscription';
+import {
+	hasAccess,
+	getOrganization,
+	checkOrganizationQuota,
+	quotaMessage
+} from '$lib/server/organization';
 import type { Actions, PageServerLoad } from './$types';
 
 // Vercel: estende o limite da função pra 300s (máx do plano Pro) — a geração
@@ -55,7 +61,8 @@ export const load = (async ({ params, parent, locals }) => {
 	// O parent() só expõe campos de perfil — o status de assinatura vem do
 	// registro completo. Flag pra UI desabilitar o gerar antes do POST.
 	const full = locals.user ? await getProfessionalByAuthId(locals.user.id) : null;
-	const subscriptionBlocked = full ? !hasActiveSubscription(full) : false;
+	// hasAccess cobre o membro de clínica, que não tem assinatura própria.
+	const subscriptionBlocked = full ? !(await hasAccess(full)) : false;
 
 	return { detail, subscriptionBlocked };
 }) satisfies PageServerLoad;
@@ -81,17 +88,31 @@ export const actions: Actions = {
 		// Sem assinatura, manda direto pra tela de Assinatura: não faz sentido
 		// deixar a pessoa parada numa tela que ela não pode usar. (O layout já
 		// redireciona na navegação; aqui cobre POST direto.)
-		if (!hasActiveSubscription(professional)) {
-			redirect(303, '/assinatura?motivo=expirado');
+		if (!(await hasAccess(professional))) {
+			redirect(303, '/upgrade');
 		}
 
 		// Franquia de gerações do ciclo. Vem antes do rate limit porque é limite
 		// de plano (resolve com upgrade), não de uso momentâneo.
-		const genLimit = limitsFor(professional).generations;
-		if (genLimit != null) {
-			const used = await countGenerationsSince(professional.id, currentCycleStart(professional));
-			if (used >= genLimit) {
-				return fail(402, { error: generationLimitMessage(genLimit), limitReached: true });
+		//
+		// Na clínica a franquia é um POOL da equipe inteira, com teto opcional
+		// por profissional — quem decide não é o plano gravado na conta do
+		// membro (ele não tem plano nenhum), é o contrato da organização.
+		if (professional.organizationId) {
+			const org = await getOrganization(professional.organizationId);
+			if (org) {
+				const cota = await checkOrganizationQuota(org, professional.id);
+				if (!cota.ok) {
+					return fail(402, { error: quotaMessage(cota), limitReached: true });
+				}
+			}
+		} else {
+			const genLimit = limitsFor(professional).generations;
+			if (genLimit != null) {
+				const used = await countGenerationsSince(professional.id, currentCycleStart(professional));
+				if (used >= genLimit) {
+					return fail(402, { error: generationLimitMessage(genLimit), limitReached: true });
+				}
 			}
 		}
 

@@ -1,7 +1,8 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { getProfessionalByAuthId, createStudentTx, countActiveStudents } from '$lib/server/queries';
-import { limitsFor, studentLimitMessage, hasActiveSubscription } from '$lib/server/subscription';
+import { limitsFor, studentLimitMessage } from '$lib/server/subscription';
+import { hasAccess } from '$lib/server/organization';
 import { parseDateISO, parseDecimalBR } from '$lib/server/form-utils';
 import { localDateKey } from '$lib/server/tz';
 import { audit, clientFingerprint } from '$lib/server/audit';
@@ -80,13 +81,16 @@ export const actions: Actions = {
 		// Sem assinatura, vai pra tela de Assinatura em vez de ficar numa tela
 		// que não dá pra concluir. (O layout já barra na navegação; aqui cobre
 		// POST direto.)
-		if (!hasActiveSubscription(professional)) {
-			redirect(303, '/assinatura?motivo=expirado');
+		if (!(await hasAccess(professional))) {
+			redirect(303, '/upgrade');
 		}
 
 		// Teto de alunos ativos do plano. Vale para os dois modos (completo e
 		// link), por isso fica antes de bifurcar.
-		const studentCap = limitsFor(professional).students;
+		//
+		// Institucional é alunos ilimitados: o membro não tem plano gravado na
+		// conta, então sem essa guarda ele cairia no teto do Essencial (60).
+		const studentCap = professional.organizationId ? null : limitsFor(professional).students;
 		if (studentCap != null) {
 			const active = await countActiveStudents(professional.id);
 			if (active >= studentCap) {

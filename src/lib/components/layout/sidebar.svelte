@@ -25,6 +25,8 @@
 		unreadMessages?: number;
 		newLeadsCount?: number;
 		isAdmin?: boolean;
+		/** Só quem administra clínica vê Equipe. Membro comum não. */
+		isOrgOwner?: boolean;
 	};
 
 	let {
@@ -37,7 +39,8 @@
 		studentsCount = 0,
 		unreadMessages = 0,
 		newLeadsCount = 0,
-		isAdmin = false
+		isAdmin = false,
+		isOrgOwner = false
 	}: Props = $props();
 
 	const NAV_PRO = $derived<NavItem[]>([
@@ -70,7 +73,11 @@
 			href: '/mensagens',
 			badge: unreadMessages > 0 ? unreadMessages : undefined
 		},
-		{ id: 'agenda', label: 'Agenda', icon: 'agenda', href: '/agenda' }
+		{ id: 'agenda', label: 'Agenda', icon: 'agenda', href: '/agenda' },
+		// Equipe: só pra quem administra a clínica no Institucional.
+		...(isOrgOwner
+			? [{ id: 'equipe', label: 'Equipe', icon: 'alunos' as const, href: '/equipe' }]
+			: [])
 	]);
 	const NAV_FOOTER: NavItem[] = [
 		{ id: 'guia', label: 'Guia', icon: 'guia', href: '/guia' },

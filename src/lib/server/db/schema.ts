@@ -126,6 +126,58 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
 ]);
 
 /* professionals */
+/* organizations — clínicas, academias e estúdios do plano Institucional.
+ *
+ * Camada POR CIMA do modelo existente, de propósito: aluno, plano e avaliação
+ * continuam pertencendo a um professional, e as ~109 queries que filtram por
+ * professional_id seguem valendo sem mudança. A organização não muda de quem é
+ * o dado, ela agrupa profissionais para efeito de acesso, cota e cobrança.
+ *
+ * Quem paga é o dono (owner_professional_id): a assinatura fica na conta dele
+ * e os membros herdam o acesso enquanto estiverem vinculados.
+ */
+export const organizations = pgTable('organizations', {
+	id: uuid('id').defaultRandom().primaryKey(),
+	name: text('name').notNull(),
+	/** Dono do contrato. É a conta que carrega a assinatura do Institucional. */
+	ownerProfessionalId: uuid('owner_professional_id').notNull(),
+	/** Vagas contratadas, incluindo o dono. Adicionais são negociados. */
+	seats: integer('seats').default(5).notNull(),
+	/** Franquia de gerações do CICLO, somando a equipe inteira. */
+	generationsLimit: integer('generations_limit').default(100).notNull(),
+	/** Teto por profissional dentro do pool. NULL = sem teto individual. */
+	perMemberGenerationCap: integer('per_member_generation_cap'),
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+/* organization_invites — convite por e-mail, com token de uso único.
+ *
+ * O token é guardado como HASH: vazamento do banco não entrega convite
+ * utilizável. Mesmo raciocínio do aluno-token.ts.
+ */
+export const organizationInvites = pgTable(
+	'organization_invites',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		email: text('email').notNull(),
+		tokenHash: text('token_hash').notNull(),
+		invitedByProfessionalId: uuid('invited_by_professional_id').notNull(),
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+		acceptedByProfessionalId: uuid('accepted_by_professional_id'),
+		revokedAt: timestamp('revoked_at', { withTimezone: true }),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(t) => [
+		uniqueIndex('organization_invites_token_idx').on(t.tokenHash),
+		index('organization_invites_org_idx').on(t.organizationId)
+	]
+);
+
 export const professionals = pgTable(
 	'professionals',
 	{
@@ -157,6 +209,9 @@ export const professionals = pgTable(
 		/** Início do trial. A contagem de gerações do período gratuito parte
 		 *  daqui, e não do currentCycleStart (que retrocede um mês). */
 		trialStartedAt: timestamp('trial_started_at', { withTimezone: true }),
+		/** Clínica a que este profissional pertence. NULL = conta individual,
+		 *  que é o caso de todo mundo fora do Institucional. */
+		organizationId: uuid('organization_id'),
 		/** CPF/CNPJ cifrado (AES-256-GCM) — reusado no checkout do Asaas. */
 		cpfEncrypted: text('cpf_encrypted'),
 		/** HMAC do CPF, com UNIQUE parcial: um trial por pessoa. Ver cpf.ts. */

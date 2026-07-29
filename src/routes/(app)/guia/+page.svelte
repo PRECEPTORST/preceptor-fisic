@@ -351,7 +351,7 @@
 					</li>
 					<li><strong>Pro</strong>, até 150 alunos ativos e 50 treinos gerados por mês</li>
 					<li>
-						<strong>Institucional</strong>, para equipes, com múltiplos profissionais e 100 treinos
+						<strong>Institucional</strong>, até 5 profissionais na mesma clínica, alunos ilimitados e 100 treinos
 						gerados por mês
 					</li>
 				</ul>

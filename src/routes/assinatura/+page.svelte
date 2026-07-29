@@ -292,7 +292,8 @@
 					</div>
 					<p class="desc">Para clínicas, academias e equipes.</p>
 					<ul>
-						<li>Múltiplos profissionais</li>
+						<li>Até 5 profissionais</li>
+						<li>Alunos ilimitados</li>
 						<li>Onboarding dedicado</li>
 						<li>Contrato e faturamento</li>
 					</ul>
