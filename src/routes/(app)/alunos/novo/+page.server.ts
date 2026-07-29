@@ -2,7 +2,12 @@ import { fail, redirect } from '@sveltejs/kit';
 import { z } from 'zod';
 import { getProfessionalByAuthId, createStudentTx, countActiveStudents } from '$lib/server/queries';
 import { limitsFor, studentLimitMessage } from '$lib/server/subscription';
-import { hasAccess } from '$lib/server/organization';
+import {
+	hasAccess,
+	getOrganization,
+	listMembers,
+	podeAtribuirPara
+} from '$lib/server/organization';
 import { parseDateISO, parseDecimalBR } from '$lib/server/form-utils';
 import { localDateKey } from '$lib/server/tz';
 import { audit, clientFingerprint } from '$lib/server/audit';
@@ -17,7 +22,17 @@ import type { Actions, PageServerLoad } from './$types';
 export const load = (async ({ parent }) => {
 	const { professional } = await parent();
 	if (!professional) error(401, 'não autenticado');
-	return {};
+
+	// Só quem administra a clínica escolhe o responsável. Profissional comum
+	// cadastra sempre pra si, e nem vê o seletor.
+	let equipe: Array<{ id: string; name: string }> = [];
+	if (professional.organizationId) {
+		const org = await getOrganization(professional.organizationId);
+		if (org?.ownerProfessionalId === professional.id) {
+			equipe = (await listMembers(org.id)).map((m) => ({ id: m.id, name: m.name }));
+		}
+	}
+	return { equipe, euId: professional.id };
 }) satisfies PageServerLoad;
 
 const SexEnum = z.enum(['feminino', 'masculino', 'outro', 'nao_informado']);
@@ -101,6 +116,16 @@ export const actions: Actions = {
 		const fd = await request.formData();
 		const mode = String(fd.get('mode') ?? 'completo') === 'link' ? 'link' : 'completo';
 
+		// Responsável pelo aluno. Default é quem está cadastrando; o dono da
+		// clínica pode atribuir a outro profissional DA MESMA clínica. A checagem
+		// é server-side porque o seletor não existe pra todo mundo, e um POST
+		// montado à mão criaria aluno na conta de qualquer profissional.
+		const responsavelBruto = String(fd.get('responsavelId') ?? '').trim();
+		const responsavelId = responsavelBruto || professional.id;
+		if (!(await podeAtribuirPara(professional, responsavelId))) {
+			return fail(403, { error: 'Você não pode cadastrar aluno para esse profissional.' });
+		}
+
 		// ───────── MODO LINK: só nome, e-mail e data de nasc. ─────────
 		if (mode === 'link') {
 			const raw = {
@@ -133,7 +158,7 @@ export const actions: Actions = {
 			let id: string;
 			try {
 				id = await createStudentTx({
-					professionalId: professional.id,
+					professionalId: responsavelId,
 					name: parsed.data.name,
 					birthDate,
 					sex: 'nao_informado',
@@ -256,7 +281,7 @@ export const actions: Actions = {
 		let id: string;
 		try {
 			id = await createStudentTx({
-				professionalId: professional.id,
+				professionalId: responsavelId,
 				name: parsed.data.name,
 				birthDate,
 				sex: parsed.data.sex,

@@ -198,8 +198,39 @@
 			{/each}
 		</div>
 		<p class="pe rodape">
-			Os números são consolidados. Ficha clínica de aluno continua acessível apenas ao profissional
-			que atende.
+			Ficha clínica de aluno continua acessível apenas ao profissional que atende.
+		</p>
+	</section>
+
+	<section class="bloco">
+		<div class="cabecalho-alunos">
+			<h2>Alunos da clínica</h2>
+			<a class="acao" href="/alunos/novo">+ Cadastrar aluno</a>
+		</div>
+		{#if data.alunos.length === 0}
+			<p class="pe">Nenhum aluno cadastrado pela equipe ainda.</p>
+		{:else}
+			<div class="tabela">
+				{#each data.alunos as a (a.id)}
+					<article class="linha-aluno">
+						<Avatar name={a.nome} size={30} />
+						<div class="quem">
+							<div class="nome">{a.nome}</div>
+							<div class="mail">desde {fmt(a.criado_em)}</div>
+						</div>
+						<div class="resp">
+							<span class="resp-rot">Responsável</span>
+							<strong>{a.responsavel}</strong>
+						</div>
+						<div class="num-col">
+							<strong>{a.planos}</strong><span>publicados</span>
+						</div>
+					</article>
+				{/each}
+			</div>
+		{/if}
+		<p class="pe rodape">
+			Cadastrando por aqui, você escolhe qual profissional fica responsável pelo aluno.
 		</p>
 	</section>
 </div>
@@ -377,6 +408,39 @@
 		flex-direction: column;
 		gap: 8px;
 	}
+	.cabecalho-alunos {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 12px;
+		flex-wrap: wrap;
+	}
+	.acao {
+		font: 500 13px var(--font-sans);
+		color: var(--accent-2);
+		text-decoration: none;
+	}
+	.linha-aluno {
+		display: grid;
+		grid-template-columns: 30px 1fr 200px 100px;
+		align-items: center;
+		gap: 14px;
+		padding: 11px 14px;
+		background: var(--bg-1);
+		border: 1px solid var(--ink-line);
+		border-radius: var(--r-2);
+	}
+	.resp-rot {
+		display: block;
+		font: var(--label-mono);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--ink-3);
+	}
+	.resp strong {
+		font: 500 13.5px var(--font-sans);
+		color: var(--ink-1);
+	}
 	.linha {
 		display: grid;
 		grid-template-columns: 34px 1fr 90px 90px 110px auto;
@@ -418,6 +482,14 @@
 		.linha {
 			grid-template-columns: 34px 1fr auto;
 			row-gap: 10px;
+		}
+		.linha-aluno {
+			grid-template-columns: 30px 1fr;
+			row-gap: 8px;
+		}
+		.resp,
+		.linha-aluno .num-col {
+			grid-column: 2 / -1;
 		}
 		.num-col {
 			grid-column: span 1;

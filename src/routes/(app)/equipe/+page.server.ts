@@ -18,6 +18,7 @@ import {
 	getOrganization,
 	listMembers,
 	listPendingInvites,
+	listOrganizationStudents,
 	createInvite,
 	removeMember
 } from '$lib/server/organization';
@@ -41,6 +42,7 @@ export const load = (async ({ locals }) => {
 
 	const membros = await listMembers(org.id);
 	const convites = await listPendingInvites(org.id);
+	const alunos = await listOrganizationStudents(org.id);
 
 	// Gerações do ciclo corrente da clínica. O ciclo vem da assinatura do dono.
 	const [dono] = await db
@@ -82,6 +84,7 @@ export const load = (async ({ locals }) => {
 		},
 		membros: membros.map((m) => ({ ...m, noCiclo: porMembro.get(m.id) ?? 0 })),
 		convites,
+		alunos,
 		usadasNoCiclo,
 		cicloDesde: desde
 	};

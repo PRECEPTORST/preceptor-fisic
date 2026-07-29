@@ -161,6 +161,67 @@ export async function listMembers(organizationId: string) {
 	}>;
 }
 
+/**
+ * Alunos da clínica com o profissional responsável.
+ *
+ * Só identificação e vínculo: nome, quem atende e desde quando. Nada de
+ * diagnóstico, medicação, avaliação ou plano — dado de saúde continua restrito
+ * a quem atende. Serve pra clínica saber quem responde por quem, que é o que
+ * importa quando um profissional sai.
+ */
+export async function listOrganizationStudents(organizationId: string) {
+	const rows = await db.execute<{
+		id: string;
+		nome: string;
+		responsavel: string;
+		responsavel_id: string;
+		criado_em: Date;
+		planos: number;
+	}>(sql`
+		SELECT
+			s.id, s.name AS nome, s.created_at AS criado_em,
+			p.name AS responsavel, p.id AS responsavel_id,
+			(SELECT COUNT(*) FROM training_plans t
+				WHERE t.student_id = s.id AND t.status = 'published')::int AS planos
+		FROM students s
+		JOIN professionals p ON p.id = s.professional_id
+		WHERE p.organization_id = ${organizationId}
+		  AND s.deleted_at IS NULL
+		ORDER BY p.name, s.name
+	`);
+	const list = (rows as unknown as { rows?: typeof rows }).rows ?? rows;
+	return list as unknown as Array<{
+		id: string;
+		nome: string;
+		responsavel: string;
+		responsavel_id: string;
+		criado_em: Date;
+		planos: number;
+	}>;
+}
+
+/**
+ * O profissional pode cadastrar aluno em nome de `alvoId`?
+ *
+ * Só o dono, e só para quem está na mesma clínica. Sem isso um POST montado à
+ * mão criaria aluno na conta de qualquer profissional do sistema.
+ */
+export async function podeAtribuirPara(
+	professional: Professional,
+	alvoId: string
+): Promise<boolean> {
+	if (alvoId === professional.id) return true;
+	if (!professional.organizationId) return false;
+	const org = await getOrganization(professional.organizationId);
+	if (!org || org.ownerProfessionalId !== professional.id) return false;
+	const [alvo] = await db
+		.select({ organizationId: professionals.organizationId })
+		.from(professionals)
+		.where(eq(professionals.id, alvoId))
+		.limit(1);
+	return alvo?.organizationId === professional.organizationId;
+}
+
 export async function listPendingInvites(organizationId: string) {
 	return db
 		.select({
