@@ -14,7 +14,6 @@
 	let email = $state(form?.email ?? '');
 	let pass = $state('');
 	let name = $state('');
-	let cref = $state('');
 	let acceptedTerms = $state(false);
 	let focused = $state<string | null>(null);
 	let submitting = $state(false);
@@ -155,21 +154,11 @@
 						style={fieldStyle('email')}
 					/>
 				</div>
-				{#if mode === 'signup'}
-					<div transition:slide={{ duration: 240 }}>
-						<div class="eyebrow" style="margin-bottom:6px">Registro profissional</div>
-						<input
-							name="cref"
-							type="text"
-							bind:value={cref}
-							placeholder="CREF 123456-G · CREFITO 0000"
-							onfocus={() => (focused = 'cref')}
-							onblur={() => (focused = null)}
-							style={fieldStyle('cref')}
-						/>
-						<div style="font:var(--label-mono);color:var(--ink-3);margin-top:6px">CREF, CREFITO ou CRM</div>
-					</div>
-				{/if}
+				<!-- Registro profissional NÃO é pedido aqui. Era pedido duas vezes
+				     (aqui e no onboarding) e o valor daqui era descartado: ia pro
+				     user_metadata e nunca alimentava o perfil, que grava só o do
+				     onboarding. Um campo a menos na tela onde a pessoa ainda não
+				     se comprometeu com nada. -->
 				<div>
 					<div class="eyebrow" style="margin-bottom:6px">Senha</div>
 					<input
