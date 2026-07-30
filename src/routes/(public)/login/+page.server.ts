@@ -69,7 +69,6 @@ export const actions: Actions = {
 		const email = String(data.get('email') ?? '');
 		const password = String(data.get('password') ?? '');
 		const name = String(data.get('name') ?? '');
-		const cref = String(data.get('cref') ?? '').trim();
 		const acceptedTerms = data.get('accept_terms');
 
 		if (!locals.supabase) {
@@ -89,21 +88,15 @@ export const actions: Actions = {
 				error: 'É preciso aceitar os Termos de Uso e a Política de Privacidade.'
 			});
 		}
-		// Validação leve do registro profissional: aceita CREF/CREFITO/CRM com
-		// 4-6 dígitos + sufixo opcional. Não valida contra o conselho (não há
-		// API pública) — barra só lixo óbvio tipo "abc" ou "1".
-		if (cref && !/\d{4,6}/.test(cref)) {
-			return fail(400, {
-				email,
-				error: 'Registro profissional inválido — informe o número do CREF/CREFITO/CRM.'
-			});
-		}
+		// Registro profissional não é pedido no cadastro: é pedido no
+		// onboarding, que é quem grava no perfil. Antes era pedido nos dois, e o
+		// valor daqui ia pro user_metadata sem nunca alimentar o perfil.
 
 		const { data: authData, error } = await locals.supabase.auth.signUp({
 			email,
 			password,
 			options: {
-				data: { name, cref, accepted_terms_at: new Date().toISOString() }
+				data: { name, accepted_terms_at: new Date().toISOString() }
 			}
 		});
 		const fp = clientFingerprint(request, getClientAddress);
@@ -146,7 +139,7 @@ export const actions: Actions = {
 			action: 'auth.signup',
 			entityType: 'auth',
 			entityId: authData.user?.id ?? null,
-			payload: { ok: true, email: email.slice(0, 80), hasName: !!name, hasCref: !!cref },
+			payload: { ok: true, email: email.slice(0, 80), hasName: !!name },
 			...fp
 		});
 
