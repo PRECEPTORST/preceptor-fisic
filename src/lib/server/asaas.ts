@@ -163,9 +163,46 @@ export async function createAsaasCustomer(input: {
 }
 
 /**
+ * Assinaturas ATIVAS deste cliente no Asaas.
+ *
+ * Serve pra não abrir uma segunda assinatura pra quem já tem uma. Aconteceu na
+ * prática: a pessoa clicou em assinar, abandonou a fatura sem pagar, voltou no
+ * dia seguinte, clicou de novo — e ficou com duas assinaturas recorrentes, duas
+ * cobranças por mês. Pior que cobrar em dobro: quando a cobrança órfã vence sem
+ * pagamento, o webhook rebaixa pra past_due e derruba o acesso de quem está em dia.
+ */
+export async function listActiveSubscriptions(customerId: string): Promise<
+	Array<{ id: string; status: string; description?: string }>
+> {
+	const r = await asaasGet<{ data?: Array<{ id: string; status: string; description?: string }> }>(
+		`/subscriptions?customer=${encodeURIComponent(customerId)}&status=ACTIVE&limit=20`
+	);
+	return r.data ?? [];
+}
+
+/** Fatura pendente mais recente de uma assinatura, pra mandar a pessoa concluir. */
+export async function pendingInvoiceUrl(subscriptionId: string): Promise<string | null> {
+	const r = await asaasGet<{ data?: Array<{ status: string; invoiceUrl?: string }> }>(
+		`/subscriptions/${encodeURIComponent(subscriptionId)}/payments?limit=10`
+	);
+	const aberta = (r.data ?? []).find(
+		(p) => p.status === 'PENDING' || p.status === 'OVERDUE' || p.status === 'AWAITING_RISK_ANALYSIS'
+	);
+	return aberta?.invoiceUrl ?? null;
+}
+
+/**
  * Cria a assinatura e devolve a URL da fatura hospedada da 1ª cobrança.
- * billingType UNDEFINED = pagador escolhe Pix/cartão na fatura do Asaas
- * (nenhum dado de cartão passa pelo nosso servidor — fora de escopo PCI).
+ *
+ * billingType CREDIT_CARD sem enviar dados de cartão: a assinatura nasce
+ * marcada como cartão e o pagador informa o cartão na fatura hospedada do
+ * Asaas, que o tokeniza e passa a cobrar sozinho nos ciclos seguintes. Nenhum
+ * dado de cartão passa pelo nosso servidor — continuamos fora de escopo PCI.
+ *
+ * Era UNDEFINED (pagador escolhia Pix/cartão a cada ciclo). O problema não era
+ * a escolha, era a renovação: a cada mês dependia da pessoa lembrar de pagar, e
+ * esquecer significa perder acesso e cliente.
+ *
  * A cobrança da assinatura pode demorar alguns instantes pra materializar,
  * por isso o retry curto no GET de payments.
  */
@@ -178,7 +215,7 @@ export async function createPlanSubscription(input: {
 	const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 	const sub = await asaasPost<{ id: string }>('/subscriptions', {
 		customer: input.customerId,
-		billingType: 'UNDEFINED',
+		billingType: 'CREDIT_CARD',
 		value: plan.value,
 		cycle: plan.months === 12 ? 'YEARLY' : 'MONTHLY',
 		nextDueDate: today,

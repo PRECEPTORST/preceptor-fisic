@@ -231,8 +231,11 @@
 				</button>
 			</form>
 
+			<!-- Renovação automática é termo material da assinatura: precisa estar
+			     dito antes do pagamento, não depois. -->
 			<p class="trust">
-				Você será levado à fatura segura do Asaas. Nenhum dado de cartão passa pelos nossos
+				Pagamento no cartão, pela fatura segura do Asaas. A renovação é automática no mesmo
+				cartão, e você pode cancelar quando quiser. Nenhum dado de cartão passa pelos nossos
 				servidores.
 			</p>
 		{:else}
