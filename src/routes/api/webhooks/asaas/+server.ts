@@ -183,6 +183,11 @@ async function applyEvent(body: {
 				subscriptionStatus: 'active',
 				subscriptionPlan: plan.plan,
 				subscriptionExpiresAt: expires,
+				// Grava a assinatura que de fato pagou. É o que permite detectar
+				// duplicata depois — antes só o customer era guardado.
+				...(typeof payment.subscription === 'string' && payment.subscription
+					? { asaasSubscriptionId: payment.subscription }
+					: {}),
 				updatedAt: sql`now()`
 			})
 			.where(eq(professionals.id, prof.id));

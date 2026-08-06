@@ -219,6 +219,9 @@ export const professionals = pgTable(
 		/** Customer no Asaas (cus_...) — criado na 1ª assinatura de dentro do app.
 		 *  Permite match determinístico no webhook (não depende do email digitado). */
 		asaasCustomerId: text('asaas_customer_id').unique(),
+		/** Assinatura vigente no Asaas. Guardada pra detectar duplicata antes de
+		 *  criar outra — sem isso, dois cliques viram duas cobranças por mês. */
+		asaasSubscriptionId: text('asaas_subscription_id'),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 	},

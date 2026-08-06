@@ -1,4 +1,4 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect, isRedirect } from '@sveltejs/kit';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { professionals } from '$lib/server/db/schema';
@@ -6,6 +6,8 @@ import {
 	asaasEnabled,
 	createAsaasCustomer,
 	createPlanSubscription,
+	listActiveSubscriptions,
+	pendingInvoiceUrl,
 	PAYMENT_LINKS
 } from '$lib/server/asaas';
 import { logger } from '$lib/server/logger';
@@ -118,9 +120,42 @@ export const actions: Actions = {
 				.where(eq(professionals.id, prof.id));
 		}
 
-		let invoiceUrl: string | null;
+		// Já tem assinatura ativa? Manda concluir a fatura que existe em vez de
+		// abrir outra. Sem esta trava, quem abandona a fatura e volta depois fica
+		// com duas assinaturas recorrentes cobrando todo mês — e quando a órfã
+		// vence, o webhook rebaixa pra past_due e derruba o acesso de quem pagou.
+		//
+		// Falha na consulta LIBERA a criação de propósito: travar a venda por
+		// instabilidade do Asaas é pior que o risco de uma duplicata.
 		try {
-			({ invoiceUrl } = await createPlanSubscription({
+			const ativas = await listActiveSubscriptions(customerId);
+			if (ativas.length > 0) {
+				const jaAberta = await pendingInvoiceUrl(ativas[0]!.id);
+				await db
+					.update(professionals)
+					.set({ asaasSubscriptionId: ativas[0]!.id, updatedAt: sql`now()` })
+					.where(eq(professionals.id, prof.id));
+				if (jaAberta) redirect(303, jaAberta);
+				return fail(409, {
+					error:
+						'Você já tem uma assinatura em andamento. Se o pagamento não apareceu, ' +
+						'fale com a gente que a gente verifica — não crie outra para não gerar cobrança dupla.',
+					jaAssinou: true
+				});
+			}
+		} catch (e) {
+			// O redirect do SvelteKit é lançado como exceção (classe Redirect, NÃO
+			// Response) — sem repassar, o catch engoliria o desvio pra fatura e o
+			// código seguiria criando a segunda assinatura, que é justamente o que
+			// esta trava existe pra impedir.
+			if (isRedirect(e)) throw e;
+			logger.error({ err: String(e).slice(0, 300) }, 'assinatura.checagem_duplicata.falhou');
+		}
+
+		let invoiceUrl: string | null;
+		let subscriptionId: string;
+		try {
+			({ invoiceUrl, subscriptionId } = await createPlanSubscription({
 				customerId,
 				planKey,
 				professionalId: prof.id
@@ -129,6 +164,16 @@ export const actions: Actions = {
 			logger.error({ err: String(e).slice(0, 300) }, 'assinatura.subscription.failed');
 			return fail(502, { error: 'não foi possível gerar a cobrança, tente de novo' });
 		}
+
+		// Grava antes de redirecionar: se a pessoa abandonar a fatura, a próxima
+		// tentativa já encontra a assinatura e cai na trava acima.
+		await db
+			.update(professionals)
+			.set({ asaasSubscriptionId: subscriptionId, updatedAt: sql`now()` })
+			.where(eq(professionals.id, prof.id))
+			.catch((err) =>
+				logger.error({ err: String(err).slice(0, 200) }, 'assinatura.subscription_id.nao_gravado')
+			);
 
 		if (!invoiceUrl) {
 			// Assinatura criada mas fatura ainda materializando — o webhook ativa
