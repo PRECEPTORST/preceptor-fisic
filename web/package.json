@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.server.json",
-    "build": "npm run typecheck && vitest run && vite build && node scripts/build-api.mjs",
+    "build": "npm run typecheck && vitest run && vite build && node scripts/prerender-landing.mjs && node scripts/build-api.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",
