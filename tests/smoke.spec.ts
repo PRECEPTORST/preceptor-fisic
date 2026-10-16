@@ -136,10 +136,11 @@ test.describe('Smoke — legal pages', () => {
 });
 
 test.describe('Smoke — recuperar senha', () => {
-	test('rota /recuperar carrega com form', async ({ page, context }) => {
+	// Desde 4a8e7b0 a recuperação é pelo WhatsApp do time, não por formulário de e-mail.
+	test('rota /recuperar leva ao WhatsApp do time', async ({ page, context }) => {
 		await context.clearCookies();
 		await page.goto('/recuperar');
 		await expect(page.getByRole('heading', { name: /esqueceu/i })).toBeVisible();
-		await expect(page.getByPlaceholder(/seu@email/i)).toBeVisible();
+		await expect(page.locator('a[href^="https://wa.me/"]')).toBeVisible();
 	});
 });

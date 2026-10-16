@@ -1429,7 +1429,7 @@
 										src={catEntry.videoUrl}
 										alt={ex.name}
 										loading="lazy"
-										style="width:280px;max-width:100%;border-radius:var(--r-md);background:var(--bg-0);border:1px solid var(--ink-line)"
+										style="width:280px;max-width:100%;border-radius:var(--r-2);background:var(--bg-0);border:1px solid var(--ink-line)"
 									/>
 									{#if catEntry.instructions && catEntry.instructions.length > 0}
 										<ol style="flex:1;min-width:260px;margin:0;padding-left:20px;font:400 12px var(--font-sans);color:var(--ink-2);line-height:1.55">
