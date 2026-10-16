@@ -31,7 +31,8 @@ jobs:
           cache: 'npm'
 
       - name: Install
-        run: npm ci
+        # web/ também: testes da raiz (crm-api) importam a API Hono de web/server.
+        run: npm ci && npm ci --prefix web
 
       - name: SvelteKit sync
         run: npx svelte-kit sync
