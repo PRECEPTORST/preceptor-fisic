@@ -1,9 +1,8 @@
-import { useState, type FormEvent, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Campo, FormActions, FormSection, a11yCampo } from "@/components/Form";
 import { EQUIPAMENTOS, GRUPOS, NIVEIS, PADROES, parseContraindicacoes } from "@/lib/rotina";
 import { Chip } from "./Chip";
 
@@ -31,122 +30,127 @@ export const EXERCICIO_VAZIO: ExercicioEntrada = {
 
 // O Select do Radix não aceita value "", então "nenhum" é um sentinela.
 const NENHUM = "_";
+type Erros = Partial<Record<"name" | "muscleGroup", string>>;
 
-/** Formulário de exercício (novo e editar). Mesmos campos do SvelteKit. */
+/** Formulário de exercício (painel de novo e de editar). Mesmos campos do SvelteKit. */
 export function ExercicioForm({
   inicial,
   salvando,
   rotuloSalvar,
   onSalvar,
-  rodape,
+  onCancelar,
+  onSujo,
+  extra,
 }: {
   inicial: ExercicioEntrada;
   salvando: boolean;
   rotuloSalvar: string;
   onSalvar: (d: ExercicioEntrada) => void;
-  rodape?: ReactNode;
+  onCancelar: () => void;
+  onSujo?: (sujo: boolean) => void;
+  extra?: ReactNode;
 }) {
   const [d, setD] = useState(inicial);
   const [contra, setContra] = useState(inicial.contraindications.join(", "));
-  const [erro, setErro] = useState<string | null>(null);
+  const [erros, setErros] = useState<Erros>({});
   const set = <K extends keyof ExercicioEntrada>(k: K, v: ExercicioEntrada[K]) => setD((x) => ({ ...x, [k]: v }));
+  const sujo = JSON.stringify(d) !== JSON.stringify(inicial) || contra !== inicial.contraindications.join(", ");
+  useEffect(() => onSujo?.(sujo), [sujo, onSujo]);
+
   // Valor antigo fora da lista fixa continua aparecendo (e selecionado).
-  const grupos = d.muscleGroup && !GRUPOS.includes(d.muscleGroup) ? [d.muscleGroup, ...GRUPOS] : GRUPOS;
-  const equips = d.equipment && !EQUIPAMENTOS.includes(d.equipment) ? [d.equipment, ...EQUIPAMENTOS] : EQUIPAMENTOS;
+  const com = (lista: string[], v: string) => (v && !lista.includes(v) ? [v, ...lista] : lista);
 
   function enviar(e: FormEvent) {
     e.preventDefault();
-    if (!d.name.trim()) return setErro("Dê um nome ao exercício.");
-    if (!d.muscleGroup) return setErro("Escolha o grupo muscular.");
-    setErro(null);
+    const er: Erros = {};
+    if (!d.name.trim()) er.name = "Dê um nome ao exercício.";
+    if (!d.muscleGroup) er.muscleGroup = "Escolha o grupo muscular.";
+    setErros(er);
+    if (Object.keys(er).length) {
+      document.getElementById(er.name ? "ex-name" : "ex-grupo")?.focus();
+      return;
+    }
     onSalvar({ ...d, name: d.name.trim(), code: d.code.trim(), contraindications: parseContraindicacoes(contra) });
   }
 
   return (
-    <form onSubmit={enviar} className="max-w-3xl space-y-4" noValidate>
-      {erro && (
+    <form onSubmit={enviar} noValidate className="space-y-4">
+      {Object.keys(erros).length > 1 && (
         <p role="alert" className="rounded-md border border-negative/40 bg-negative-soft px-4 py-3 text-body text-negative">
-          {erro}
+          Faltam {Object.keys(erros).length} campos obrigatórios.
         </p>
       )}
-      <section className="space-y-5 rounded-lg border border-line bg-bg-elevated p-5 shadow-card">
-        <p className="eyebrow">Identidade</p>
-        <div className="grid gap-4 sm:grid-cols-[140px_1fr]">
-          <div className="space-y-2">
-            <Label htmlFor="ex-code">Código</Label>
-            <Input id="ex-code" value={d.code} onChange={(e) => set("code", e.target.value)} placeholder="EX021" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="ex-name">Nome *</Label>
-            <Input
-              id="ex-name"
-              required
-              value={d.name}
-              onChange={(e) => set("name", e.target.value)}
-              placeholder="Agachamento búlgaro"
-            />
-          </div>
-        </div>
-        <fieldset className="space-y-2">
-          <legend className="text-body font-medium">Grupo muscular *</legend>
-          <div className="flex flex-wrap gap-1.5">
-            {grupos.map((g) => (
+      <FormSection titulo="Identidade">
+        <Campo id="ex-name" label="Nome" erro={erros.name} span>
+          <Input
+            {...a11yCampo("ex-name", erros.name)}
+            value={d.name}
+            onChange={(e) => set("name", e.target.value)}
+            placeholder="Agachamento búlgaro"
+          />
+        </Campo>
+        <Campo id="ex-code" label="Código" dica="Opcional, para você achar rápido.">
+          <Input {...a11yCampo("ex-code", null, true)} value={d.code} onChange={(e) => set("code", e.target.value)} placeholder="EX021" />
+        </Campo>
+        <Campo id="ex-level" label="Nível">
+          <Select value={d.level || NENHUM} onValueChange={(v) => set("level", v === NENHUM ? "" : v)}>
+            <SelectTrigger id="ex-level">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NENHUM}>Nenhum</SelectItem>
+              {NIVEIS.map((n) => (
+                <SelectItem key={n.id} value={n.id}>
+                  {n.label}
+                </SelectItem>
+              ))}
+              {d.level && !NIVEIS.some((n) => n.id === d.level) && <SelectItem value={d.level}>{d.level}</SelectItem>}
+            </SelectContent>
+          </Select>
+        </Campo>
+        <fieldset className="space-y-2 sm:col-span-2" aria-describedby={erros.muscleGroup ? "ex-grupo-erro" : undefined}>
+          <legend className="text-body font-medium text-ink">Grupo muscular</legend>
+          <div id="ex-grupo" tabIndex={-1} className="flex flex-wrap gap-1.5 outline-none">
+            {com(GRUPOS, d.muscleGroup).map((g) => (
               <Chip key={g} ativo={d.muscleGroup === g} onClick={() => set("muscleGroup", g)}>
                 {g}
               </Chip>
             ))}
           </div>
+          {erros.muscleGroup && (
+            <p id="ex-grupo-erro" className="text-caption text-negative">
+              {erros.muscleGroup}
+            </p>
+          )}
         </fieldset>
-        <fieldset className="space-y-2">
-          <legend className="text-body font-medium">Equipamento</legend>
+        <fieldset className="space-y-2 sm:col-span-2">
+          <legend className="text-body font-medium text-ink">Equipamento</legend>
           <div className="flex flex-wrap gap-1.5">
-            {equips.map((q) => (
+            {com(EQUIPAMENTOS, d.equipment).map((q) => (
               <Chip key={q} ativo={d.equipment === q} onClick={() => set("equipment", d.equipment === q ? "" : q)}>
                 {q}
               </Chip>
             ))}
           </div>
         </fieldset>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="ex-pattern">Padrão de movimento</Label>
-            <Select value={d.pattern || NENHUM} onValueChange={(v) => set("pattern", v === NENHUM ? "" : v)}>
-              <SelectTrigger id="ex-pattern">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NENHUM}>Nenhum</SelectItem>
-                {(d.pattern && !PADROES.includes(d.pattern) ? [d.pattern, ...PADROES] : PADROES).map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="ex-level">Nível</Label>
-            <Select value={d.level || NENHUM} onValueChange={(v) => set("level", v === NENHUM ? "" : v)}>
-              <SelectTrigger id="ex-level">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NENHUM}>Nenhum</SelectItem>
-                {NIVEIS.map((n) => (
-                  <SelectItem key={n.id} value={n.id}>
-                    {n.label}
-                  </SelectItem>
-                ))}
-                {d.level && !NIVEIS.some((n) => n.id === d.level) && <SelectItem value={d.level}>{d.level}</SelectItem>}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </section>
-      <section className="space-y-4 rounded-lg border border-line bg-bg-elevated p-5 shadow-card">
-        <p className="eyebrow">Execução</p>
-        <div className="space-y-2">
-          <Label htmlFor="ex-notes">Forma de execução</Label>
+        <Campo id="ex-pattern" label="Padrão de movimento">
+          <Select value={d.pattern || NENHUM} onValueChange={(v) => set("pattern", v === NENHUM ? "" : v)}>
+            <SelectTrigger id="ex-pattern">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NENHUM}>Nenhum</SelectItem>
+              {com(PADROES, d.pattern).map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Campo>
+      </FormSection>
+      <FormSection titulo="Execução e segurança" descricao="Aparece para você ao montar o plano.">
+        <Campo id="ex-notes" label="Forma de execução" span>
           <Textarea
             id="ex-notes"
             rows={4}
@@ -154,23 +158,12 @@ export function ExercicioForm({
             onChange={(e) => set("executionNotes", e.target.value)}
             placeholder="Pé de trás apoiado no banco, tronco levemente inclinado…"
           />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="ex-contra">Contraindicações</Label>
-          <Input
-            id="ex-contra"
-            value={contra}
-            onChange={(e) => setContra(e.target.value)}
-            placeholder="Separe por vírgula: dor no joelho, hérnia lombar"
-          />
-        </div>
-      </section>
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>{rodape}</div>
-        <Button type="submit" disabled={salvando}>
-          {salvando ? "Salvando…" : rotuloSalvar}
-        </Button>
-      </div>
+        </Campo>
+        <Campo id="ex-contra" label="Contraindicações" dica="Separe por vírgula: dor no joelho, hérnia lombar" span>
+          <Input {...a11yCampo("ex-contra", null, true)} value={contra} onChange={(e) => setContra(e.target.value)} />
+        </Campo>
+      </FormSection>
+      <FormActions enviando={salvando} rotulo={rotuloSalvar} onCancelar={onCancelar} extra={extra} />
     </form>
   );
 }

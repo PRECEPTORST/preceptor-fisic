@@ -133,6 +133,7 @@ export const fixtures: Record<string, unknown | ((path: string) => unknown)> = {
 	'DELETE /agenda/:id': ok,
 
 	'GET /mensagens': { threads: conversas },
+	'GET /mensagens/aluno/:id': (p: string) => ({ conversa: conversas.find((c) => p.endsWith(c.studentId)) ?? null }),
 	'POST /mensagens/:id/lido': ok,
 	'GET /mensagens/:id': (p: string) => ({ messages: msgs(p.split('/').pop() ?? 'cv-1') }),
 	'POST /mensagens/:id': { message: { id: 'm-novo', body: 'ok', fromRole: 'professional', createdAt: new Date().toISOString() } }

@@ -255,6 +255,15 @@ rotina.get('/mensagens', ...guard, async (c) => {
 	return c.json({ threads: threads.map((t) => ({ ...t, unread: unread.get(t.id) ?? 0 })) });
 });
 
+/** Conversa de um aluno (para a aba Mensagens da ficha). Só acha conversas deste profissional. */
+rotina.get('/mensagens/aluno/:studentId', ...guard, async (c) => {
+	const threads = await getConversationThreads(c.get('professional').id);
+	const t = threads.find((x) => x.studentId === c.req.param('studentId'));
+	if (!t) return c.json({ conversa: null });
+	const unread = await unreadByConversation([t.id]);
+	return c.json({ conversa: { ...t, unread: unread.get(t.id) ?? 0 } });
+});
+
 rotina.get('/mensagens/:id', ...guard, async (c) => {
 	const pid = c.get('professional').id;
 	const id = c.req.param('id');

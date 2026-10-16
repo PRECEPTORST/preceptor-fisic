@@ -1,4 +1,5 @@
 import { Link, useSearchParams } from "react-router-dom";
+import { PainelSessao } from "./PainelSessao";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Check, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { api } from "@/lib/api";
@@ -13,6 +14,7 @@ import {
   type SessaoAgenda,
 } from "@/lib/rotina";
 import { cn } from "@/lib/utils";
+import { paraInputs } from "@/lib/rotina";
 import { PageHeader } from "@/components/PageHeader";
 import { QueryState } from "@/components/QueryState";
 import { Button } from "@/components/ui/button";
@@ -21,6 +23,7 @@ import { CHAVE_AGENDA } from "./chaves";
 
 type Resposta = { appointments: SessaoAgenda[]; weekStart: string; weekEnd: string; semana: number };
 
+type Href = (extra: Record<string, string>) => string;
 const ALTURA_HORA = 56; // px por hora na grade
 const hora = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 const diaCurto = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "");
@@ -34,6 +37,16 @@ export default function Agenda() {
     placeholderData: keepPreviousData,
   });
   const ir = (n: number) => setParams(n === 0 ? {} : { semana: String(n) }, { replace: true });
+  const sessaoId = params.get("sessao");
+  const nova = params.get("nova") === "1";
+  const inicioNova = params.get("data") && params.get("hora") ? { date: params.get("data")!, time: params.get("hora")! } : null;
+  // O painel fica na URL (?sessao=<id> | ?nova=1&data=&hora=): voltar fecha, link abre.
+  const comPainel = (extra: Record<string, string>) => {
+    const n = new URLSearchParams(semana ? { semana: String(semana) } : {});
+    for (const [k, v] of Object.entries(extra)) n.set(k, v);
+    return `?${n.toString()}`;
+  };
+  const fechar = () => setParams(semana ? { semana: String(semana) } : {}, { replace: true });
   const inicio = q.data ? new Date(q.data.weekStart) : null;
   const dias = inicio ? diasDaSemana(inicio) : [];
   const titulo = inicio ? `${diaCurto(dias[0]!)} a ${diaCurto(dias[6]!)}` : "Agenda";
@@ -57,8 +70,8 @@ export default function Agenda() {
               </Button>
             </div>
             <Button asChild>
-              <Link to="/agenda/nova">
-                <Plus aria-hidden /> Nova sessão
+              <Link to={comPainel({ nova: "1" })}>
+                <Plus aria-hidden /> Novo compromisso
               </Link>
             </Button>
           </>
@@ -69,12 +82,13 @@ export default function Agenda() {
           <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
             <Resumo sessoes={d.appointments} semana={semana} />
             <div className="min-w-0" aria-busy={q.isPlaceholderData}>
-              <Grade sessoes={d.appointments} dias={dias} />
-              <ListaPorDia sessoes={d.appointments} dias={dias} />
+              <Grade sessoes={d.appointments} dias={dias} href={comPainel} />
+              <ListaPorDia sessoes={d.appointments} dias={dias} href={comPainel} />
             </div>
           </div>
         )}
       </QueryState>
+      <PainelSessao id={sessaoId} aberto={nova || Boolean(sessaoId)} inicio={inicioNova} onFechar={fechar} />
     </>
   );
 }
@@ -120,7 +134,7 @@ function Rotulo({ s }: { s: SessaoAgenda }) {
 }
 
 /** Grade semanal (md+). Sessões sobrepostas ficam lado a lado. */
-function Grade({ sessoes, dias }: { sessoes: SessaoAgenda[]; dias: Date[] }) {
+function Grade({ sessoes, dias, href }: { sessoes: SessaoAgenda[]; dias: Date[]; href: Href }) {
   const horas = faixaDeHoras(sessoes);
   const hoje = new Date();
   const top = (iso: string) => {
@@ -155,8 +169,15 @@ function Grade({ sessoes, dias }: { sessoes: SessaoAgenda[]; dias: Date[] }) {
         </div>
         {dias.map((dia) => (
           <div key={dia.toISOString()} className="relative border-l border-line">
+            {/* Clicar num horário vazio abre o painel já com dia e hora. */}
             {horas.map((h) => (
-              <div key={h} className="border-b border-line" style={{ height: ALTURA_HORA }} />
+              <Link
+                key={h}
+                to={href({ nova: "1", data: paraInputs(dia).date, hora: `${String(h).padStart(2, "0")}:00` })}
+                aria-label={`Marcar em ${dia.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric" })} às ${h}h`}
+                className="block border-b border-line transition-colors hover:bg-bg-subtle focus-visible:bg-bg-subtle"
+                style={{ height: ALTURA_HORA }}
+              />
             ))}
             {sessoesDoDia(sessoes, dia).map((s) => {
               const t = tipo(s.type);
@@ -165,7 +186,7 @@ function Grade({ sessoes, dias }: { sessoes: SessaoAgenda[]; dias: Date[] }) {
               return (
                 <Link
                   key={s.id}
-                  to={`/agenda/${s.id}/editar`}
+                  to={href({ sessao: s.id })}
                   aria-label={`${hora(s.startsAt)}, ${t.label}${s.studentName ? ` com ${s.studentName}` : ""}${cancelada ? ", cancelada" : ""}. Editar`}
                   className={cn(
                     "absolute overflow-hidden rounded-md border border-l-[3px] bg-bg-subtle px-1.5 py-1 transition-colors hover:bg-bg-muted",
@@ -196,7 +217,7 @@ function Grade({ sessoes, dias }: { sessoes: SessaoAgenda[]; dias: Date[] }) {
 }
 
 /** Abaixo de md a grade de 7 colunas não cabe: vira lista por dia. */
-function ListaPorDia({ sessoes, dias }: { sessoes: SessaoAgenda[]; dias: Date[] }) {
+function ListaPorDia({ sessoes, dias, href }: { sessoes: SessaoAgenda[]; dias: Date[]; href: Href }) {
   const hoje = new Date();
   return (
     <ol className="space-y-4 md:hidden">
@@ -219,7 +240,7 @@ function ListaPorDia({ sessoes, dias }: { sessoes: SessaoAgenda[]; dias: Date[] 
                   return (
                     <li key={s.id}>
                       <Link
-                        to={`/agenda/${s.id}/editar`}
+                        to={href({ sessao: s.id })}
                         className={cn("flex items-center gap-3 px-4 py-3 hover:bg-bg-subtle", cancelada && "opacity-60")}
                       >
                         <span className={cn("h-9 w-1 shrink-0 rounded-full", cancelada ? "bg-ink-mute" : t.ponto)} aria-hidden />
