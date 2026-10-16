@@ -13,6 +13,17 @@ export default defineConfig(({ mode }) => {
     envDir: repo,
     envPrefix: ["VITE_", "PUBLIC_"],
     server: { port: 5174 },
+    build: {
+      rollupOptions: {
+        output: {
+          // Vendors em chunks estáveis: o cache do navegador sobrevive aos deploys do app.
+          manualChunks: {
+            react: ["react", "react-dom", "react-router-dom"],
+            data: ["@tanstack/react-query", "@supabase/supabase-js"],
+          },
+        },
+      },
+    },
     plugins: [
       react(),
       devServer({ entry: "server/dev.ts", exclude: [/^(?!\/api\/).*/] }),
