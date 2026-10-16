@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const prof = vi.hoisted(() => ({ atual: { id: "p1", isAdmin: false } as { id: string; isAdmin: boolean } | null }));
 const chamadas = vi.hoisted(() => ({ n: 0 }));
 
-vi.mock("../../../web/node_modules/@supabase/supabase-js", () => ({
+const supabaseFalso = vi.hoisted(() => () => ({
   createClient: () => ({
     auth: {
       getUser: async (t: string) =>
@@ -13,6 +13,10 @@ vi.mock("../../../web/node_modules/@supabase/supabase-js", () => ({
     },
   }),
 }));
+// O web/server resolve o pacote em web/node_modules; o mock cobre o caminho e o nome.
+vi.mock("../../../web/node_modules/@supabase/supabase-js/dist/index.mjs", supabaseFalso);
+vi.mock("../../../web/node_modules/@supabase/supabase-js", supabaseFalso);
+vi.mock("@supabase/supabase-js", supabaseFalso);
 
 vi.mock("$lib/server/queries", () => {
   const conta = async () => {
