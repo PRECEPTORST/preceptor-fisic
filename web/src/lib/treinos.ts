@@ -253,3 +253,85 @@ export const EQUIPAMENTOS: { value: string; label: string }[] = [
 
 /** Ajusta o array de focos ao número de sessões, preservando o que já foi digitado. */
 export const camposFoco = (focos: string[], n: number) => Array.from({ length: n }, (_, i) => focos[i] ?? "");
+
+/** Motivo de não poder publicar, escrito (brief §2.6). Null = pode publicar. */
+export function motivoBloqueio(status: string, criticas: number): string | null {
+  if (status === "published") return "Já publicado. O aluno vê no app.";
+  if (status === "archived") return "Arquivado. Reative pelo menu ⋯ para o aluno voltar a ver.";
+  if (status !== "generated") return `Status "${statusLabel(status)}" não pode ser publicado.`;
+  if (criticas > 0)
+    return `${criticas} ${plural(criticas, "restrição crítica pendente", "restrições críticas pendentes")}. Troque o exercício afetado ou assuma a responsabilidade.`;
+  return null;
+}
+
+
+export const FILTROS_STATUS = [
+  ["todos", "Todos"],
+  ["rascunho", "Rascunho"],
+  ["gerando", "Gerando"],
+  ["publicado", "Publicado"],
+  ["arquivado", "Arquivado"],
+  ["falhou", "Falhou"],
+] as const;
+export type FiltroStatus = (typeof FILTROS_STATUS)[number][0];
+
+const DO_FILTRO: Record<Exclude<FiltroStatus, "todos">, (s: string) => boolean> = {
+  rascunho: (s) => s === "generated",
+  gerando: gerando,
+  publicado: (s) => s === "published",
+  arquivado: (s) => s === "archived",
+  falhou: (s) => s === "failed",
+};
+
+/** Filtro da lista de treinos: status segmentado + busca por aluno ou título (sem acento). */
+export function filtrarTreinos<T extends { status: string; studentName: string; title: string }>(
+  planos: T[],
+  status: string,
+  busca: string,
+): T[] {
+  const norm = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const q = norm(busca.trim());
+  const f = DO_FILTRO[status as keyof typeof DO_FILTRO];
+  return planos.filter((p) => (!f || f(p.status)) && (!q || norm(`${p.studentName} ${p.title}`).includes(q)));
+}
+
+/** Contagem por filtro, para os rótulos dos segmentos. */
+export function contarPorFiltro(planos: { status: string }[]): Record<FiltroStatus, number> {
+  const r = { todos: planos.length } as Record<FiltroStatus, number>;
+  for (const [k, f] of Object.entries(DO_FILTRO)) r[k as FiltroStatus] = planos.filter((p) => f(p.status)).length;
+  return r;
+}
+
+export const DIVISOES = [
+  ["auto", "A IA decide"],
+  ["fullbody", "Corpo inteiro"],
+  ["ab", "A/B"],
+  ["abc", "A/B/C"],
+  ["ppl", "Empurrar / puxar / pernas"],
+] as const;
+export const NIVEIS = [
+  ["auto", "Pelo perfil"],
+  ["iniciante", "Iniciante"],
+  ["intermediario", "Intermediário"],
+  ["avancado", "Avançado"],
+] as const;
+export type ParametrosGeracao = { divisao: string; frequencia: number | null; nivel: string };
+
+/**
+ * A geração recebe só as observações em texto (o gerador não tem campos de
+ * divisão/nível). Os parâmetros escolhidos viram linhas explícitas no fim das
+ * observações; "A IA decide" não escreve nada.
+ */
+export function montarObservacoes(notas: string, p: ParametrosGeracao): string {
+  const linhas: string[] = [];
+  const div = DIVISOES.find(([k]) => k === p.divisao && k !== "auto");
+  if (div) linhas.push(`Divisão do treino: ${div[1]}.`);
+  if (p.frequencia) linhas.push(`Frequência: ${p.frequencia} sessões por semana.`);
+  const niv = NIVEIS.find(([k]) => k === p.nivel && k !== "auto");
+  if (niv) linhas.push(`Nível de treinamento: ${niv[1]}.`);
+  const corpo = notas.trim();
+  if (linhas.length === 0) return corpo;
+  return [corpo, `Parâmetros do profissional: ${linhas.join(" ")}`].filter(Boolean).join("\n\n");
+}
+
+export const LIMITE_OBSERVACOES = 2000;

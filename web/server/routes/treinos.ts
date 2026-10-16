@@ -21,6 +21,7 @@ import { isUuid } from '$lib/server/validation';
 import { failIfStale } from '$lib/server/ai/generator';
 import {
 	BLOCOS,
+	cotaGeracoes,
 	adicionarExercicio,
 	criarPlanoManual,
 	editarExercicio,
@@ -296,7 +297,9 @@ treinos.get('/alunos/:id/prescricao', ...guard, async (c) => {
 	const d = await getStudentDetail(c.req.param('id'), c.get('professional').id);
 	if (!d) throw new HTTPException(404, { message: 'Aluno não encontrado.' });
 	const hp = d.healthProfile;
+	const cota = await cotaGeracoes(c.get('professional'));
 	return c.json({
+		cota,
 		student: { id: d.student.id, name: d.student.name, birthDate: d.student.birthDate },
 		diagnoses: ((hp?.diagnoses as { label: string }[] | null) ?? []).map((x) => x.label),
 		medications: ((hp?.medications as { name: string; dose?: string }[] | null) ?? []).map(

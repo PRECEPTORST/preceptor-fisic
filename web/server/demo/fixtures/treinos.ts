@@ -151,6 +151,7 @@ export const fixtures: Record<string, unknown | ((path: string) => unknown)> = {
 		limitations: ['Joelho direito · dor ao agachar'],
 		goals: ['hipertrofia'],
 		equipment: ['dumbbell', 'leverage machine'],
+		cota: { usado: 7, limite: 30 },
 		weeklySessions: 3,
 		minutesPerSession: 60
 	},

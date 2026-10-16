@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   camposFoco,
+  contarPorFiltro,
+  filtrarTreinos,
   citacao,
   concluido,
   dataBR,
@@ -12,6 +14,8 @@ import {
   intensidadeUsada,
   linhasForca,
   mensagemValidacao,
+  montarObservacoes,
+  motivoBloqueio,
   objetivoCapa,
   seriesFeitas,
   seriesRegistradas,
@@ -96,5 +100,30 @@ describe("treinos", () => {
   it("campos de foco acompanham o número de sessões", () => {
     expect(camposFoco(["a", "b", "c"], 2)).toEqual(["a", "b"]);
     expect(camposFoco(["a"], 3)).toEqual(["a", "", ""]);
+  });
+
+  it("motivo de bloqueio da publicação sempre escrito", () => {
+    expect(motivoBloqueio("generated", 0)).toBeNull();
+    expect(motivoBloqueio("generated", 2)).toContain("2 restrições críticas");
+    expect(motivoBloqueio("archived", 0)).toContain("Arquivado");
+  });
+
+  it("filtra treinos por status e busca sem acento", () => {
+    const p = [
+      { status: "generated", studentName: "Ana", title: "Hipertrofia" },
+      { status: "published", studentName: "Bruno", title: "Reabilitação" },
+      { status: "pending", studentName: "Carla", title: "x" },
+    ];
+    expect(filtrarTreinos(p, "rascunho", "")).toHaveLength(1);
+    expect(filtrarTreinos(p, "todos", "reabilitacao")[0]?.studentName).toBe("Bruno");
+    expect(filtrarTreinos(p, "gerando", "")).toHaveLength(1);
+    expect(contarPorFiltro(p)).toMatchObject({ todos: 3, rascunho: 1, publicado: 1, gerando: 1, arquivado: 0 });
+  });
+
+  it("parâmetros da geração viram linhas nas observações", () => {
+    expect(montarObservacoes(" dor no ombro ", { divisao: "auto", frequencia: null, nivel: "auto" })).toBe("dor no ombro");
+    const t = montarObservacoes("", { divisao: "abc", frequencia: 3, nivel: "iniciante" });
+    expect(t).toBe("Parâmetros do profissional: Divisão do treino: A/B/C. Frequência: 3 sessões por semana. Nível de treinamento: Iniciante.");
+    expect(montarObservacoes("x", { divisao: "ab", frequencia: null, nivel: "auto" })).toBe("x\n\nParâmetros do profissional: Divisão do treino: A/B.");
   });
 });

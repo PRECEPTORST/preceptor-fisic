@@ -65,6 +65,7 @@ export type ImpressaoResposta = {
 };
 
 export type PrescricaoResposta = {
+  cota: { usado: number; limite: number | null } | null;
   student: { id: string; name: string; birthDate: string | null };
   diagnoses: string[];
   medications: string[];

@@ -462,3 +462,22 @@ export async function criarPlanoManual(
 	if (!row) return falha(500, 'Não consegui criar o plano. Tente de novo.');
 	return { ok: true, planId: row.id };
 }
+
+/**
+ * Franquia de gerações por IA do ciclo, para mostrar antes de gerar.
+ * Conta individual: usado/limite do plano (limite null = ilimitado). Membro de
+ * clínica: o pool só informa quando estoura, então devolve null se ainda há cota.
+ */
+export async function cotaGeracoes(
+	professional: Professional
+): Promise<{ usado: number; limite: number | null } | null> {
+	if (professional.organizationId) {
+		const org = await getOrganization(professional.organizationId);
+		if (!org) return null;
+		const c = await checkOrganizationQuota(org, professional.id);
+		return c.ok ? null : { usado: c.usado, limite: c.limite };
+	}
+	const limite = limitsFor(professional).generations;
+	const usado = await countGenerationsSince(professional.id, currentCycleStart(professional));
+	return { usado, limite: limite ?? null };
+}
