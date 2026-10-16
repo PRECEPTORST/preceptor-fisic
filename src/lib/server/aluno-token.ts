@@ -14,10 +14,11 @@
  * SHA-256 da SUPABASE_SERVICE_ROLE_KEY completa — nunca um slice, pois o
  * prefixo de todo JWT do Supabase é um header público constante.
  */
-import { createHmac, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { dev } from '$app/environment';
+import { checkStudentAccess, signWithSecret, verifyWithSecret } from './aluno-token-core';
 
 function getSecret(): string {
 	const dedicated = env.ALUNO_LINK_SECRET ?? process.env.ALUNO_LINK_SECRET ?? '';
@@ -31,9 +32,7 @@ function getSecret(): string {
 }
 
 export function signStudentToken(studentId: string, version = 1): string {
-	const secret = getSecret();
-	const payload = version <= 1 ? studentId : `${studentId}.v${version}`;
-	return createHmac('sha256', secret).update(payload).digest('hex').slice(0, 24);
+	return signWithSecret(getSecret(), studentId, version);
 }
 
 export function verifyStudentToken(
@@ -41,15 +40,7 @@ export function verifyStudentToken(
 	token: string | null | undefined,
 	version = 1
 ): boolean {
-	if (!token) return false;
-	const expected = signStudentToken(studentId, version);
-	// Constant-time comparison
-	if (expected.length !== token.length) return false;
-	let diff = 0;
-	for (let i = 0; i < expected.length; i++) {
-		diff |= expected.charCodeAt(i) ^ token.charCodeAt(i);
-	}
-	return diff === 0;
+	return verifyWithSecret(getSecret(), studentId, token, version);
 }
 
 /**
@@ -61,21 +52,23 @@ export async function verifyStudentAccess(
 	studentId: string,
 	token: string | null | undefined
 ): Promise<boolean> {
-	if (!token) return false;
-	if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(studentId))
-		return false;
-	// Import dinâmico evita ciclo db → schema → (nada) e mantém o módulo
-	// importável em testes sem DATABASE_URL.
-	const { db } = await import('./db');
-	const { students } = await import('./db/schema');
-	const rows = await db
-		.select({ version: students.linkTokenVersion })
-		.from(students)
-		.where(eq(students.id, studentId))
-		.limit(1);
-	const version = rows[0]?.version;
-	if (version == null) return false;
-	return verifyStudentToken(studentId, token, version);
+	return checkStudentAccess(
+		studentId,
+		token,
+		async (id) => {
+			// Import dinâmico evita ciclo db → schema → (nada) e mantém o módulo
+			// importável em testes sem DATABASE_URL.
+			const { db } = await import('./db');
+			const { students } = await import('./db/schema');
+			const rows = await db
+				.select({ version: students.linkTokenVersion })
+				.from(students)
+				.where(eq(students.id, id))
+				.limit(1);
+			return rows[0]?.version;
+		},
+		verifyStudentToken
+	);
 }
 
 /**

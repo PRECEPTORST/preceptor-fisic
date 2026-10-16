@@ -6,8 +6,11 @@
  * action decidir entre fail(400) e ignorar o campo.
  */
 
+/** Valor de campo de form (FormDataEntryValue = string | File). Tipo estrutural para rodar fora do DOM. */
+export type FormValue = string | { toString(): string };
+
 /** "72,5" | "72.5" | " 72 " → 72.5; vazio/inválido → null. */
-export function parseDecimalBR(v: FormDataEntryValue | null | undefined): number | null {
+export function parseDecimalBR(v: FormValue | null | undefined): number | null {
 	if (v == null) return null;
 	const s = String(v).trim().replace(/\s/g, '');
 	if (!s) return null;
@@ -20,7 +23,7 @@ export function parseDecimalBR(v: FormDataEntryValue | null | undefined): number
 }
 
 /** Inteiro seguro; vazio/inválido → null. */
-export function parseIntSafe(v: FormDataEntryValue | null | undefined): number | null {
+export function parseIntSafe(v: FormValue | null | undefined): number | null {
 	const n = parseDecimalBR(v);
 	if (n == null) return null;
 	return Number.isInteger(n) ? n : Math.round(n);
@@ -36,7 +39,7 @@ export function clamp(n: number | null, min: number, max: number): number | null
  * Data de form: aceita "yyyy-mm-dd" (input date) e "dd/mm/aaaa" (digitada).
  * Retorna "yyyy-mm-dd" validado (existe no calendário) ou null.
  */
-export function parseDateISO(v: FormDataEntryValue | null | undefined): string | null {
+export function parseDateISO(v: FormValue | null | undefined): string | null {
 	if (v == null) return null;
 	const s = String(v).trim();
 	if (!s) return null;
@@ -56,7 +59,7 @@ export function parseDateISO(v: FormDataEntryValue | null | undefined): string |
 }
 
 /** String de form aparada e limitada; vazio → null. */
-export function parseText(v: FormDataEntryValue | null | undefined, maxLen: number): string | null {
+export function parseText(v: FormValue | null | undefined, maxLen: number): string | null {
 	if (v == null) return null;
 	const s = String(v).trim().slice(0, maxLen);
 	return s || null;
