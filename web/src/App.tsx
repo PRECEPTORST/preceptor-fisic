@@ -14,7 +14,7 @@ import NaoEncontrado from "@/pages/NaoEncontrado";
 import { rotas as rotas_alunos } from "@/rotas/alunos";
 import { rotas as rotas_treinos } from "@/rotas/treinos";
 import { rotas as rotas_rotina } from "@/rotas/rotina";
-import { rotas as rotas_conta } from "@/rotas/conta";
+import { rotas as rotas_conta, rotasForaDoShell as rotas_conta_fora } from "@/rotas/conta";
 import { rotas as rotas_crm } from "@/rotas/crm";
 import { rotas as rotas_publico } from "@/rotas/publico";
 import { rotasLanding } from "@/rotas/landing";
@@ -40,6 +40,7 @@ export default function App() {
             <Suspense fallback={<div className="p-8"><SkeletonLista /></div>}>
               <Routes>
                 <Route path="/login" element={<Login />} />
+                {montar(rotas_conta_fora)}
                 {montar(rotas_publico)}
                 {montar(rotasLanding)}
                 <Route element={<RequireProfessional />}>

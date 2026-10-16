@@ -22,7 +22,7 @@ const env = { ...loadEnv('production', repo, ''), ...process.env };
 
 const origem =
 	env.PUBLIC_SITE_URL ||
-	(env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : 'https://preceptor-fisic-staging.vercel.app');
+	(env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : 'https://preceptorfisic.com');
 
 // Dentro de web/ para os imports externos (node_modules) resolverem.
 const out = resolve(web, 'node_modules/.cache/fisic-ssr');

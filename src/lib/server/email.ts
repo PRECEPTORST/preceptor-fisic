@@ -64,7 +64,7 @@ async function send(opts: {
 // antiga (preceptor-fisic.vercel.app) está congelada: se PUBLIC_APP_URL faltar
 // em algum ambiente, os magic links dos alunos apontariam pro site morto.
 const APP_URL =
-	pubEnv.PUBLIC_APP_URL?.replace(/\/$/, '') ?? 'https://preceptor-fisic-staging.vercel.app';
+	pubEnv.PUBLIC_APP_URL?.replace(/\/$/, '') ?? 'https://preceptorfisic.com';
 
 // Escape de HTML pra TODO dado de usuário interpolado nos templates —
 // sem isso, nome de aluno/profissional vira vetor de injeção de HTML
