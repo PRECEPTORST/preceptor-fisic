@@ -57,10 +57,10 @@ export function PreviaPlano() {
           <BookOpen className="size-3.5" aria-hidden="true" /> Fontes citadas
         </p>
         <p className="text-ink-soft">
-          <span className="num text-ink-mute">[1]</span> ACSM · Position Stand: Hypertension and Exercise
+          <span className="num text-ink-mute">[1]</span> ACC/AHA · Diretriz de Hipertensão (2025)
         </p>
         <p className="text-ink-soft">
-          <span className="num text-ink-mute">[2]</span> ACSM · Guidelines for Exercise Testing and Prescription, 11ª ed.
+          <span className="num text-ink-mute">[2]</span> ACSM · Guidelines for Exercise Testing and Prescription
         </p>
       </figcaption>
     </figure>

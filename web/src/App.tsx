@@ -17,6 +17,7 @@ import { rotas as rotas_rotina } from "@/rotas/rotina";
 import { rotas as rotas_conta } from "@/rotas/conta";
 import { rotas as rotas_crm } from "@/rotas/crm";
 import { rotas as rotas_publico } from "@/rotas/publico";
+import { rotasLanding } from "@/rotas/landing";
 
 // Rota sem shell (públicas e app do aluno) vs. dentro do shell do profissional.
 const montar = (r: RouteObject[]) => r.map((x, i) => <Route key={x.path ?? i} path={x.path} element={x.element} />);
@@ -40,6 +41,7 @@ export default function App() {
               <Routes>
                 <Route path="/login" element={<Login />} />
                 {montar(rotas_publico)}
+                {montar(rotasLanding)}
                 <Route element={<RequireProfessional />}>
                   <Route element={<AppLayout />}>
                     <Route path="/dashboard" element={<Dashboard />} />
@@ -48,7 +50,6 @@ export default function App() {
                     <Route path="*" element={<EmConstrucao />} />
                   </Route>
                 </Route>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/404" element={<NaoEncontrado />} />
               </Routes>
             </Suspense>

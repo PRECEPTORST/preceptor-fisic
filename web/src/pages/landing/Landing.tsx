@@ -59,11 +59,13 @@ const PASSOS = [
   },
 ];
 
+// Títulos reais da base (knowledge_sources), conferidos em 16/10/2026. Não invente fonte:
+// a página promete citação real.
 const FONTES = [
-  { org: "ACSM", titulo: "Position Stand: Hypertension and Exercise" },
-  { org: "ACSM", titulo: "Guidelines for Exercise Testing and Prescription, 11ª ed." },
-  { org: "ACSM", titulo: "Pre-participation Health Screening" },
-  { org: "AHA", titulo: "Scientific Statement: Resistance Exercise" },
+  { org: "ACSM", titulo: "ACSM's Guidelines for Exercise Testing and Prescription" },
+  { org: "ACSM", titulo: "ACSM — Treinamento Resistido (2026)" },
+  { org: "ACSM", titulo: "ACSM Expert Consensus Statement" },
+  { org: "ACC/AHA", titulo: "Diretriz de Hipertensão (2025)" },
 ];
 
 const FAQ = [
