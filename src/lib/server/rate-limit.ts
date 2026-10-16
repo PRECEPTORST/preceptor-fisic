@@ -20,7 +20,10 @@ const PRESETS = {
 	signup: { max: 3, windowMs: 600_000, label: 'criação de conta' },
 	password_reset: { max: 3, windowMs: 600_000, label: 'recuperação de senha' },
 	plan_generate: { max: 5, windowMs: 300_000, label: 'geração de plano' },
-	email_send: { max: 3, windowMs: 600_000, label: 'envio de email' }
+	email_send: { max: 3, windowMs: 600_000, label: 'envio de email' },
+	// Onboarding: cada tentativa testa um CPF contra a trava de trial. Sem teto
+	// por IP, dava pra usar a tela como oráculo de "esse CPF já testou?".
+	onboarding: { max: 5, windowMs: 600_000, label: 'cadastro de perfil' }
 } as const;
 
 export type RateLimitKey = keyof typeof PRESETS;
