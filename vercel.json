@@ -3,7 +3,7 @@
 	"regions": ["gru1"],
 	"framework": "sveltekit",
 	"buildCommand": "npm run build",
-	"installCommand": "npm install",
+	"installCommand": "npm ci",
 	"outputDirectory": ".vercel/output",
 	"headers": [
 		{

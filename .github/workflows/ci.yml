@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   test:
-    name: Lint + Tipos + Vitest
+    name: Tipos + Vitest + Build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # DATABASE_URL dummy: o módulo db lança no IMPORT sem ela, quebrando o
@@ -41,14 +41,19 @@ jobs:
 
       - name: Svelte check (types)
         run: npm run check
-        continue-on-error: true # Erros de tipos pré-existentes não bloqueiam por enquanto
+
+      - name: Build
+        run: npm run build
+        env:
+          PUBLIC_SUPABASE_URL: 'https://ci.supabase.co'
+          PUBLIC_SUPABASE_ANON_KEY: 'ci-anon-key'
 
   smoke-e2e:
     name: Smoke E2E (Playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Só roda smoke E2E em main + PRs que mexem em routes/lib
-    if: github.event_name == 'push' || contains(github.event.pull_request.changed_files, 'src/routes') || contains(github.event.pull_request.changed_files, 'src/lib')
+    # Roda em todo push e PR. (A condição antiga usava changed_files, que é um
+    # número e não uma lista, então o smoke nunca rodava em PR.)
 
     steps:
       - uses: actions/checkout@v4

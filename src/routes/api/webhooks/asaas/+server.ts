@@ -15,6 +15,12 @@ import {
 import { sendEbookPurchaseAlert } from '$lib/server/email';
 import { syncLeadStageFromProfessional, upsertEbookBuyerLead } from '$lib/server/queries';
 import { logger } from '$lib/server/logger';
+import {
+	decidirPorEvento,
+	eventoDeOutraAssinatura,
+	novaExpiracao,
+	type Cobranca
+} from '$lib/server/asaas-regras';
 
 /**
  * Webhook do Asaas (billing dos planos).
@@ -26,16 +32,9 @@ import { logger } from '$lib/server/logger';
  *   que o processamento de negócio falhe (fica em error pra reconciliação).
  * - Autenticação: token combinado na config do webhook, header asaas-access-token.
  *
- * Dias de graça no expiresAt: cobrem o gap de renovação (boleto/pix pagos
- * com atraso) sem derrubar o acesso do assinante no dia do vencimento.
+ * As regras de decisão (ebook, carência, evento de assinatura antiga) ficam
+ * puras em $lib/server/asaas-regras, com teste.
  */
-const GRACE_DAYS = 5;
-
-/** Eventos que ativam/renovam: dinheiro confirmado ou disponível. */
-const ACTIVATE = new Set(['PAYMENT_CONFIRMED', 'PAYMENT_RECEIVED']);
-const PAST_DUE = new Set(['PAYMENT_OVERDUE']);
-const CANCEL = new Set(['PAYMENT_REFUNDED', 'PAYMENT_CHARGEBACK_REQUESTED']);
-
 export const POST: RequestHandler = async ({ request }) => {
 	if (!env.ASAAS_WEBHOOK_TOKEN) {
 		logger.error('asaas-webhook: ASAAS_WEBHOOK_TOKEN não configurado');
@@ -99,6 +98,13 @@ export const POST: RequestHandler = async ({ request }) => {
 	return json({ received: true });
 };
 
+const PROF_COLS = {
+	id: professionals.id,
+	status: professionals.subscriptionStatus,
+	expiresAt: professionals.subscriptionExpiresAt,
+	subscriptionId: professionals.asaasSubscriptionId
+};
+
 async function applyEvent(body: {
 	event?: string;
 	payment?: AsaasPaymentPayload;
@@ -106,13 +112,15 @@ async function applyEvent(body: {
 	const event = body.event!;
 	const payment = body.payment;
 
-	const relevant = ACTIVATE.has(event) || PAST_DUE.has(event) || CANCEL.has(event);
-	if (!relevant) return {}; // evento só arquivado, sem regra de negócio
+	const plan = payment ? planFromPayment(payment) : null;
+	const cobranca: Cobranca = payment && isEbookPayment(payment) ? 'ebook' : plan ? 'plano' : 'outra';
+	const decisao = decidirPorEvento(event, cobranca);
+	if (decisao.tipo === 'ignorar') return decisao.motivo ? { skipped: decisao.motivo } : {};
 	if (!payment?.customer) return { skipped: 'sem customer no payload' };
 
 	// EBOOK (cobrança avulsa): entrega é manual via Drive — avisa o responsável
 	// por email com os dados do comprador e arquiva. Não mexe em assinatura.
-	if (ACTIVATE.has(event) && isEbookPayment(payment)) {
+	if (decisao.tipo === 'ebook') {
 		const buyer = await getAsaasCustomer(payment.customer);
 		await sendEbookPurchaseAlert({
 			buyerName: buyer.name,
@@ -132,24 +140,22 @@ async function applyEvent(body: {
 		return { skipped: `ebook vendido — alerta + lead no CRM (${buyer.email ?? 'sem email'})` };
 	}
 
-	const plan = planFromPayment(payment);
-	// Cobrança que não é de plano nem ebook: arquiva sem mexer em assinatura.
-	if (!plan && ACTIVATE.has(event)) return { skipped: 'pagamento não mapeado a plano' };
-
 	// Match em 3 níveis, do determinístico pro heurístico:
 	// 1. asaas_customer_id salvo na assinatura feita de dentro do app
 	// 2. externalReference da cobrança (= professional.id, herdado da subscription)
 	// 3. email do customer no Asaas × email da conta (links estáticos/fallback)
-	let prof: { id: string; status: string } | undefined;
+	let prof:
+		| { id: string; status: string; expiresAt: Date | null; subscriptionId: string | null }
+		| undefined;
 	[prof] = await db
-		.select({ id: professionals.id, status: professionals.subscriptionStatus })
+		.select(PROF_COLS)
 		.from(professionals)
 		.where(eq(professionals.asaasCustomerId, payment.customer))
 		.limit(1);
 
 	if (!prof && typeof payment.externalReference === 'string' && payment.externalReference) {
 		[prof] = await db
-			.select({ id: professionals.id, status: professionals.subscriptionStatus })
+			.select(PROF_COLS)
 			.from(professionals)
 			.where(sql`${professionals.id}::text = ${payment.externalReference}`)
 			.limit(1);
@@ -159,7 +165,7 @@ async function applyEvent(body: {
 		const email = await getAsaasCustomerEmail(payment.customer);
 		if (!email) return { skipped: 'customer sem email no Asaas' };
 		[prof] = await db
-			.select({ id: professionals.id, status: professionals.subscriptionStatus })
+			.select(PROF_COLS)
 			.from(professionals)
 			.where(sql`lower(${professionals.email}) = ${email}`)
 			.limit(1);
@@ -173,10 +179,16 @@ async function applyEvent(body: {
 			.catch(() => {}); // unique violation (customer já de outra conta): segue com o match por email
 	}
 
-	if (ACTIVATE.has(event) && plan) {
-		const expires = new Date();
-		expires.setMonth(expires.getMonth() + plan.months);
-		expires.setDate(expires.getDate() + GRACE_DAYS);
+	if (decisao.tipo !== 'ativar' && eventoDeOutraAssinatura(payment.subscription, prof.subscriptionId)) {
+		return { professionalId: prof.id, skipped: `${event} de assinatura não vigente (${payment.subscription})` };
+	}
+
+	if (decisao.tipo === 'ativar' && plan) {
+		const expires = novaExpiracao(
+			new Date(),
+			prof.status === 'active' ? prof.expiresAt : null,
+			plan.months
+		);
 		await db
 			.update(professionals)
 			.set({
@@ -191,7 +203,7 @@ async function applyEvent(body: {
 				updatedAt: sql`now()`
 			})
 			.where(eq(professionals.id, prof.id));
-	} else if (PAST_DUE.has(event)) {
+	} else if (decisao.tipo === 'rebaixar') {
 		// Só rebaixa quem está ativo — não mexe em trial/cancelado.
 		if (prof.status === 'active') {
 			await db
@@ -199,7 +211,7 @@ async function applyEvent(body: {
 				.set({ subscriptionStatus: 'past_due', updatedAt: sql`now()` })
 				.where(eq(professionals.id, prof.id));
 		}
-	} else if (CANCEL.has(event)) {
+	} else if (decisao.tipo === 'cancelar') {
 		await db
 			.update(professionals)
 			.set({ subscriptionStatus: 'cancelled', updatedAt: sql`now()` })
