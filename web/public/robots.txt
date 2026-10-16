@@ -1,0 +1,23 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /legal/
+
+# Áreas privadas — não indexar
+Disallow: /dashboard
+Disallow: /crm
+Disallow: /alunos
+Disallow: /planos
+Disallow: /treinos
+Disallow: /exercicios
+Disallow: /mensagens
+Disallow: /agenda
+Disallow: /configuracoes
+Disallow: /onboarding
+Disallow: /feedback
+Disallow: /logout
+Disallow: /a/
+Disallow: /recuperar
+Disallow: /api/
+
+Sitemap: https://preceptorfisic.com/sitemap.xml
