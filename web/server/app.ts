@@ -10,6 +10,7 @@ import { rotina } from './routes/rotina';
 import { conta } from './routes/conta';
 import { crm } from './routes/crm';
 import { publico } from './routes/publico';
+import { receberWebhookAsaas } from '$lib/server/asaas-webhook';
 
 
 /**
@@ -26,6 +27,8 @@ app.onError((err, c) => {
 });
 
 app.get('/health', (c) => c.json({ ok: true }));
+// Webhook do Asaas: mesma URL do app antigo (configurada no painel do Asaas).
+app.post('/webhooks/asaas', (c) => receberWebhookAsaas(c.req.raw));
 app.route('/auth', auth);
 app.route('/sessao', sessao);
 app.route('/dashboard', dashboard);
