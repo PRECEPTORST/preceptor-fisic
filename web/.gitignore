@@ -1,0 +1,4 @@
+public/__dev/
+node_modules
+dist
+.vercel

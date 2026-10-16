@@ -1,0 +1,130 @@
+/* Landing: SEMPRE escura (identidade). Os valores repetem o :root escuro do
+   index.css e vencem o html.light pela especificidade do escopo. */
+.lp-escuro,
+html.light .lp-escuro {
+  color-scheme: dark;
+  --bg: #050505;
+  --bg-elevated: #0f0f0f;
+  --bg-subtle: #161616;
+  --bg-muted: #1e1e1e;
+  --c-ink: #fafafa;
+  --c-ink-soft: #b8b8b8;
+  --c-ink-mute: #8a8a8a;
+  --c-ink-disabled: #4d4d4d;
+  --c-border: #262626;
+  --c-border-strong: #383838;
+  --border-focus: #a78bfa;
+  --accent-c: #a78bfa;
+  --accent-soft: rgba(167, 139, 250, 0.12);
+  --accent-strong: #c4b5fd;
+  --on-accent: #0a0a0a;
+  --positive: #34d399;
+  --positive-soft: rgba(52, 211, 153, 0.14);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.14);
+  --negative: #f87171;
+  --negative-soft: rgba(248, 113, 113, 0.14);
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.14);
+  --ring-soft: rgba(167, 139, 250, 0.35);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 16px 40px rgba(0, 0, 0, 0.6);
+  --background: 0 0% 2%;
+  --foreground: 0 0% 98%;
+  --card: 0 0% 6%;
+  --card-foreground: 0 0% 98%;
+  --primary: 255 92% 76%;
+  --primary-foreground: 0 0% 4%;
+  --muted: 0 0% 9%;
+  --muted-foreground: 0 0% 54%;
+  --border: 0 0% 15%;
+  --ring: 255 92% 76%;
+  background: var(--bg);
+  color: var(--c-ink);
+}
+
+html:has(.lp-escuro) {
+  background: #050505;
+  scroll-behavior: smooth;
+  scroll-padding-top: 72px;
+}
+
+/* Entrada: fade + translate curto, escalonado por --i. Só com JS (classe
+   lp-js no wrapper), para o HTML pré-renderizado nunca ficar invisível. */
+.lp-js .lp-in {
+  opacity: 0;
+  transform: translateY(20px);
+  filter: blur(6px);
+}
+.lp-js .lp-in.lp-visto {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  transition:
+    opacity 600ms var(--ease-saida),
+    transform 700ms var(--ease-saida),
+    filter 600ms var(--ease-saida);
+  transition-delay: calc(var(--i, 0) * 80ms);
+}
+
+/* Cards da landing reagem ao ponteiro (depois de entrar). */
+.lp-js .lp-in.lp-visto.card-vivo {
+  transition: transform 240ms var(--ease-saida), border-color 200ms ease, box-shadow 240ms var(--ease-saida);
+}
+.lp-js .lp-in.lp-visto.card-vivo:hover { transform: translateY(-2px); }
+
+/* Como funciona: a linha de cada passo se desenha da esquerda. */
+.lp-passo { position: relative; }
+.lp-passo::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: -1px;
+  height: 1px;
+  background: var(--accent-c);
+  transform-origin: left;
+  transform: scaleX(0);
+}
+.lp-js .lp-passo.lp-visto::before {
+  transform: scaleX(1);
+  transition: transform 900ms var(--ease-saida);
+  transition-delay: calc(var(--i, 0) * 160ms + 200ms);
+}
+
+/* Prévia do hero: o plano "é gerado" ao vivo uma vez. */
+@keyframes lp-surge { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes lp-barra { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes lp-some { to { opacity: 0; } }
+.lp-js .lp-gera { opacity: 0; animation: lp-surge 500ms var(--ease-saida) forwards; animation-delay: calc(600ms + var(--g, 0) * 260ms); }
+.lp-js .lp-barra {
+  transform-origin: left;
+  animation: lp-barra 1600ms cubic-bezier(0.4, 0, 0.2, 1) 300ms both, lp-some 300ms ease 1900ms forwards;
+}
+.lp-js .lp-estado-gerando { animation: lp-some 200ms ease 1800ms forwards; }
+.lp-js .lp-estado-validado { opacity: 0; animation: lp-surge 400ms var(--ease-saida) 1900ms forwards; }
+.lp-barra, .lp-estado-gerando { display: none; }
+.lp-js .lp-barra, .lp-js .lp-estado-gerando { display: block; }
+
+/* Prévia flutua levemente seguindo o ponteiro (via --rx/--ry do JS). */
+.lp-flutua {
+  transform: perspective(1200px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 500ms var(--ease-saida);
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-js .lp-in,
+  .lp-js .lp-gera,
+  .lp-js .lp-estado-validado {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+    animation: none;
+  }
+  .lp-js .lp-barra, .lp-js .lp-estado-gerando { display: none; }
+  .lp-passo::before { transform: scaleX(1); }
+  .lp-flutua { transform: none; }
+  html:has(.lp-escuro) {
+    scroll-behavior: auto;
+  }
+}
