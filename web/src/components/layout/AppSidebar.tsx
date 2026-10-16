@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LogOut, Moon, Sun } from "lucide-react";
+import { LogOut, Moon, Search, Sun } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useSessao } from "@/hooks/useSessao";
@@ -8,7 +8,15 @@ import { alternarTema, lerTema } from "@/lib/theme";
 import { BrandMark } from "@/components/BrandMark";
 import { itemAtivo, navPrincipal, navRodape, type ItemNav } from "./nav";
 
-export function AppSidebar({ onNavigate, className }: { onNavigate?: () => void; className?: string }) {
+export function AppSidebar({
+  onNavigate,
+  onBuscar,
+  className,
+}: {
+  onNavigate?: () => void;
+  onBuscar?: () => void;
+  className?: string;
+}) {
   const { data: s } = useSessao();
   const { sair } = useAuth();
   const { pathname } = useLocation();
@@ -47,6 +55,18 @@ export function AppSidebar({ onNavigate, className }: { onNavigate?: () => void;
         <BrandMark size={28} />
         <span className="text-body font-semibold tracking-tight text-ink">PreceptorFISIC</span>
       </NavLink>
+
+      {onBuscar && (
+        <button
+          type="button"
+          onClick={onBuscar}
+          className="mx-3 mb-3 flex h-9 items-center gap-2 rounded-md border border-line bg-bg-subtle px-3 text-body text-ink-mute transition-colors hover:border-line-strong hover:text-ink"
+        >
+          <Search className="size-4" aria-hidden />
+          <span className="flex-1 text-left">Buscar</span>
+          <kbd className="font-mono text-micro text-ink-mute">⌘K</kbd>
+        </button>
+      )}
 
       {s?.trial && (
         <NavLink

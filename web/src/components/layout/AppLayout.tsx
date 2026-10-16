@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
-import { Menu } from "lucide-react";
+import { Menu, Search } from "lucide-react";
+import { CommandPalette } from "@/components/CommandPalette";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { BrandMark } from "@/components/BrandMark";
 import { AppSidebar } from "./AppSidebar";
@@ -8,13 +9,15 @@ import { AppSidebar } from "./AppSidebar";
 /** Shell do profissional: sidebar fixa no desktop, drawer no mobile (padrão Cockpit). */
 export function AppLayout() {
   const [menu, setMenu] = useState(false);
+  const [paleta, setPaleta] = useState(false);
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-bg">
-      <AppSidebar className="hidden md:flex" />
+      <AppSidebar className="hidden md:flex" onBuscar={() => setPaleta(true)} />
+      <CommandPalette aberto={paleta} onAberto={setPaleta} />
       <Sheet open={menu} onOpenChange={setMenu}>
         <SheetContent side="left" className="w-64 border-r-0 p-0">
           <SheetTitle className="sr-only">Menu</SheetTitle>
-          <AppSidebar className="w-full border-r-0" onNavigate={() => setMenu(false)} />
+          <AppSidebar className="w-full border-r-0" onNavigate={() => setMenu(false)} onBuscar={() => { setMenu(false); setPaleta(true); }} />
         </SheetContent>
       </Sheet>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -28,7 +31,15 @@ export function AppLayout() {
             <Menu className="size-5" />
           </button>
           <BrandMark size={24} />
-          <span className="text-body font-semibold">PreceptorFISIC</span>
+          <span className="flex-1 text-body font-semibold">PreceptorFISIC</span>
+          <button
+            type="button"
+            onClick={() => setPaleta(true)}
+            className="flex size-10 items-center justify-center rounded-md text-ink-soft hover:bg-bg-subtle"
+            aria-label="Buscar"
+          >
+            <Search className="size-5" />
+          </button>
         </header>
         <main id="conteudo" className="min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
