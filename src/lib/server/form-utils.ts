@@ -6,8 +6,14 @@
  * action decidir entre fail(400) e ignorar o campo.
  */
 
+/**
+ * Valor de campo: string ou arquivo (FormDataEntryValue). Declarado aqui, sem
+ * depender do lib DOM, para a API Hono (web/server, só lib ES) também usar.
+ */
+export type FormEntry = string | object;
+
 /** "72,5" | "72.5" | " 72 " → 72.5; vazio/inválido → null. */
-export function parseDecimalBR(v: FormDataEntryValue | null | undefined): number | null {
+export function parseDecimalBR(v: FormEntry | null | undefined): number | null {
 	if (v == null) return null;
 	const s = String(v).trim().replace(/\s/g, '');
 	if (!s) return null;
@@ -20,7 +26,7 @@ export function parseDecimalBR(v: FormDataEntryValue | null | undefined): number
 }
 
 /** Inteiro seguro; vazio/inválido → null. */
-export function parseIntSafe(v: FormDataEntryValue | null | undefined): number | null {
+export function parseIntSafe(v: FormEntry | null | undefined): number | null {
 	const n = parseDecimalBR(v);
 	if (n == null) return null;
 	return Number.isInteger(n) ? n : Math.round(n);
@@ -36,7 +42,7 @@ export function clamp(n: number | null, min: number, max: number): number | null
  * Data de form: aceita "yyyy-mm-dd" (input date) e "dd/mm/aaaa" (digitada).
  * Retorna "yyyy-mm-dd" validado (existe no calendário) ou null.
  */
-export function parseDateISO(v: FormDataEntryValue | null | undefined): string | null {
+export function parseDateISO(v: FormEntry | null | undefined): string | null {
 	if (v == null) return null;
 	const s = String(v).trim();
 	if (!s) return null;
@@ -56,7 +62,7 @@ export function parseDateISO(v: FormDataEntryValue | null | undefined): string |
 }
 
 /** String de form aparada e limitada; vazio → null. */
-export function parseText(v: FormDataEntryValue | null | undefined, maxLen: number): string | null {
+export function parseText(v: FormEntry | null | undefined, maxLen: number): string | null {
 	if (v == null) return null;
 	const s = String(v).trim().slice(0, maxLen);
 	return s || null;
