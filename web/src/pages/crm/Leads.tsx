@@ -180,11 +180,11 @@ export default function CrmLeads() {
                     className="justify-start"
                   >
                     <ToggleGroupItem value="all" size="sm" className="whitespace-nowrap">
-                      Todos <span className="num text-ink-mute">{leads.length}</span>
+                      Todos <span className="num ml-1 text-ink-mute">{leads.length}</span>
                     </ToggleGroupItem>
                     {ESTAGIOS.map((e) => (
                       <ToggleGroupItem key={e.id} value={e.id} size="sm" className="whitespace-nowrap">
-                        {e.label} <span className="num text-ink-mute">{counts[e.id]}</span>
+                        {e.label} <span className="num ml-1 text-ink-mute">{counts[e.id]}</span>
                       </ToggleGroupItem>
                     ))}
                   </ToggleGroup>
