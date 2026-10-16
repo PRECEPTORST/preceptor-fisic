@@ -67,8 +67,9 @@ function Conversa({ d }: { d: ConversaAluno }) {
     if (body && !enviar.isPending) enviar.mutate(body);
   };
 
+  // Sem animação no wrapper: transform residual prenderia o compositor `fixed`.
   return (
-    <div className="animate-soft-fade">
+    <div>
       {d.messages.length === 0 ? (
         <div className="flex flex-col items-center px-4 py-12 text-center">
           <Avatar nome={d.professionalName} size={56} />

@@ -379,8 +379,8 @@ function Exercicio(p: {
         </header>
         <ol className="mt-2 divide-y divide-line">
           {p.series.map((s, i) => (
-            <li key={i} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-              <span className="num w-8 text-body font-medium text-ink-mute">{i + 1}ª</span>
+            <li key={i} className="grid grid-cols-[2rem_1fr] items-center gap-x-3 gap-y-2 px-4 py-3">
+              <span className="num row-span-2 self-start pt-3 text-body font-medium text-ink-mute">{i + 1}ª</span>
               {tipo !== "bodyweight" && (
                 <Stepper
                   id={`carga-${i}`}
@@ -456,25 +456,31 @@ function Stepper(p: {
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-1" role="group" aria-label={p.rotulo}>
+    <div className="col-start-2 flex w-full items-center gap-1.5" role="group" aria-label={p.rotulo}>
       <Button variant="outline" size="icon" className="size-12" aria-label={`Diminuir ${p.rotulo.toLowerCase()}`} onClick={() => p.onChange(somar(p.valor, -p.passo))}>
         <Minus aria-hidden />
       </Button>
       <label htmlFor={p.id} className="sr-only">
         {p.rotulo}
       </label>
-      <input
-        id={p.id}
-        inputMode={p.decimal ? "decimal" : "numeric"}
-        value={p.valor}
-        placeholder={p.placeholder}
-        onChange={(e) => p.onChange(e.target.value.replace(p.decimal ? /[^\d,.]/g : /\D/g, "").slice(0, 6))}
-        className="num h-12 w-16 rounded-md border border-input bg-bg text-center text-body-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      />
+      <div className="relative min-w-0 flex-1">
+        <input
+          id={p.id}
+          inputMode={p.decimal ? "decimal" : "numeric"}
+          value={p.valor}
+          placeholder={p.placeholder}
+          onChange={(e) => p.onChange(e.target.value.replace(p.decimal ? /[^\d,.]/g : /\D/g, "").slice(0, 6))}
+          className="num h-12 w-full rounded-md border border-input bg-bg px-10 text-center text-body-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        />
+        {p.unidade && (
+          <span aria-hidden className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-caption text-ink-mute">
+            {p.unidade}
+          </span>
+        )}
+      </div>
       <Button variant="outline" size="icon" className="size-12" aria-label={`Aumentar ${p.rotulo.toLowerCase()}`} onClick={() => p.onChange(somar(p.valor, p.passo))}>
         <Plus aria-hidden />
       </Button>
-      {p.unidade && <span className="ml-1 text-caption text-ink-mute">{p.unidade}</span>}
     </div>
   );
 }
@@ -554,6 +560,16 @@ function EscalaPSE({ valor, onChange }: { valor: number | null; onChange: (v: nu
             {v}
           </button>
         ))}
+      </div>
+      {/* Faixa de intensidade: enche até o valor e muda de cor (leve → máximo). */}
+      <div aria-hidden className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-muted">
+        <div
+          className={cn(
+            "h-full origin-left rounded-full transition-[transform,background-color] duration-300 ease-out",
+            valor == null ? "bg-transparent" : valor <= 3 ? "bg-positive" : valor <= 6 ? "bg-warning" : "bg-negative",
+          )}
+          style={{ transform: `scaleX(${valor == null ? 0 : Math.max(0.04, valor / 10)})` }}
+        />
       </div>
       <p className="mt-2 min-h-6 text-body" aria-live="polite">
         {valor == null ? <span className="text-ink-mute">Toque num número.</span> : <><span className="num font-medium">{valor}</span> · {rotuloPSE(valor)}</>}
