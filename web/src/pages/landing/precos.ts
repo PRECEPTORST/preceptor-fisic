@@ -19,6 +19,9 @@ export type Plano = {
   itens: string[];
 };
 
+/** Números conferidos no banco de produção em 16/10/2026. */
+export const NUMEROS_BASE = { trechos: 2040, fontes: 49, exercicios: 1324, regras: 23 } as const;
+
 export const TESTE = { dias: 7, treinos: 2, alunos: 10 } as const;
 
 export const WHATS_NUMERO = "553591481514";

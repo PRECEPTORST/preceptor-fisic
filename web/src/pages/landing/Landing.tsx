@@ -6,14 +6,13 @@ import { Navbar } from "@/components/landing/Navbar";
 import { PreviaPlano } from "@/components/landing/PreviaPlano";
 import { Precos } from "@/components/landing/Precos";
 import { Contador, useEntrada } from "@/components/landing/movimento";
-import { TESTE, WHATS_HUMANO, hrefCadastro } from "./precos";
+import { NUMEROS_BASE, TESTE, WHATS_HUMANO, hrefCadastro } from "./precos";
 import "./landing.css";
 
 export const CONTATO_EMAIL: string =
   (import.meta.env.PUBLIC_CONTATO_EMAIL as string | undefined) || "preceptorfisic@ospreceptores.com";
 
-/** Números conferidos no banco de produção em 16/10/2026. */
-export const NUMEROS = { trechos: 2040, fontes: 49, exercicios: 1324, regras: 23 } as const;
+export const NUMEROS = NUMEROS_BASE;
 
 const POPULACOES = ["Hipertensão", "Diabetes", "Cardiopatia", "DPOC", "Pós-LCA", "Gestantes", "Idosos frágeis", "Oncológicos"];
 
