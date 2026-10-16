@@ -46,6 +46,8 @@ await build({
 			}
 		}
 	],
+	// Atalhos de dev dependem de NODE_ENV: no bundle de produção ele é fixo.
+	define: { 'process.env.NODE_ENV': '"production"' },
 	logLevel: 'warning'
 });
 
