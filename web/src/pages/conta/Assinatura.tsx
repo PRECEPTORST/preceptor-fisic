@@ -133,21 +133,21 @@ function Checkout({ d }: { d: DadosAssinatura }) {
           Mensal
         </ToggleGroupItem>
         <ToggleGroupItem value="anual" className="rounded-full px-4 data-[state=on]:bg-brand data-[state=on]:text-brand-on">
-          Anual <span className="eyebrow ml-1 text-current">2 meses grátis</span>
+          Anual <span className="eyebrow ml-1.5 text-current opacity-80">2 meses grátis</span>
         </ToggleGroupItem>
       </ToggleGroup>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="cascata grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {PLANOS.map((p) => (
           <article
             key={p.base}
             className={cn(
-              "relative flex flex-col rounded-lg border bg-bg-elevated p-5 shadow-card",
+              "card-vivo relative flex flex-col rounded-lg border bg-bg-elevated p-5 shadow-card",
               p.popular ? "border-brand/60" : "border-line",
             )}
           >
             {p.popular && (
-              <span className="eyebrow absolute -top-2.5 left-5 rounded-full bg-brand px-2.5 py-0.5 text-brand-on">Mais popular</span>
+              <span className="absolute -top-2.5 left-5 rounded-full bg-brand px-2.5 py-0.5 font-mono text-micro uppercase text-brand-on">Inclui auditoria</span>
             )}
             <h2 className="text-h6 font-medium text-ink">{p.nome}</h2>
             <p className="mt-2 flex flex-wrap items-baseline gap-1">
@@ -161,11 +161,12 @@ function Checkout({ d }: { d: DadosAssinatura }) {
             </Button>
           </article>
         ))}
-        <article className="flex flex-col rounded-lg border border-line bg-bg-elevated p-5 shadow-card">
+        <article className="card-vivo flex flex-col rounded-lg border border-line bg-bg-elevated p-5 shadow-card">
           <h2 className="text-h6 font-medium text-ink">Institucional</h2>
           <p className="mt-2 flex flex-wrap items-baseline gap-1">
+            <span className="eyebrow w-full">a partir de</span>
             <span className="num text-h5 font-semibold text-ink">R$ 499,90</span>
-            <span className="eyebrow">a partir de · /mês</span>
+            <span className="eyebrow">/mês</span>
           </p>
           <p className="mt-2 text-body text-ink-soft">Para clínicas, academias e equipes.</p>
           <ListaItens itens={["Até 5 profissionais", "Alunos ilimitados", "Onboarding dedicado", "Contrato e faturamento"]} />

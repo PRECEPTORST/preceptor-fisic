@@ -13,6 +13,7 @@ import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Contador } from "@/components/landing/movimento";
 
 type Resposta = { students: StudentListItem[]; stats: DashboardStats; attention: AttentionItem[] };
 
@@ -56,7 +57,7 @@ export default function Dashboard() {
         }
       >
         {(d) => (
-          <div className="space-y-6">
+          <div className="cascata space-y-6">
             <Atencao itens={d.attention} />
             <Numeros stats={d.stats} />
             <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -65,12 +66,12 @@ export default function Dashboard() {
             </div>
             <Link
               to="/alunos"
-              className="flex items-center justify-between rounded-lg border border-line bg-bg-elevated px-5 py-4 text-body transition-colors hover:border-line-strong"
+              className="card-vivo flex items-center justify-between rounded-lg border border-line bg-bg-elevated px-5 py-4 text-body"
             >
               <span>
                 Ver todos os alunos <span className="num text-ink-mute">({numero(d.students.length)})</span>
               </span>
-              <ArrowRight className="size-4 text-ink-mute" aria-hidden />
+              <ArrowRight className="seta-anda size-4 text-ink-mute" aria-hidden />
             </Link>
           </div>
         )}
@@ -95,7 +96,7 @@ function Atencao({ itens }: { itens: AttentionItem[] }) {
           <span className="num">{itens.length}</span> {itens.length === 1 ? "aluno para revisar" : "alunos para revisar"}
         </h2>
       </header>
-      <ul className="divide-y divide-line">
+      <ul className="cascata divide-y divide-line">
         {itens.map((a) => (
           <li key={`${a.studentId}-${a.kind}`}>
             {/* Link de verdade (a auditoria achou uma div clicável sem teclado). */}
@@ -115,7 +116,7 @@ function Atencao({ itens }: { itens: AttentionItem[] }) {
                   {a.detail && <> · “{a.detail}”</>}
                 </span>
               </span>
-              <span className="hidden shrink-0 text-caption text-brand sm:inline">{a.action.label} →</span>
+              <span className="hidden shrink-0 text-caption text-brand sm:inline">{a.action.label} <span className="seta-anda inline-block">→</span></span>
             </Link>
           </li>
         ))}
@@ -136,7 +137,7 @@ function Numeros({ stats }: { stats: DashboardStats }) {
       {cards.map((c) => (
         <div key={c.label} className="rounded-lg border border-line bg-bg-elevated p-5 shadow-card">
           <p className="eyebrow">{c.label}</p>
-          <p className="num mt-3 text-h3 font-medium text-ink">{numero(c.valor)}</p>
+          <p className="mt-3"><Contador valor={c.valor} className="text-h3 font-medium text-ink" /></p>
           {c.extra && <p className="num mt-1 text-caption text-ink-mute">{c.extra}</p>}
         </div>
       ))}
@@ -171,7 +172,7 @@ function Atividade({ stats }: { stats: DashboardStats }) {
         {semanas(stats.heatmap).map((sem, w) => (
           <div key={w} className="grid gap-[3px]">
             {sem.map((v, d) => (
-              <span key={d} className={cn("aspect-square rounded-[3px]", NIVEL_CLASSE[nivel(v, stats.heatmapMax)])} />
+              <span key={d} className={cn("aspect-square rounded-[3px] transition-transform duration-150 hover:scale-125", NIVEL_CLASSE[nivel(v, stats.heatmapMax)])} />
             ))}
           </div>
         ))}

@@ -99,9 +99,9 @@ function CtaPrincipal({ className = "" }: { className?: string }) {
   return (
     <a
       href={hrefCadastro()}
-      className={`inline-flex h-12 items-center justify-center gap-2 rounded-md bg-brand px-5 text-body-lg font-medium text-brand-on transition-colors hover:bg-brand-strong ${className}`}
+      className={`inline-flex h-12 items-center justify-center gap-2 rounded-md bg-brand px-5 text-body-lg font-medium text-brand-on transition-[background-color,transform] duration-150 hover:bg-brand-strong active:scale-[0.97] ${className}`}
     >
-      Começar 7 dias grátis <ArrowRight className="size-4" aria-hidden="true" />
+      Começar 7 dias grátis <ArrowRight className="seta-anda size-4" aria-hidden="true" />
     </a>
   );
 }
@@ -112,7 +112,7 @@ function CtaHumano() {
       href={WHATS_HUMANO}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-line-strong px-5 text-body-lg text-ink transition-colors hover:bg-bg-subtle"
+      className="inline-flex h-12 items-center justify-center gap-2 rounded-md border border-line-strong px-5 text-body-lg text-ink transition-[background-color,transform] duration-150 hover:bg-bg-subtle active:scale-[0.97]"
     >
       <MessageCircle className="size-4 text-ink-mute" aria-hidden="true" /> Falar com um humano
     </a>
@@ -136,7 +136,7 @@ function Secao({ id, eyebrow, titulo, sub, children }: { id?: string; eyebrow: s
   );
 }
 
-const celula = "lp-in rounded-lg border border-line bg-bg-elevated p-5 shadow-card";
+const celula = "lp-in card-vivo rounded-lg border border-line bg-bg-elevated p-5 shadow-card";
 
 export default function Landing({ logado = false }: { logado?: boolean }) {
   const raiz = useRef<HTMLDivElement>(null);
@@ -235,7 +235,7 @@ export default function Landing({ logado = false }: { logado?: boolean }) {
         <Secao id="como-funciona" eyebrow="Como funciona" titulo="Do cadastro ao celular do aluno em três passos.">
           <ol className="grid grid-cols-1 gap-8 md:grid-cols-3">
             {PASSOS.map((p, i) => (
-              <li key={p.titulo} className="lp-in border-t border-line-strong pt-5" style={{ ["--i" as string]: i }}>
+              <li key={p.titulo} className="lp-in lp-passo border-t border-line-strong pt-5" style={{ ["--i" as string]: i }}>
                 <div className="flex items-center gap-3">
                   <span className="num text-caption text-brand">0{i + 1}</span>
                   <p.icone className="size-4 text-ink-mute" aria-hidden="true" />

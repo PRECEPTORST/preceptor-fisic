@@ -219,6 +219,10 @@
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.01em;
   }
+}
+
+/* Em components (antes de utilities): text-brand, text-warning etc. vencem a cor. */
+@layer components {
   .eyebrow {
     font-family: var(--font-mono);
     font-size: 11px;
@@ -226,6 +230,58 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--c-ink-mute);
+  }
+}
+
+/* ============================================================
+   Movimento (só transform/opacity/filter; reduced-motion zera tudo).
+   --ease-saida: desacelera no fim, sensação de "assentar".
+   ============================================================ */
+:root {
+  --ease-saida: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes entra-foco {
+  from { opacity: 0; transform: translateY(10px); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes brilho-esqueleto {
+  from { background-position: 150% 0; }
+  to { background-position: -50% 0; }
+}
+
+@layer components {
+  /* Troca de tela dentro do shell. */
+  .entra-tela { animation: entra-foco 360ms var(--ease-saida) both; }
+
+  /* Filhos entram em cascata (listas, grades de cards). Até 12 passos. */
+  .cascata > * { animation: entra-foco 420ms var(--ease-saida) both; }
+  .cascata > *:nth-child(2) { animation-delay: 40ms; }
+  .cascata > *:nth-child(3) { animation-delay: 80ms; }
+  .cascata > *:nth-child(4) { animation-delay: 120ms; }
+  .cascata > *:nth-child(5) { animation-delay: 160ms; }
+  .cascata > *:nth-child(6) { animation-delay: 200ms; }
+  .cascata > *:nth-child(7) { animation-delay: 240ms; }
+  .cascata > *:nth-child(8) { animation-delay: 280ms; }
+  .cascata > *:nth-child(9) { animation-delay: 320ms; }
+  .cascata > *:nth-child(10) { animation-delay: 360ms; }
+  .cascata > *:nth-child(n + 11) { animation-delay: 400ms; }
+
+  /* Card clicável: sobe 2px e a borda acende. */
+  .card-vivo {
+    transition: transform 240ms var(--ease-saida), border-color 200ms ease, box-shadow 240ms var(--ease-saida);
+  }
+  .card-vivo:hover { transform: translateY(-2px); border-color: var(--c-border-strong); box-shadow: var(--shadow-pop); }
+  .card-vivo:active { transform: translateY(0) scale(0.995); }
+
+  /* Seta que anda no hover do link/botão pai. */
+  .seta-anda { transition: transform 240ms var(--ease-saida); }
+  :hover > .seta-anda, :focus-visible > .seta-anda { transform: translateX(3px); }
+
+  .esqueleto {
+    background: linear-gradient(90deg, var(--bg-subtle) 0%, var(--bg-muted) 50%, var(--bg-subtle) 100%);
+    background-size: 200% 100%;
+    animation: brilho-esqueleto 1.4s ease-in-out infinite;
   }
 }
 

@@ -36,7 +36,7 @@ export function Precos() {
             <article
               key={p.chave}
               style={{ ["--i" as string]: i }}
-              className="lp-in flex flex-col rounded-lg border border-line bg-bg-elevated p-5 shadow-card"
+              className="lp-in card-vivo flex flex-col rounded-lg border border-line bg-bg-elevated p-5 shadow-card"
             >
               <h3 className="text-h6 font-semibold text-ink">{p.nome}</h3>
               <p className="mt-1 min-h-[2.9em] text-caption text-ink-mute">{p.resumo}</p>

@@ -46,7 +46,7 @@ export function DataList<T>({
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-line">
+        <tbody className="cascata divide-y divide-line">
           {rows.map((r) => (
             <tr key={rowKey(r)} className="relative transition-colors hover:bg-bg-subtle">
               {columns.map((c, i) => (
@@ -65,7 +65,7 @@ export function DataList<T>({
         </tbody>
       </table>
 
-      <ul className="divide-y divide-line md:hidden">
+      <ul className="cascata divide-y divide-line md:hidden">
         {rows.map((r) => {
           const corpo = (
             <>
