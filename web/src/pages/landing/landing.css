@@ -1,0 +1,76 @@
+/* Landing: SEMPRE escura (identidade). Os valores repetem o :root escuro do
+   index.css e vencem o html.light pela especificidade do escopo. */
+.lp-escuro,
+html.light .lp-escuro {
+  color-scheme: dark;
+  --bg: #050505;
+  --bg-elevated: #0f0f0f;
+  --bg-subtle: #161616;
+  --bg-muted: #1e1e1e;
+  --c-ink: #fafafa;
+  --c-ink-soft: #b8b8b8;
+  --c-ink-mute: #8a8a8a;
+  --c-ink-disabled: #4d4d4d;
+  --c-border: #262626;
+  --c-border-strong: #383838;
+  --border-focus: #a78bfa;
+  --accent-c: #a78bfa;
+  --accent-soft: rgba(167, 139, 250, 0.12);
+  --accent-strong: #c4b5fd;
+  --on-accent: #0a0a0a;
+  --positive: #34d399;
+  --positive-soft: rgba(52, 211, 153, 0.14);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.14);
+  --negative: #f87171;
+  --negative-soft: rgba(248, 113, 113, 0.14);
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.14);
+  --ring-soft: rgba(167, 139, 250, 0.35);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 16px 40px rgba(0, 0, 0, 0.6);
+  --background: 0 0% 2%;
+  --foreground: 0 0% 98%;
+  --card: 0 0% 6%;
+  --card-foreground: 0 0% 98%;
+  --primary: 255 92% 76%;
+  --primary-foreground: 0 0% 4%;
+  --muted: 0 0% 9%;
+  --muted-foreground: 0 0% 54%;
+  --border: 0 0% 15%;
+  --ring: 255 92% 76%;
+  background: var(--bg);
+  color: var(--c-ink);
+}
+
+html:has(.lp-escuro) {
+  background: #050505;
+  scroll-behavior: smooth;
+  scroll-padding-top: 72px;
+}
+
+/* Entrada: fade + translate curto, escalonado por --i. Só com JS (classe
+   lp-js no wrapper), para o HTML pré-renderizado nunca ficar invisível. */
+.lp-js .lp-in {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.lp-js .lp-in.lp-visto {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition-delay: calc(var(--i, 0) * 50ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-js .lp-in {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  html:has(.lp-escuro) {
+    scroll-behavior: auto;
+  }
+}
