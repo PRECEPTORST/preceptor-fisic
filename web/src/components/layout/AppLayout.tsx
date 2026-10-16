@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Suspense, useState } from "react";
+import { Outlet } from "react-router-dom";
+import { SkeletonLista } from "@/components/QueryState";
 import { Menu, Search } from "lucide-react";
 import { CommandPalette } from "@/components/CommandPalette";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -8,7 +9,6 @@ import { AppSidebar } from "./AppSidebar";
 
 /** Shell do profissional: sidebar fixa no desktop, drawer no mobile (padrão Cockpit). */
 export function AppLayout() {
-  const { pathname } = useLocation();
   const [menu, setMenu] = useState(false);
   const [paleta, setPaleta] = useState(false);
   return (
@@ -43,8 +43,11 @@ export function AppLayout() {
           </button>
         </header>
         <main id="conteudo" className="min-w-0 flex-1 overflow-y-auto">
-          <div key={pathname} className="entra-tela mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-            <Outlet />
+          <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            {/* Suspense aqui (e não em volta do app): tela lazy carregando não derruba o menu. */}
+            <Suspense fallback={<SkeletonLista />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

@@ -245,27 +245,28 @@
   from { opacity: 0; transform: translateY(10px); filter: blur(4px); }
   to { opacity: 1; transform: none; filter: none; }
 }
+@keyframes entra-cascata {
+  from { opacity: 0.001; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
 @keyframes brilho-esqueleto {
   from { background-position: 150% 0; }
   to { background-position: -50% 0; }
 }
 
 @layer components {
-  /* Troca de tela dentro do shell. */
-  .entra-tela { animation: entra-foco 360ms var(--ease-saida) both; }
-
   /* Filhos entram em cascata (listas, grades de cards). Até 12 passos. */
-  .cascata > * { animation: entra-foco 420ms var(--ease-saida) both; }
-  .cascata > *:nth-child(2) { animation-delay: 40ms; }
-  .cascata > *:nth-child(3) { animation-delay: 80ms; }
-  .cascata > *:nth-child(4) { animation-delay: 120ms; }
-  .cascata > *:nth-child(5) { animation-delay: 160ms; }
-  .cascata > *:nth-child(6) { animation-delay: 200ms; }
-  .cascata > *:nth-child(7) { animation-delay: 240ms; }
-  .cascata > *:nth-child(8) { animation-delay: 280ms; }
-  .cascata > *:nth-child(9) { animation-delay: 320ms; }
-  .cascata > *:nth-child(10) { animation-delay: 360ms; }
-  .cascata > *:nth-child(n + 11) { animation-delay: 400ms; }
+  .cascata > * { animation: entra-cascata 320ms var(--ease-saida) both; }
+  .cascata > *:nth-child(2) { animation-delay: 25ms; }
+  .cascata > *:nth-child(3) { animation-delay: 50ms; }
+  .cascata > *:nth-child(4) { animation-delay: 75ms; }
+  .cascata > *:nth-child(5) { animation-delay: 100ms; }
+  .cascata > *:nth-child(6) { animation-delay: 125ms; }
+  .cascata > *:nth-child(7) { animation-delay: 150ms; }
+  .cascata > *:nth-child(8) { animation-delay: 175ms; }
+  .cascata > *:nth-child(9) { animation-delay: 200ms; }
+  .cascata > *:nth-child(10) { animation-delay: 225ms; }
+  .cascata > *:nth-child(n + 11) { animation-delay: 250ms; }
 
   /* Card clicável: sobe 2px e a borda acende. */
   .card-vivo {
