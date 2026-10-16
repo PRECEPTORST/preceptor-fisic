@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+	<defs>
+		<radialGradient id="glow" cx="0.7" cy="0.4" r="0.65">
+			<stop offset="0" stop-color="#A78BFA" stop-opacity="0.45" />
+			<stop offset="0.5" stop-color="#A78BFA" stop-opacity="0.12" />
+			<stop offset="1" stop-color="#A78BFA" stop-opacity="0" />
+		</radialGradient>
+		<linearGradient id="accent" x1="0" y1="0" x2="1" y2="0.3">
+			<stop offset="0" stop-color="#A78BFA" />
+			<stop offset="0.5" stop-color="#C4B5FD" />
+			<stop offset="1" stop-color="#E0D4FF" />
+		</linearGradient>
+	</defs>
+
+	<!-- bg -->
+	<rect width="1200" height="630" fill="#050505" />
+	<rect width="1200" height="630" fill="url(#glow)" />
+
+	<!-- subtle grid -->
+	<g stroke="#1a1a1a" stroke-width="1" opacity="0.4">
+		<line x1="0" y1="120" x2="1200" y2="120" />
+		<line x1="0" y1="510" x2="1200" y2="510" />
+	</g>
+
+	<!-- logo block — marca "F" oficial (#A78BFA) + wordmark PreceptorFISIC -->
+	<g transform="translate(80, 86)">
+		<g transform="scale(0.03923)">
+			<g transform="translate(-286.434880,1713.677258) scale(0.1,-0.1)" fill="#A78BFA" stroke="none">
+				<path d="M4075 17125 c-600 -97 -1058 -533 -1187 -1128 -29 -136 -32 -417 -5 -550 57 -280 182 -519 377 -721 200 -207 416 -332 695 -402 123 -31 396 -44 538 -25 460 61 877 368 1082 796 95 199 135 381 135 621 0 240 -39 414 -139 619 -78 159 -160 271 -289 397 -203 198 -431 320 -709 379 -129 28 -371 34 -498 14z" />
+				<path d="M9850 17134 c-135 -22 -218 -40 -295 -66 -361 -120 -659 -378 -829 -715 -93 -185 -133 -343 -146 -578 -17 -288 -43 -432 -105 -585 -161 -396 -466 -687 -867 -828 -131 -47 -223 -62 -459 -77 -302 -20 -445 -54 -644 -155 -142 -72 -227 -133 -349 -250 -172 -166 -285 -341 -359 -555 -61 -175 -72 -247 -72 -465 0 -217 11 -288 70 -467 137 -410 477 -751 886 -887 152 -51 238 -65 473 -81 230 -15 326 -32 456 -77 362 -128 652 -385 815 -723 112 -231 150 -414 142 -675 -7 -225 -45 -381 -137 -575 -97 -203 -300 -438 -480 -557 -250 -164 -469 -232 -805 -248 -201 -10 -335 -33 -472 -81 -504 -178 -873 -631 -943 -1155 -8 -66 -10 -504 -8 -1679 4 -1583 4 -1590 25 -1675 72 -286 197 -512 389 -704 189 -190 413 -316 678 -382 127 -32 372 -43 521 -24 538 67 1007 461 1169 982 69 218 66 145 66 1773 0 846 4 1529 10 1610 25 365 156 652 415 910 133 134 224 201 371 274 199 98 367 138 639 151 99 5 218 16 264 25 598 115 1056 594 1145 1198 108 726 -360 1417 -1078 1593 -69 17 -153 28 -266 34 -91 6 -203 15 -250 21 -607 75 -1103 540 -1220 1145 -44 227 -23 521 52 732 126 358 379 647 713 814 180 90 336 132 562 148 83 6 720 10 1603 10 973 -1 1490 3 1539 10 593 84 1075 547 1193 1145 25 130 27 388 3 520 -67 372 -295 721 -607 928 -167 112 -310 173 -513 220 -89 21 -103 21 -1680 23 -874 1 -1601 0 -1615 -2z" />
+			</g>
+		</g>
+	</g>
+	<text x="150" y="115" font-family="-apple-system, sans-serif" font-size="24" font-weight="500" fill="#fafafa" letter-spacing="-0.5">Preceptor<tspan font-weight="700">FISIC</tspan></text>
+	<text x="150" y="140" font-family="ui-monospace, monospace" font-size="12" font-weight="500" fill="#7a7a7a" letter-spacing="2">PRO · v3.2</text>
+
+	<!-- pill -->
+	<g transform="translate(80, 200)">
+		<rect width="380" height="32" rx="16" fill="#A78BFA" fill-opacity="0.1" stroke="#A78BFA" stroke-opacity="0.3" />
+		<circle cx="18" cy="16" r="4" fill="#A78BFA" />
+		<text x="32" y="21" font-family="ui-monospace, monospace" font-size="11" font-weight="500" fill="#C4B5FD" letter-spacing="1.5">CONFORMIDADE LGPD · DADOS NA REGIÃO BR</text>
+	</g>
+
+	<!-- headline -->
+	<text x="80" y="320" font-family="-apple-system, sans-serif" font-size="68" font-weight="500" fill="#fafafa" letter-spacing="-2">Prescreva treinos</text>
+	<text x="80" y="400" font-family="-apple-system, sans-serif" font-size="68" font-weight="500" fill="#fafafa" letter-spacing="-2">com</text>
+	<text x="280" y="400" font-family="-apple-system, sans-serif" font-style="italic" font-size="68" font-weight="400" fill="url(#accent)" letter-spacing="-2">rigor clínico.</text>
+
+	<!-- subhead -->
+	<text x="80" y="465" font-family="-apple-system, sans-serif" font-size="20" font-weight="400" fill="#b8b8b8" letter-spacing="-0.3">IA com diretrizes ACSM · Validação clínica automática · App mobile do aluno</text>
+
+	<!-- footer trust strip -->
+	<g transform="translate(80, 555)" font-family="ui-monospace, monospace" font-size="11" font-weight="500" letter-spacing="1.5" fill="#7a7a7a">
+		<circle cx="6" cy="14" r="4" fill="#34d399" />
+		<text x="20" y="18">VALIDADO PELO CONFEF</text>
+		<text x="240" y="18">·</text>
+		<circle cx="266" cy="14" r="4" fill="#A78BFA" />
+		<text x="280" y="18">DIRETRIZES ACSM/AHA</text>
+		<text x="490" y="18">·</text>
+		<circle cx="510" cy="14" r="4" fill="#60a5fa" />
+		<text x="524" y="18">GEMINI 2.5 + RAG</text>
+	</g>
+</svg>
