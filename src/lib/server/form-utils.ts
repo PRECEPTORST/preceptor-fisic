@@ -11,6 +11,8 @@
  * depender do lib DOM, para a API Hono (web/server, só lib ES) também usar.
  */
 export type FormEntry = string | object;
+/** Alias usado pela API do app do aluno. */
+export type FormValue = FormEntry;
 
 /** "72,5" | "72.5" | " 72 " → 72.5; vazio/inválido → null. */
 export function parseDecimalBR(v: FormEntry | null | undefined): number | null {
