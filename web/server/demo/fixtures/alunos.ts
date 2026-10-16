@@ -86,8 +86,8 @@ function ficha(path: string) {
 					]
 				: [],
 			assessments: [
-				{ id: 'av1', assessedAt: dias(-10), bodyFatPct: 22.4, notes: 'Boa progressão' },
-				{ id: 'av2', assessedAt: dias(-50), bodyFatPct: null, notes: null }
+				{ id: 'av1', assessedAt: dias(-10), bodyFatPct: 22.4, bmi: 24.9, restingHr: 68, bloodPressureSystolic: 122, bloodPressureDiastolic: 80, notes: 'Boa progressão' },
+				{ id: 'av2', assessedAt: dias(-50), bodyFatPct: null, bmi: 25.6, restingHr: 72, bloodPressureSystolic: null, bloodPressureDiastolic: null, notes: null }
 			],
 			lastWeights: [74, 73.5, 73, 72.4, s.weightKg],
 			progress: {

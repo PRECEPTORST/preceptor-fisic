@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  campoDoErro,
+  estadoDaFicha,
+  semPrefixo,
   categoriaImc,
   chipPlano,
   condicaoDeRisco,
@@ -99,6 +102,29 @@ describe("formulário", () => {
     const p = payloadDoForm(f);
     expect(p.weeklySessions).toBe(4);
     expect(p.minutesPerSession).toBe(50);
+  });
+});
+
+describe("redesign", () => {
+  it("erro da API cai no campo certo", () => {
+    expect(campoDoErro("name: nome deve ter ao menos 2 letras")).toBe("name");
+    expect(campoDoErro("peso inválido (20 a 400 kg)")).toBe("weightKg");
+    expect(campoDoErro("data de nascimento não pode ser no futuro")).toBe("birthDate");
+    expect(campoDoErro("Você não pode cadastrar aluno para esse profissional.")).toBeNull();
+    expect(semPrefixo("email: e-mail inválido")).toBe("e-mail inválido");
+  });
+  it("estado da jornada usa o plano mais recente", () => {
+    const e = estadoDaFicha({
+      student: { id: "a", profileCompletedAt: "2026-01-01" },
+      healthProfile: { cardiovascularRisk: "baixo" },
+      assessments: [{}],
+      plans: [
+        { id: "velho", status: "published", createdAt: "2026-01-01" },
+        { id: "novo", status: "generated", createdAt: "2026-02-01" },
+      ],
+    });
+    expect(e.plano).toEqual({ id: "novo", status: "generated", restricoesVermelhasAbertas: 0 });
+    expect(estadoDaFicha({ student: { id: "a", profileCompletedAt: null }, healthProfile: null, assessments: [], plans: [] }).cadastroCompleto).toBe(false);
   });
 });
 

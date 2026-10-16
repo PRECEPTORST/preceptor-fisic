@@ -287,3 +287,50 @@ export function payloadDoForm(f: FormAluno) {
 export function alternar<T>(lista: T[], item: T): T[] {
   return lista.includes(item) ? lista.filter((x) => x !== item) : [...lista, item];
 }
+
+/* ────────── Redesign: erro no campo e jornada ────────── */
+
+/**
+ * Em qual campo do formulário a mensagem da API cai. O zod do servidor manda
+ * "campo: msg"; as checagens à mão mandam o texto ("peso inválido…").
+ */
+export function campoDoErro(msg: string): keyof FormAluno | null {
+  const prefixo = msg.match(/^([a-zA-Z]+):/)?.[1];
+  if (prefixo && prefixo in FORM_VAZIO) return prefixo as keyof FormAluno;
+  const m = msg.toLowerCase();
+  if (m.includes("peso")) return "weightKg";
+  if (m.includes("altura")) return "heightCm";
+  if (m.includes("nascimento")) return "birthDate";
+  if (m.includes("e-mail")) return "email";
+  if (m.includes("nome")) return "name";
+  if (m.includes("frequência")) return "weeklySessions";
+  if (m.includes("minutos")) return "minutesPerSession";
+  return null;
+}
+
+/** Tira o prefixo "campo: " da mensagem do zod para exibir junto do campo. */
+export const semPrefixo = (msg: string) => msg.replace(/^[a-zA-Z]+:\s*/, "");
+
+type StatusPlano = "pending" | "generating" | "generated" | "published" | "archived" | "failed";
+const STATUS_PLANO: StatusPlano[] = ["pending", "generating", "generated", "published", "archived", "failed"];
+
+/**
+ * Estado da jornada (lib/jornada.ts) a partir da ficha. Vale o plano mais
+ * recente; restrições abertas ainda não vêm na ficha (são do editor de treino), ficam 0.
+ */
+export function estadoDaFicha(d: {
+  student: { id: string; profileCompletedAt: string | null };
+  healthProfile: { cardiovascularRisk?: string | null } | null;
+  assessments: unknown[];
+  plans: { id: string; status: string; createdAt: string }[];
+}) {
+  const recente = [...d.plans].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  const status = STATUS_PLANO.find((s) => s === recente?.status) ?? "archived";
+  return {
+    alunoId: d.student.id,
+    cadastroCompleto: d.student.profileCompletedAt != null,
+    avaliacoes: d.assessments.length,
+    riscoDefinido: d.healthProfile?.cardiovascularRisk != null,
+    plano: recente ? { id: recente.id, status, restricoesVermelhasAbertas: 0 } : null,
+  };
+}
