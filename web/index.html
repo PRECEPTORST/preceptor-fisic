@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- translate="no": o Google Tradutor reescreve nós de texto por fora do React
+     e derruba a árvore (lição do Cockpit, React#11538). App 100% pt-BR. -->
+<html lang="pt-BR" translate="no">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="google" content="notranslate" />
+    <meta name="theme-color" content="#050505" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>PreceptorFISIC</title>
+    <meta name="description" content="Prescrição de treino com IA para profissionais CREF e CREFITO." />
+  </head>
+  <body>
+    <!-- Aplica o tema antes do bundle para não piscar. Só o literal 'claro' ativa o claro. -->
+    <script>
+      try {
+        if (localStorage.getItem("fisic_tema") === "claro") document.documentElement.classList.add("light");
+      } catch (e) {}
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

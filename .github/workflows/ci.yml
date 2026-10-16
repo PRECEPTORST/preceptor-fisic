@@ -48,6 +48,26 @@ jobs:
           PUBLIC_SUPABASE_URL: 'https://ci.supabase.co'
           PUBLIC_SUPABASE_ANON_KEY: 'ci-anon-key'
 
+  web:
+    name: Web (React) · tipos + testes + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix web
+      - run: npx svelte-kit sync
+      - run: npm run build --prefix web
+
   smoke-e2e:
     name: Smoke E2E (Playwright)
     runs-on: ubuntu-latest

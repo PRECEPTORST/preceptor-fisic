@@ -1,0 +1,234 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Preceptor Fisic — design system do app React.
+   Estrutura do Cockpit v2: tokens semânticos (bg / ink / border / accent /
+   positive / warning / negative), camada HSL do shadcn por cima, e o tema por
+   classe no <html>. Valores do Fisic: Geist + Geist Mono, lavanda como única
+   cor vibrante, escuro como padrão.
+
+   Regras:
+   1. Nunca hex inline em componente. Só token.
+   2. Todo número usa font-mono + tabular-nums (classe `num`).
+   3. Lavanda só em ação primária, seleção e foco.
+   4. Sem gradiente decorativo.
+   ============================================================ */
+
+@layer base {
+  /* ── Escuro (padrão) ── */
+  :root {
+    color-scheme: dark;
+
+    --font-sans: "Geist Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+    --bg: #050505;
+    --bg-elevated: #0f0f0f;
+    --bg-subtle: #161616;
+    --bg-muted: #1e1e1e;
+
+    --c-ink: #fafafa;
+    --c-ink-soft: #b8b8b8;
+    /* #8a8a8a sobre #050505 ≈ 5.6:1 (AA). O antigo ink-3 #4d4d4d dava 2.3:1. */
+    --c-ink-mute: #8a8a8a;
+    --c-ink-disabled: #4d4d4d;
+
+    --c-border: #262626;
+    --c-border-strong: #383838;
+    --border-focus: #a78bfa;
+
+    --accent-c: #a78bfa;
+    --accent-soft: rgba(167, 139, 250, 0.12);
+    --accent-strong: #c4b5fd;
+    --on-accent: #0a0a0a;
+
+    --positive: #34d399;
+    --positive-soft: rgba(52, 211, 153, 0.14);
+    --warning: #fbbf24;
+    --warning-soft: rgba(251, 191, 36, 0.14);
+    --negative: #f87171;
+    --negative-soft: rgba(248, 113, 113, 0.14);
+    --info: #60a5fa;
+    --info-soft: rgba(96, 165, 250, 0.14);
+
+    --ring-soft: rgba(167, 139, 250, 0.35);
+    --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px rgba(0, 0, 0, 0.4);
+    --shadow-pop: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 16px 40px rgba(0, 0, 0, 0.6);
+
+    /* Camada shadcn (HSL sem hsl()) */
+    --background: 0 0% 2%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 6%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 255 92% 76%;
+    --primary-foreground: 0 0% 4%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 9%;
+    --muted-foreground: 0 0% 54%;
+    --accent: 0 0% 12%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 91% 71%;
+    --destructive-foreground: 0 0% 4%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 255 92% 76%;
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 4%;
+    --sidebar-foreground: 0 0% 72%;
+    --sidebar-primary: 255 92% 76%;
+    --sidebar-primary-foreground: 0 0% 4%;
+    --sidebar-accent: 0 0% 10%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 13%;
+    --sidebar-ring: 255 92% 76%;
+  }
+
+  /* ── Claro ──
+     O lavanda #a78bfa dá ~2.3:1 sobre branco. No claro o accent vira
+     violet-600 (#7c3aed, ~5.9:1) e as semânticas usam os tons -700. */
+  html.light {
+    color-scheme: light;
+
+    --bg: #ffffff;
+    --bg-elevated: #ffffff;
+    --bg-subtle: #f5f5f6;
+    --bg-muted: #ededef;
+
+    --c-ink: #18181b;
+    --c-ink-soft: #52525b;
+    --c-ink-mute: #67676f;
+    --c-ink-disabled: #a1a1aa;
+
+    --c-border: #e4e4e7;
+    --c-border-strong: #d4d4d8;
+    --border-focus: #7c3aed;
+
+    --accent-c: #7c3aed;
+    --accent-soft: rgba(124, 58, 237, 0.08);
+    --accent-strong: #6d28d9;
+    --on-accent: #ffffff;
+
+    --positive: #047857;
+    --positive-soft: rgba(4, 120, 87, 0.1);
+    --warning: #b45309;
+    --warning-soft: rgba(180, 83, 9, 0.1);
+    --negative: #b91c1c;
+    --negative-soft: rgba(185, 28, 28, 0.08);
+    --info: #2563eb;
+    --info-soft: rgba(37, 99, 235, 0.08);
+
+    --ring-soft: rgba(124, 58, 237, 0.25);
+    --shadow-card: 0 1px 2px rgba(16, 16, 20, 0.05), 0 8px 24px rgba(16, 16, 20, 0.07);
+    --shadow-pop: 0 2px 6px rgba(16, 16, 20, 0.08), 0 16px 40px rgba(16, 16, 20, 0.12);
+
+    --background: 0 0% 100%;
+    --foreground: 240 6% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 6% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 6% 10%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 6% 10%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 42%;
+    --accent: 240 5% 94%;
+    --accent-foreground: 240 6% 10%;
+    --destructive: 0 74% 42%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 262 83% 58%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 4% 34%;
+    --sidebar-primary: 262 83% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 5% 94%;
+    --sidebar-accent-foreground: 240 6% 10%;
+    --sidebar-border: 240 6% 90%;
+    --sidebar-ring: 262 83% 58%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    background: var(--bg);
+    color: var(--c-ink);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+  }
+
+  /* Foco visível sempre (a auditoria achou 10 `outline:none` sem substituto). */
+  *:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 3px var(--ring-soft),
+      0 0 0 1px var(--border-focus);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--c-border-strong);
+    border-radius: 999px;
+    border: 2px solid var(--bg);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer utilities {
+  /* Todo número: mono + tabular. */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.2;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--c-ink-mute);
+  }
+}
+
+/* Luminosidade do avatar acompanha o tema (texto do avatar é --c-ink). */
+:root { --avatar-l: 22%; }
+html.light { --avatar-l: 86%; }
