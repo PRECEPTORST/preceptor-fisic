@@ -19,4 +19,5 @@ export const comandos: Comando[] = [
   { id: "novo-aluno", label: "Novo aluno", grupo: "Ações", href: "/alunos/novo", palavras: ["cadastrar", "criar"] },
   { id: "novo-compromisso", label: "Novo compromisso", grupo: "Ações", href: "/agenda/nova", palavras: ["agendar", "consulta"] },
   { id: "novo-exercicio", label: "Novo exercício", grupo: "Ações", href: "/exercicios/novo" },
+  { id: "treinos-rascunho", label: "Treinos em rascunho", grupo: "Ir para", href: "/treinos?status=rascunho", palavras: ["revisar", "publicar", "planos"] },
 ];
