@@ -146,3 +146,27 @@ export function dataRelativa(iso: string, agora = new Date()): string {
 
 /** Letra da sessão: 0 → A. */
 export const letra = (i: number) => String.fromCharCode(65 + i);
+
+/** Rótulo da escala de PSE (CR-10 de Borg adaptada), 0 a 10. */
+export function rotuloPSE(v: number): string {
+  if (v <= 0) return "Repouso";
+  if (v <= 2) return "Muito leve";
+  if (v <= 4) return "Leve a moderado";
+  if (v <= 6) return "Pesado";
+  if (v <= 8) return "Muito pesado";
+  if (v === 9) return "Quase máximo";
+  return "Máximo";
+}
+
+/** Soma `passo` a um número digitado ("42,5"), sem ficar negativo. Devolve no formato BR. */
+export function somar(valor: string, passo: number): string {
+  const atual = Number(String(valor).replace(",", ".")) || 0;
+  const n = Math.max(0, Math.round((atual + passo) * 100) / 100);
+  return n === 0 ? "" : String(n).replace(".", ",");
+}
+
+/** "1:05" a partir de segundos. */
+export function relogio(seg: number): string {
+  const s = Math.max(0, Math.round(seg));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}

@@ -4,7 +4,10 @@ import {
   montarExerciseLogs,
   normalizarPSE,
   proximaSessao,
+  relogio,
   repsPadrao,
+  rotuloPSE,
+  somar,
   sessaoDeHoje,
   seriesIniciais,
   type EntradaTreino,
@@ -70,6 +73,18 @@ describe("normalizações", () => {
     expect(repsPadrao("10 a 15")).toBe("15");
     expect(repsPadrao(undefined)).toBe("");
     expect(seriesIniciais({ sets: 2, reps: "10" })).toEqual([{ weight: "", reps: "10" }, { weight: "", reps: "10" }]);
+  });
+});
+
+describe("helpers da execução", () => {
+  it("PSE, stepper e relógio", () => {
+    expect(rotuloPSE(0)).toBe("Repouso");
+    expect(rotuloPSE(7)).toBe("Muito pesado");
+    expect(rotuloPSE(10)).toBe("Máximo");
+    expect(somar("40", 2.5)).toBe("42,5");
+    expect(somar("42,5", 2.5)).toBe("45");
+    expect(somar("", -1)).toBe("");
+    expect(relogio(65)).toBe("1:05");
   });
 });
 
