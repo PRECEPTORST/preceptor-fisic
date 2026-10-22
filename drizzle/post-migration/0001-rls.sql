@@ -19,9 +19,10 @@ $$;
 -- professionals: dono vÃª sÃ³ a prÃ³pria row.
 alter table public.professionals enable row level security;
 drop policy if exists "own_row" on public.professionals;
+-- Só leitura: escrita em professionals (is_admin, subscription_status,
+-- organization_id) é exclusiva do servidor. Ver 0009.
 create policy "own_row" on public.professionals
-  for all using (auth_user_id = auth.uid())
-  with check (auth_user_id = auth.uid());
+  for select using (auth_user_id = auth.uid());
 
 -- students: filtrados por professional_id.
 alter table public.students enable row level security;
