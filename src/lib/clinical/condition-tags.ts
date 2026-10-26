@@ -37,11 +37,26 @@ export function deriveTagsFromDiagnosisLabels(labels: string[]): string[] {
 		}
 		if (/cardiopat|coronar|iam|infarto|dac/.test(label)) tags.add('cardiopatia_isquemica');
 		if (/insufici[eê]ncia card|icc/.test(label)) tags.add('ic_compensada');
-		if (/dpoc|enfisema|bronquite|pulmona/.test(label)) tags.add('dpoc_moderada');
+		// Severidade importa: a regra DPOC-002 (sem alta intensidade) só vale pro
+		// grave, e antes NINGUÉM recebia `dpoc_grave` — qualquer label pulmonar
+		// virava moderada, então a regra nunca disparava pra ninguém.
+		if (/dpoc|enfisema|bronquite|pulmona/.test(label)) {
+			if (/\bgrave\b|grau\s*(4|iv)\b|est[aá]gio\s*(4|iv)\b|avan[çc]ad/.test(label))
+				tags.add('dpoc_grave');
+			else if (/\bleve\b|grau\s*(1|i)\b|est[aá]gio\s*(1|i)\b/.test(label)) tags.add('dpoc_leve');
+			else tags.add('dpoc_moderada');
+		}
 		if (/avc|acidente vascular/.test(label)) tags.add('pos_avc');
 		if (/parkinson/.test(label)) tags.add('parkinson_leve');
 		if (/esclerose m/.test(label)) tags.add('esclerose_multipla');
-		if (/gestante|gravida|gr[aá]vida/.test(label)) tags.add('gestante_segundo_trimestre');
+		// Trimestre quando o label disser; sem informação, assume o segundo, que é
+		// o mais restritivo dos dois primeiros (GEST-001 já vale a partir dele).
+		if (/gestante|gr[aá]vid|gravidez|gesta[çc][aã]o/.test(label)) {
+			if (/\b(1|1º|1o|i|primeiro)\s*tri/.test(label)) tags.add('gestante_primeiro_trimestre');
+			else if (/\b(3|3º|3o|iii|terceiro)\s*tri/.test(label))
+				tags.add('gestante_terceiro_trimestre');
+			else tags.add('gestante_segundo_trimestre');
+		}
 		if (/idoso|fr[aá]gil|sarcopen/.test(label)) tags.add('idoso_fragil');
 		if (/\blca\b|cruzado/.test(label)) tags.add('lca_pos_cirurgico');
 		if (/osteoartr|artrose joelho/.test(label)) tags.add('osteoartrite_joelho');
