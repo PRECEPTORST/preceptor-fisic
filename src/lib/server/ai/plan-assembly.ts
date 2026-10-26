@@ -105,6 +105,50 @@ export function sessionsPreview(
 }
 
 /**
+ * Aquecimento de reserva, usado SÓ quando a IA devolve o bloco vazio.
+ *
+ * Cada sessão é gerada por uma chamada separada, e o prompt pedia "no máximo 2"
+ * exercícios de aquecimento sem exigir nenhum: bastava uma chamada pular o
+ * bloco pra uma sessão sair sem aquecimento no meio de um plano em que as
+ * outras tinham. O schema aceita lista vazia, então nada reprovava o plano e o
+ * furo só aparecia na revisão. Decisão clínica dos doutores (out/2026): se o
+ * plano tem aquecimento e mobilidade, tem que aparecer em TODOS os treinos.
+ *
+ * Genérico de propósito: é mobilidade e ativação de baixa intensidade, segura
+ * em qualquer condição. Vai marcado como `inference` pra ficar explícito na
+ * auditoria que não saiu de diretriz recuperada. Condição que exige
+ * aquecimento mais longo (cardiopatia, 10 min) continua coberta pela regra
+ * clínica e pelo doutor na revisão.
+ */
+const DEFAULT_WARMUP = [
+	{
+		name: 'Mobilidade articular geral e caminhada leve',
+		muscle_groups: ['corpo inteiro'],
+		sets: 1,
+		reps: '8 min',
+		load_guidance: 'PSE 2-3',
+		rest_seconds: 0,
+		execution_notes:
+			'Mobilidade de tornozelo, quadril e ombro seguida de caminhada em ritmo confortável. Progredir só até a respiração ficar levemente acelerada.',
+		contraindications: [],
+		source_refs: [
+			{
+				type: 'inference' as const,
+				note: 'Aquecimento padrão aplicado pelo sistema porque a geração devolveu o bloco vazio.'
+			}
+		]
+	}
+];
+
+/**
+ * Garante ao menos um item no aquecimento. Pura: devolve a própria lista quando
+ * já vem preenchida, pra não mexer no que a IA decidiu.
+ */
+export function ensureWarmup<T>(warmup: T[]): T[] {
+	return warmup.length > 0 ? warmup : (DEFAULT_WARMUP as unknown as T[]);
+}
+
+/**
  * Remonta metadados + molduras + blocos de exercícios no formato final.
  * `sessions[i]` corresponde a `outlines[i]`; `null` = aquela sessão falhou e é
  * DESCARTADA (plano parcial) em vez de derrubar o plano inteiro.
@@ -117,7 +161,7 @@ export function buildSession(outline: SessionOutline, filled: SessionExercises):
 		day_of_week: outline.day_of_week,
 		focus: outline.focus,
 		duration_minutes: outline.duration_minutes,
-		warmup: filled.warmup,
+		warmup: ensureWarmup(filled.warmup),
 		main: filled.main,
 		cooldown: filled.cooldown,
 		observations: filled.observations
