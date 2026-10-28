@@ -30,6 +30,8 @@ export type StudentCtx = {
 	conditionTags: string[];
 	age: number | null;
 	cvRisk: CvRisk;
+	/** Nomes dos medicamentos em uso. Ver `medications_any`. */
+	medications: string[];
 	/** Cirurgias do aluno com quantos meses fazem. Ver `months_since_surgery`. */
 	surgeries: Array<{ procedure: string; monthsAgo: number }>;
 };
@@ -72,6 +74,21 @@ export function appliesTo(rule: ClinicalRuleRow, ctx: StudentCtx): boolean {
 	// age range
 	if (w.age_gte != null && (ctx.age == null || ctx.age < w.age_gte)) return false;
 	if (w.age_lte != null && (ctx.age == null || ctx.age > w.age_lte)) return false;
+
+	// medications_any → aluno usa AO MENOS um dos medicamentos
+	if (w.medications_any && w.medications_any.length > 0) {
+		const usa = w.medications_any.some((p) => {
+			let re: RegExp;
+			try {
+				re = new RegExp(p, 'i');
+			} catch {
+				logger.warn({ rule: rule.code, pattern: p }, 'rule.medication_regex_invalid');
+				return false;
+			}
+			return ctx.medications.some((m) => re.test(m));
+		});
+		if (!usa) return false;
+	}
 
 	// Fase pós-operatória. Sem data registrada, a regra vale só se NÃO exigir
 	// tempo mínimo: aluno sem data fica na fase inicial, que é a mais
@@ -137,6 +154,21 @@ function parseHrPercentMax(s: string | undefined): number | null {
 	return null;
 }
 
+/**
+ * A intensidade foi PRESCRITA por frequência cardíaca?
+ *
+ * Procura os marcadores que aparecem numa zona-alvo: bpm, batimentos, %FCmáx,
+ * %FCR, FC de reserva, Karvonen. "FC" sozinho não conta, senão "monitorar FC"
+ * num campo de intensidade viraria violação — e monitorar é justamente o que
+ * continua permitido.
+ */
+const HR_PRESCRICAO =
+	/\b\d+\s*(?:a|-|–|até)?\s*\d*\s*bpm\b|\bbatimentos?\b|\bkarvonen\b|\d\s*%\s*(?:d[ao]\s*)?fc|%\s*fc\s*(?:m[aá]x|r\b)|\bfc\s*(?:m[aá]x|de\s+reserva|reserva)\b|\bfc\s*[-–]?\s*alvo\b|\bzona\s+de\s+fc\b/i;
+
+export function prescribedByHr(texto: string | undefined | null): boolean {
+	return !!texto && HR_PRESCRICAO.test(texto);
+}
+
 /* ────────── Helpers de scan no plano ────────── */
 
 function allExercises(plan: TrainingPlanOutput): { ex: Exercise; sessionLabel: string }[] {
@@ -187,6 +219,7 @@ export type Violation = {
 		| 'forbid_pattern'
 		| 'forbid_intensity'
 		| 'forbid_volume'
+		| 'forbid_hr_prescription'
 		| 'require_monitoring'
 		| 'require_clearance';
 	details?: string;
@@ -273,6 +306,32 @@ export async function validatePlan(
 			}
 		}
 
+		// 2b) forbid.intensity_prescribed_by_hr
+		if (dsl.forbid?.intensity_prescribed_by_hr) {
+			const culpados = exercises
+				.filter(({ ex }) => [ex.load_guidance, ex.intensity].some((t) => prescribedByHr(t)))
+				.map(({ ex }) => ex.name);
+
+			// O aeróbio é onde a zona por FC mais aparece: a tabela do modelo tem
+			// uma coluna "Intensidade" que costuma sair como "60-70%FCmáx (150-167bpm)".
+			const aerobios = (plan.aerobic_prescriptions ?? [])
+				.filter((a) => prescribedByHr(a.intensity))
+				.map((a) => `Aeróbio: ${a.means}`);
+
+			const todos = Array.from(new Set([...culpados, ...aerobios]));
+			if (todos.length > 0) {
+				violations.push({
+					ruleCode: rule.code,
+					ruleTitle: rule.title,
+					severity: rule.severity,
+					description: rule.description,
+					affectedExercises: todos,
+					violationType: 'forbid_hr_prescription',
+					details: `${todos.length} item(ns) com intensidade prescrita por FC — reescrever em PSE ou teste da fala`
+				});
+			}
+		}
+
 		// 3) forbid.volume_above
 		if (dsl.forbid?.volume_above) {
 			const { metric, value } = dsl.forbid.volume_above;
@@ -352,6 +411,7 @@ export function violationToRestriction(v: Violation): Restriction {
 		forbid_pattern: 'Exercício contraindicado',
 		forbid_intensity: 'Intensidade acima do permitido',
 		forbid_volume: 'Volume acima do permitido',
+		forbid_hr_prescription: 'Intensidade prescrita por frequência cardíaca',
 		require_monitoring: 'Monitoramento obrigatório ausente',
 		require_clearance: 'Liberação médica obrigatória'
 	};
@@ -407,6 +467,7 @@ export function deriveStudentCtxFromHealth(
 		conditionTags,
 		age,
 		cvRisk: (health?.cardiovascularRisk ?? 'baixo') as CvRisk,
+		medications: (health?.medications ?? []).map((m) => m?.name).filter((n): n is string => !!n),
 		surgeries: surgeriesWithAge(health)
 	};
 }

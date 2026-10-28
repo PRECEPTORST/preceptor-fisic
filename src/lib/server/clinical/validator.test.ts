@@ -11,6 +11,7 @@ import type { TrainingPlanOutput } from '$lib/schemas/training-plan';
 // testar isoladamente. Por ora testamos via validatePlan que é o entry point.
 import {
 	appliesTo,
+	prescribedByHr,
 	surgeriesWithAge,
 	violationToRestriction,
 	type ClinicalRuleRow,
@@ -96,6 +97,7 @@ describe('appliesTo — fase pós-operatória (months_since_surgery)', () => {
 
 	const aluno = (monthsAgo: number | null, procedure = 'Reconstrução de LCA'): StudentCtx => ({
 		conditionTags: ['lca_pos_cirurgico'],
+		medications: [],
 		age: 30,
 		cvRisk: 'baixo',
 		surgeries: monthsAgo == null ? [] : [{ procedure, monthsAgo }]
@@ -188,5 +190,108 @@ describe('surgeriesWithAge', () => {
 		const r = surgeriesWithAge({ surgeries: [{ procedure: 'LCA', date: seisMeses }] } as never);
 		expect(r).toHaveLength(1);
 		expect(r[0]!.monthsAgo).toBeCloseTo(6, 0);
+	});
+});
+
+describe('prescribedByHr — intensidade prescrita por frequência cardíaca', () => {
+	// O guia da Anna: quem usa betabloqueador não pode ter o aeróbio prescrito
+	// por FC, porque o remédio achata a resposta e a zona sai errada.
+	it.each([
+		'FC 110-120 bpm',
+		'60-70%FCmáx (150-167bpm)',
+		'70% FCR',
+		'Karvonen 60-80%',
+		'manter na zona de FC 2',
+		'FC de reserva 50 a 60%',
+		'140 bpm',
+		'FC-alvo 130'
+	])('pega "%s"', (t) => {
+		expect(prescribedByHr(t)).toBe(true);
+	});
+
+	it.each([
+		'PSE 6-7',
+		'Peso corporal',
+		'70% 1RM',
+		'2-3 kg em cada mão',
+		'Teste da fala',
+		'Monitorar FC durante a sessão',
+		'Acompanhar FC e PA',
+		undefined,
+		''
+	])('não pega "%s"', (t) => {
+		expect(prescribedByHr(t)).toBe(false);
+	});
+
+	it('monitorar FC não é prescrever por FC — é a distinção da CARD-004', () => {
+		expect(prescribedByHr('Monitorar FC')).toBe(false);
+		expect(prescribedByHr('FC 130 bpm')).toBe(true);
+	});
+});
+
+describe('appliesTo — medications_any', () => {
+	// Mesmos padrões de scripts/regra-betabloqueador.ts. As barras são DUPLAS:
+	// em string JS, '\w' vira só "w" e '\b' vira backspace, e aí a regex não
+	// casa com atenolol nenhum.
+	const BETA = ['\\w*[oai]lol\\b'];
+
+	const regra: ClinicalRuleRow = {
+		code: 'CARD-004',
+		title: 'Betabloqueador',
+		description: '',
+		severity: 'yellow',
+		conditionTags: [],
+		ruleDsl: { when: { medications_any: BETA }, forbid: { intensity_prescribed_by_hr: true } }
+	};
+
+	const comRemedio = (...meds: string[]): StudentCtx => ({
+		conditionTags: ['populacao_geral'],
+		age: 60,
+		cvRisk: 'baixo',
+		medications: meds,
+		surgeries: []
+	});
+
+	it.each([
+		'atenolol 50mg',
+		'Metoprolol 25 mg 2x/dia',
+		'propranolol',
+		'bisoprolol',
+		'Carvedilol 6,25mg',
+		'labetalol'
+	])('dispara com %s', (m) => {
+		expect(appliesTo(regra, comRemedio(m))).toBe(true);
+	});
+
+	it.each(['losartana 50 mg', 'metformina 850 mg', 'sinvastatina', 'AAS 100mg'])(
+		'não dispara com %s',
+		(m) => {
+			expect(appliesTo(regra, comRemedio(m))).toBe(false);
+		}
+	);
+
+	it('basta um medicamento da lista entre vários', () => {
+		expect(appliesTo(regra, comRemedio('losartana', 'metformina', 'atenolol'))).toBe(true);
+	});
+
+	it('sem medicamento nenhum, não dispara', () => {
+		expect(appliesTo(regra, comRemedio())).toBe(false);
+	});
+
+	it('vale pra qualquer aluno, não só cardiopata — a regra não tem tags', () => {
+		const hipertenso: StudentCtx = {
+			...comRemedio('atenolol'),
+			conditionTags: ['hipertensao_estagio_1']
+		};
+		expect(appliesTo(regra, hipertenso)).toBe(true);
+	});
+
+	it('regex inválido não derruba a validação', () => {
+		const quebrada: ClinicalRuleRow = {
+			...regra,
+			ruleDsl: { when: { medications_any: ['(['] } }
+		};
+		expect(() => appliesTo(quebrada, comRemedio('atenolol'))).not.toThrow();
+		expect(appliesTo(quebrada, comRemedio('atenolol'))).toBe(false);
 	});
 });
