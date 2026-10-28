@@ -208,6 +208,7 @@ export type FormAluno = {
   diagnoses: string;
   medications: string;
   limitations: string;
+  surgeries: string;
   goals: string[];
   weeklySessions: string;
   minutesPerSession: string;
@@ -228,6 +229,7 @@ export const FORM_VAZIO: FormAluno = {
   diagnoses: "",
   medications: "",
   limitations: "",
+  surgeries: "",
   goals: [],
   weeklySessions: "3",
   minutesPerSession: "60",
@@ -241,12 +243,29 @@ const juntar = <K extends string>(l: unknown, k: K) =>
   Array.isArray(l) ? (l as Lista<K> & object).map((x) => x[k]).join(", ") : "";
 
 /**
+ * Cirurgia volta pro texto no MESMO formato que o servidor lê ("procedimento
+ * em MM/AAAA"). Voltando só o nome, abrir a edição e salvar sem encostar no
+ * campo apagaria a data, e é a data que define a fase da reabilitação.
+ */
+const juntarCirurgias = (l: unknown) =>
+  Array.isArray(l)
+    ? (l as { procedure?: string; date?: string }[])
+        .map((c) => {
+          if (!c?.procedure) return "";
+          const [ano, mes] = (c.date ?? "").split("-");
+          return ano && mes ? `${c.procedure} em ${mes}/${ano}` : c.procedure;
+        })
+        .filter(Boolean)
+        .join(", ")
+    : "";
+
+/**
  * Valores iniciais da edição. Só a chave de identidade vai para o texto: os
  * campos ricos (dose, severidade, notas) ficam no jsonb e o servidor preserva no merge.
  */
 export function formDoAluno(d: {
   student: { name: string; birthDate: string | null; sex: string; weightKg: number | null; heightCm: number | null; phone: string | null; email: string | null };
-  healthProfile: { cardiovascularRisk?: string | null; diagnoses?: unknown; medications?: unknown; injuries?: unknown } | null;
+  healthProfile: { cardiovascularRisk?: string | null; diagnoses?: unknown; medications?: unknown; injuries?: unknown; surgeries?: unknown } | null;
   preferences: { goals?: unknown; weeklySessions?: number | null; minutesPerSession?: number | null; experienceLevel?: string | null; prescribedDifficulty?: string | null; trainingSplit?: string | null } | null;
 }): FormAluno {
   const s = d.student;
@@ -264,6 +283,7 @@ export function formDoAluno(d: {
     diagnoses: juntar(hp?.diagnoses, "label"),
     medications: juntar(hp?.medications, "name"),
     limitations: juntar(hp?.injuries, "region"),
+    surgeries: juntarCirurgias(hp?.surgeries),
     goals: Array.isArray(p?.goals) ? (p.goals as string[]) : [],
     weeklySessions: String(p?.weeklySessions ?? 3),
     minutesPerSession: String(p?.minutesPerSession ?? 60),

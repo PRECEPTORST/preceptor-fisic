@@ -26,13 +26,15 @@ import { logger } from '$lib/server/logger';
 const CV_RISK_ORDER = ['baixo', 'moderado', 'alto', 'muito_alto'] as const;
 type CvRisk = (typeof CV_RISK_ORDER)[number];
 
-type StudentCtx = {
+export type StudentCtx = {
 	conditionTags: string[];
 	age: number | null;
 	cvRisk: CvRisk;
+	/** Cirurgias do aluno com quantos meses fazem. Ver `months_since_surgery`. */
+	surgeries: Array<{ procedure: string; monthsAgo: number }>;
 };
 
-type ClinicalRuleRow = {
+export type ClinicalRuleRow = {
 	code: string;
 	title: string;
 	description: string;
@@ -43,7 +45,8 @@ type ClinicalRuleRow = {
 
 /* ────────── Filtro: regra aplicável a este aluno? ────────── */
 
-function appliesTo(rule: ClinicalRuleRow, ctx: StudentCtx): boolean {
+/** Exportada pra teste: `validatePlan` precisa de DB, o filtro é puro. */
+export function appliesTo(rule: ClinicalRuleRow, ctx: StudentCtx): boolean {
 	const w = rule.ruleDsl.when ?? {};
 
 	// As condition_tags da regra (coluna) definem A QUE condição ela se refere.
@@ -69,6 +72,33 @@ function appliesTo(rule: ClinicalRuleRow, ctx: StudentCtx): boolean {
 	// age range
 	if (w.age_gte != null && (ctx.age == null || ctx.age < w.age_gte)) return false;
 	if (w.age_lte != null && (ctx.age == null || ctx.age > w.age_lte)) return false;
+
+	// Fase pós-operatória. Sem data registrada, a regra vale só se NÃO exigir
+	// tempo mínimo: aluno sem data fica na fase inicial, que é a mais
+	// restritiva e também o comportamento anterior a esta regra existir.
+	if (w.months_since_surgery) {
+		const { procedure_matches, gte, lt } = w.months_since_surgery;
+		let re: RegExp;
+		try {
+			re = new RegExp(procedure_matches, 'i');
+		} catch {
+			// Regex inválido na regra não pode derrubar a validação INTEIRA do
+			// plano: trata como "não casou" e segue.
+			logger.warn({ rule: rule.code, procedure_matches }, 'rule.surgery_regex_invalid');
+			return false;
+		}
+		const meses = ctx.surgeries
+			.filter((s) => re.test(s.procedure))
+			.map((s) => s.monthsAgo)
+			.sort((a, b) => a - b)[0];
+
+		if (meses == null) {
+			if (gte != null && gte > 0) return false;
+		} else {
+			if (gte != null && meses < gte) return false;
+			if (lt != null && meses >= lt) return false;
+		}
+	}
 
 	// cv_risk_min: student.cvRisk >= rule.cv_risk_min
 	if (w.cv_risk_min) {
@@ -345,6 +375,29 @@ export type DeriveCtxArgs = {
 	cvRisk: CvRisk;
 };
 
+const MES_MS = 30.44 * 24 * 60 * 60 * 1000;
+
+/**
+ * Cirurgias com quantos meses fazem. Entrada sem data ou com data ilegível é
+ * DESCARTADA em vez de virar zero: zero significaria "operou hoje" e colocaria
+ * o aluno na fase mais restritiva por engano. Quem não tem data cai no caminho
+ * de `months_since_surgery` sem registro, que já é conservador.
+ *
+ * Data no futuro também é descartada: é erro de digitação, e meses negativos
+ * fariam a comparação de fase mentir.
+ */
+export function surgeriesWithAge(
+	health: HealthProfile | null
+): Array<{ procedure: string; monthsAgo: number }> {
+	const agora = Date.now();
+	return (health?.surgeries ?? []).flatMap((s) => {
+		if (!s?.procedure || !s.date) return [];
+		const t = new Date(s.date).getTime();
+		if (Number.isNaN(t) || t > agora) return [];
+		return [{ procedure: s.procedure, monthsAgo: (agora - t) / MES_MS }];
+	});
+}
+
 export function deriveStudentCtxFromHealth(
 	conditionTags: string[],
 	age: number | null,
@@ -353,6 +406,7 @@ export function deriveStudentCtxFromHealth(
 	return {
 		conditionTags,
 		age,
-		cvRisk: (health?.cardiovascularRisk ?? 'baixo') as CvRisk
+		cvRisk: (health?.cardiovascularRisk ?? 'baixo') as CvRisk,
+		surgeries: surgeriesWithAge(health)
 	};
 }

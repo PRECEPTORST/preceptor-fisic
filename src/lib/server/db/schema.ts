@@ -628,6 +628,21 @@ export type RuleDSL = {
 		age_gte?: number;
 		age_lte?: number;
 		cv_risk_min?: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
+		/**
+		 * Janela de tempo desde uma cirurgia do `health_profiles.surgeries`.
+		 * `procedure_matches` é regex (case-insensitive) contra o nome do
+		 * procedimento; vale a cirurgia MAIS RECENTE que casar.
+		 *
+		 * Existe porque reabilitação é por fase: LCA-001 proibia pivô, salto e
+		 * pliometria pra QUALQUER aluno pós-LCA, com "≤6m" só no título e nada
+		 * no código. Aluno de nove meses recebia a prescrição correta do guia
+		 * dos doutores e o plano saía bloqueado em vermelho.
+		 *
+		 * Sem data de cirurgia registrada, só valem as regras SEM `gte`, ou
+		 * seja, as da fase inicial. Aluno sem data continua tratado como fase
+		 * mais restritiva, que é o comportamento seguro e o de hoje.
+		 */
+		months_since_surgery?: { procedure_matches: string; gte?: number; lt?: number };
 	};
 	forbid?: {
 		exercise_patterns?: string[];

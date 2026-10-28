@@ -71,7 +71,7 @@ export function CamposIdentidade({ link = false, ...p }: Props & { link?: boolea
   );
 }
 
-function Area({ k, label, f, set, dica, ph }: Props & { k: "diagnoses" | "medications" | "limitations"; label: string; dica?: string; ph: string }) {
+function Area({ k, label, f, set, dica, ph }: Props & { k: "diagnoses" | "medications" | "limitations" | "surgeries"; label: string; dica?: string; ph: string }) {
   return (
     <Campo id={k} label={label} dica={dica} span>
       <Textarea {...a11yCampo(k, null, !!dica)} rows={2} placeholder={ph} value={f[k]} onChange={(e) => set({ [k]: e.target.value })} />
@@ -88,6 +88,7 @@ export function CamposClinicos({ risco, ...p }: Props & { risco: "calculadora" |
       <Area {...p} k="diagnoses" label="Diagnósticos" ph="hipertensão estágio 2, asma leve" />
       <Area {...p} k="medications" label="Medicações em uso" ph="losartana 50 mg/dia, metformina 850 mg" />
       <Area {...p} k="limitations" label="Limitações físicas ou lesões" dica="Articulações, regiões com dor, restrições de amplitude." ph="dor lombar ao agachar, ombro direito limitado acima de 90°" />
+      <Area {...p} k="surgeries" label="Cirurgias" dica="Escreva a data: é ela que define a fase da reabilitação. Sem data, o aluno é tratado na fase mais restritiva." ph="reconstrução de LCA em 03/2026" />
       {risco === "calculadora" ? (
         <div className="sm:col-span-2">
           <CalculadoraRiscoSbc idade={idade(p.f.birthDate)} sexo={p.f.sex} onNivel={onNivel} />
