@@ -134,3 +134,35 @@ describe('deriveTagsFromDiagnosisLabels — tags que as regras clínicas esperam
 		}
 	});
 });
+
+describe('deriveTagsFromDiagnosisLabels — HIV', () => {
+	// HIV não existia no sistema: sem tag, sem regra, sem fonte. O aluno
+	// declarava e nada disparava, com o plano saindo como se ele não tivesse
+	// a condição. No fluxo do aluno direto o doutor é o único filtro, então
+	// condição não reconhecida passa silenciosa.
+	it.each([
+		'HIV',
+		'hiv+',
+		'Pessoa vivendo com HIV',
+		'AIDS',
+		'soropositivo',
+		'em uso de TARV',
+		'terapia antirretroviral'
+	])('reconhece "%s"', (l) => {
+		expect(deriveTagsFromDiagnosisLabels([l])).toContain('hiv');
+	});
+
+	it.each(['hives', 'tireoidite de Hashimoto', 'dor na virilha', 'fratura consolidada', 'artrose'])(
+		'não marca "%s" como HIV',
+		(l) => {
+			expect(deriveTagsFromDiagnosisLabels([l])).not.toContain('hiv');
+		}
+	);
+
+	it('convive com outras condições no mesmo aluno', () => {
+		const tags = deriveTagsFromDiagnosisLabels(['HIV', 'hipertensão estágio 1', 'dislipidemia']);
+		expect(tags).toContain('hiv');
+		expect(tags).toContain('hipertensao_estagio_1');
+		expect(tags).toContain('dislipidemia');
+	});
+});

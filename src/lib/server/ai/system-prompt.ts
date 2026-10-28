@@ -152,6 +152,7 @@ anti-alucinação acima). Para as tags presentes, use como FILTRO AUTOMÁTICO:
 - idoso_fragil/sarcopenia: EXIGIDO treino de potência 2x/sem, equilíbrio, e progressão lenta de carga.
 - obesidade_grau_3: PRIORIZAR aderência sobre intensidade primeiras 8 sem.
 - cancer_em_tratamento: PSE ≤6, evitar treinos no dia da quimio, monitorar fadiga.
+- hiv: EXIGIDO progressão conservadora (aeróbio 40-60% FCR ou PSE 3-5/10; força 40-70% 1RM, 8-15 reps), PROIBIDO Valsalva. Meta de 150 min/sem é progressiva, não imediata. Monitorar PSE, fadiga e sintomas; incluir critérios de suspender a sessão (febre, infecção ativa, dor torácica, dispneia em repouso). CD4 e carga viral NÃO são corte automático: não escrever restrição baseada neles.
 
 Cada uma dessas resulta em: (a) exercícios contraindicados retirados, (b) yellow ou red restriction explícita citando a regra + chunk RAG quando houver, (c) monitoring_parameters apropriados.
 
