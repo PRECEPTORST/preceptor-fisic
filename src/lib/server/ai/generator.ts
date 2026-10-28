@@ -40,6 +40,7 @@ import {
 	assemblePlan,
 	buildOutlines,
 	buildSession,
+	ensureWarmup,
 	sessionsPreview,
 	suggestedDaysFor
 } from './plan-assembly';
@@ -790,7 +791,7 @@ function buildSessionTask(ctx: StudentContext, outlines: SessionOutline[], index
 		`- Foco e grupamentos: ${outline.focus}`,
 		`- Duração: ${outline.duration_minutes} min`,
 		`- Bloco principal: gere EXATAMENTE ${outline.main_exercise_count} exercícios em \`main\`.`,
-		'- `warmup`: no máximo 2 exercícios. `cooldown`: no máximo 1.',
+		'- `warmup`: OBRIGATÓRIO, 1 a 2 exercícios (mobilidade + ativação). NUNCA devolver `warmup` vazio. `cooldown`: no máximo 1.',
 		'- `observations`: orientação geral da sessão, se houver.',
 		// A regra 6 do system já pede a ficha completa, mas esta chamada vê só
 		// uma sessão: sem o lembrete, `cadence` vinha vazio em parte dos
@@ -841,7 +842,7 @@ const STATIC_TASK_RULES = [
 	'1. PREFERIR exercícios do CATÁLOGO fornecido na mensagem sempre que possível — quando usar um, preencha `catalog_id` da exercise com o external_id (formato 4-5 dígitos, ex: "0001"). Mira em ≥80% dos exercícios do bloco principal vindos do catálogo. Para aquecimento/desaquecimento, pode usar exercícios livres se necessário.',
 	'2. Para cada recomendação crítica, cite chunk_id do CONTEXTO CLÍNICO fornecido na mensagem — preferindo chunks ACSM quando disponíveis. Se não estiver coberto, marque source.type = "inference".',
 	'3. Quando escolher do catálogo, use o nome EXATO do catálogo no campo `name` (não invente variações), e copie o external_id PRECISO em `catalog_id`.',
-	'4. OBRIGATÓRIO preencher `day_of_week` de CADA sessão (valores válidos: "seg" | "ter" | "qua" | "qui" | "sex" | "sab" | "dom"). CONCISÃO (o tempo de geração é limitado): `execution_notes` curto conforme o formato definido acima (1-2 frases, 40-120 chars); `summary` = 2-3 frases; `progression_strategy` = 3-4 frases; monitoring_parameters: no máximo 3 itens; assessment_protocols: no máximo 2; restrictions: red/yellow só com red flag real — greens de alinhamento com diretriz continuam permitidas (1-2 num plano baixo-risco); warmup: no máximo 2 exercícios; cooldown: no máximo 1.',
+	'4. OBRIGATÓRIO preencher `day_of_week` de CADA sessão (valores válidos: "seg" | "ter" | "qua" | "qui" | "sex" | "sab" | "dom"). CONCISÃO (o tempo de geração é limitado): `execution_notes` curto conforme o formato definido acima (1-2 frases, 40-120 chars); `summary` = 2-3 frases; `progression_strategy` = 3-4 frases; monitoring_parameters: no máximo 3 itens; assessment_protocols: no máximo 2; restrictions: red/yellow só com red flag real — greens de alinhamento com diretriz continuam permitidas (1-2 num plano baixo-risco); warmup: 1 a 2 exercícios em TODA sessão (nunca vazio); cooldown: no máximo 1.',
 	'5. RESPEITE a Dificuldade-alvo dos exercícios definida nas PREFERÊNCIAS da mensagem. A escolha dos exercícios deve refletir esse nível de complexidade técnica, independente do nível de experiência informado.',
 	'6. FICHA DE PRESCRIÇÃO — para CADA exercício de força (warmup e main), preencha SEMPRE estes campos curtos, no padrão de prescrição brasileiro: `intensity` = % de 1RM no formato "% 1RM" (ex: "80% 1RM", "60-80% 1RM"; em peso corporal/isometria pode omitir); `load_guidance` = PSE (Percepção Subjetiva de Esforço) no formato "PSE x-y" (ex: "PSE 6-7") — NUNCA escreva "RPE". `intensity` (% 1RM) e `load_guidance` (PSE) são complementares e aparecem lado a lado na ficha. `muscle_action` = um de "isotonica" | "isometrica" | "auxotonico" | "isocinetica" (isométrica p/ pranchas/isometrias); `cadence` = OBRIGATÓRIO em TODO exercício de força — tempo de execução excêntrica/concêntrica (ex: "2/2", "3/1"); use o campo `cadence` (NÃO `tempo`); default "2/2" quando não houver motivo pra outro. `range_of_motion` = amplitude (ex: "90°", "Full", "90° de flexão do cotovelo"); `rest_label` = pausa em texto (ex: "1min", "40s", "40s/1min"). Mantenha também `sets`, `reps`, `rest_seconds` numéricos. Use `series_label` SÓ quando as séries forem um esquema (ex: "2/2").',
 	'7. AERÓBIO — se o aluno tiver objetivo cardiovascular/emagrecimento ou modalidade aeróbia, gere `aerobic_prescriptions` (1 a 3 itens) no formato do modelo: `means` (ex: "Esteira", "Corrida na Rua"), `weekly_frequency` (ex: "2x semana"), `method` (ex: "Contínuo"), `pause` (ex: "-"), `intensity` (ex: "60-70%Fcmáx (150-167bpm)"), `volume` (ex: "50min"). Caso contrário, deixe a lista vazia.',
@@ -1336,6 +1337,11 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 		for (const r of plan.restrictions) r.source = sanitizeRef(r.source);
 		for (const m of plan.monitoring_parameters) m.source_refs = m.source_refs.map(sanitizeRef);
 		for (const a of plan.assessment_protocols) a.source_refs = a.source_refs.map(sanitizeRef);
+		// Aquecimento em TODA sessão. A rota fatiada já garante isso em
+		// `buildSession`, mas o fallback de uma chamada só valida o plano direto
+		// do modelo e não passa por lá — sem isto, era justamente no fallback que
+		// voltava sessão sem aquecimento.
+		for (const s of plan.weekly_sessions) s.warmup = ensureWarmup(s.warmup);
 		for (const s of plan.weekly_sessions) {
 			for (const ex of [...s.warmup, ...s.main, ...s.cooldown]) {
 				ex.source_refs = ex.source_refs.map(sanitizeRef);

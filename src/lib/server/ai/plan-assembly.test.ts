@@ -13,6 +13,7 @@ import {
 	buildManualPlanData,
 	buildOutlines,
 	buildSession,
+	ensureWarmup,
 	sessionsPreview
 } from './plan-assembly';
 import {
@@ -199,7 +200,12 @@ describe('buildSession', () => {
 
 describe('buildManualPlanData', () => {
 	type Skeleton = {
-		weekly_sessions: Array<{ day_of_week: string; warmup: unknown[]; main: unknown[]; cooldown: unknown[] }>;
+		weekly_sessions: Array<{
+			day_of_week: string;
+			warmup: unknown[];
+			main: unknown[];
+			cooldown: unknown[];
+		}>;
 		program_weeks: number;
 		objective: string;
 		restrictions: unknown[];
@@ -241,5 +247,50 @@ describe('buildManualPlanData', () => {
 		expect(p.objective).toBe('pós-operatório de LCA');
 		expect(p.program_weeks).toBe(8);
 		expect(p.restrictions).toEqual([]);
+	});
+});
+
+describe('ensureWarmup', () => {
+	// O Treino B de um plano real saiu sem aquecimento: cada sessão é gerada numa
+	// chamada separada, o prompt pedia "no máximo 2" sem exigir nenhum, e o
+	// schema aceita lista vazia. Decisão dos doutores (out/2026): se o plano tem
+	// aquecimento e mobilidade, tem que aparecer em TODOS os treinos.
+	it('não mexe no aquecimento que a IA devolveu', () => {
+		const warmup = [makeExercise('Bicicleta 5 min')];
+		expect(ensureWarmup(warmup)).toBe(warmup);
+	});
+
+	it('preenche quando a IA devolve vazio', () => {
+		const out = ensureWarmup<{ name: string }>([]);
+		expect(out).toHaveLength(1);
+		expect(out[0]!.name).toMatch(/mobilidade/i);
+	});
+
+	it('o aquecimento de reserva passa pelo schema da sessão', () => {
+		const semAquecimento = sessionExercisesSchema.parse({
+			warmup: [],
+			main: [makeExercise('Supino reto'), makeExercise('Remada'), makeExercise('Agachamento')],
+			cooldown: []
+		});
+		const outline = buildOutlines(1, 60, ['Full body'])[0]!;
+		const parsed = sessionSchema.safeParse(buildSession(outline, semAquecimento));
+		expect(parsed.success).toBe(true);
+		expect(parsed.success && parsed.data.warmup).toHaveLength(1);
+	});
+
+	it('toda sessão do plano montado tem aquecimento, mesmo se a IA pulou o bloco', () => {
+		const outlines = buildOutlines(3, 50, ['A', 'B', 'C']);
+		const semAquecimento = sessionExercisesSchema.parse({
+			warmup: [],
+			main: [makeExercise('Supino reto'), makeExercise('Remada'), makeExercise('Agachamento')],
+			cooldown: []
+		});
+		const plan = assemblePlan(makeMetadata(), outlines, [
+			makeSession(),
+			semAquecimento,
+			makeSession()
+		]) as { weekly_sessions: Array<{ warmup: unknown[] }> };
+		expect(plan.weekly_sessions).toHaveLength(3);
+		for (const s of plan.weekly_sessions) expect(s.warmup.length).toBeGreaterThan(0);
 	});
 });
