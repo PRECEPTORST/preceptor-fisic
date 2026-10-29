@@ -740,6 +740,17 @@ function buildMetadataTask(focos: string[]): string {
 }
 
 /**
+ * Mesmos padrões da regra CARD-004 (scripts/regra-betabloqueador.ts): a classe
+ * termina em -olol (atenolol, metoprolol, propranolol), -alol (sotalol,
+ * labetalol) ou -ilol (carvedilol). Mudou aqui, mudar lá.
+ */
+const BETABLOQUEADOR_RE = /\w*[oai]lol\b|\bbetabloq/i;
+
+export function usaBetabloqueador(meds: Array<{ name?: string }> | null | undefined): boolean {
+	return (meds ?? []).some((m) => !!m?.name && BETABLOQUEADOR_RE.test(m.name));
+}
+
+/**
  * Guarda-corpo clínico repetido em cada sessão. As restrições formais saem da
  * chamada de metadados, que roda EM PARALELO com as sessões e portanto não
  * chega a tempo pra elas — então o que amarra a prescrição aqui é o perfil do
@@ -765,6 +776,14 @@ function buildSessionGuardrails(ctx: StudentContext): string[] {
 	if (inj.length > 0) {
 		lines.push(
 			`- EVITAR exercícios que estressem: ${inj.map((i) => `${i.region}${i.notes ? ` (${i.notes})` : ''}`).join('; ')}.`
+		);
+	}
+	// Betabloqueador achata a resposta de FC: zona-alvo por FCmáx/FCR/Karvonen
+	// sai errada. A regra CARD-004 pega isso na validação, mas avisar aqui
+	// evita que TODO plano desses alunos nasça com uma restrição amarela.
+	if (usaBetabloqueador(ctx.health?.medications)) {
+		lines.push(
+			'- BETABLOQUEADOR em uso: NUNCA prescrever intensidade por frequência cardíaca (nada de bpm, %FCmáx, %FCR ou Karvonen) — nem na força, nem em `aerobic_prescriptions.intensity`. Use PSE ou teste da fala. Monitorar FC continua certo, como acompanhamento.'
 		);
 	}
 	lines.push('');

@@ -643,11 +643,30 @@ export type RuleDSL = {
 		 * mais restritiva, que é o comportamento seguro e o de hoje.
 		 */
 		months_since_surgery?: { procedure_matches: string; gte?: number; lt?: number };
+		/**
+		 * Regexes (case-insensitive) contra os nomes em
+		 * `health_profiles.medications`. Basta UM casar.
+		 *
+		 * Regra sem `condition_tags` e só com isto vale pra qualquer aluno que
+		 * use o medicamento, independente de diagnóstico — betabloqueador
+		 * aparece tanto em cardiopata quanto em hipertenso.
+		 */
+		medications_any?: string[];
 	};
 	forbid?: {
 		exercise_patterns?: string[];
 		intensity_above?: { metric: 'rpe' | 'percent_1rm' | 'hr_percent_max'; value: number };
 		volume_above?: { metric: 'sessions_per_week' | 'minutes_per_session'; value: number };
+		/**
+		 * Proíbe PRESCREVER a intensidade por frequência cardíaca (bpm, %FCmáx,
+		 * %FCR, Karvonen), tanto na força quanto no aeróbio.
+		 *
+		 * Monitorar a FC continua permitido, e é outra coisa: quem usa
+		 * betabloqueador pode e deve ter a FC acompanhada, só não pode ter a
+		 * zona-alvo calculada a partir dela, porque o remédio achata a resposta
+		 * cronotrópica e a zona sai errada.
+		 */
+		intensity_prescribed_by_hr?: boolean;
 	};
 	require?: { monitoring?: string[]; medical_clearance?: boolean };
 	suggest_replacement?: Record<string, string[]>;
