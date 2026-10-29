@@ -36,6 +36,7 @@ import {
 } from '$lib/server/db/schema';
 import { env } from '$env/dynamic/private';
 import { prescricaoAerobia } from '$lib/clinical/aerobico';
+import { checarCoerencia, descreveIncoerencia } from '$lib/clinical/coerencia';
 import { logger } from '$lib/server/logger';
 import {
 	assemblePlan,
@@ -1422,6 +1423,40 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 		// do modelo e não passa por lá — sem isto, era justamente no fallback que
 		// voltava sessão sem aquecimento.
 		for (const s of plan.weekly_sessions) s.warmup = ensureWarmup(s.warmup);
+
+		// Coerência entre o que o programa DIZ e o que os exercícios trazem.
+		// Metadados e exercícios saem de chamadas diferentes, em paralelo, e
+		// nenhuma vê o texto da outra: num plano real o resumo mandava começar
+		// em 40-50% de 1RM e os exercícios vieram com 50-60%. Vira restrição
+		// amarela em vez de correção automática, porque saber qual das duas
+		// pontas está certa é decisão clínica do doutor.
+		const incoerencias = checarCoerencia(
+			`${plan.summary}\n${plan.progression_strategy}`,
+			plan.weekly_sessions.flatMap((s) =>
+				[...s.warmup, ...s.main, ...s.cooldown].map((ex) => ({
+					nome: ex.name,
+					texto: [ex.intensity, ex.load_guidance].filter(Boolean).join(' · ')
+				}))
+			)
+		);
+		for (const i of incoerencias) {
+			plan.restrictions.push({
+				level: 'yellow',
+				title: `Incoerência de ${i.metrica} entre o resumo e os exercícios`,
+				description: descreveIncoerencia(i),
+				affected_exercises: i.exercicios.map((e) => e.nome),
+				source: {
+					type: 'inference',
+					note: 'Checagem automática de coerência do próprio plano, feita pelo sistema após a geração.'
+				}
+			});
+		}
+		if (incoerencias.length > 0) {
+			log.warn(
+				{ metricas: incoerencias.map((i) => i.metrica) },
+				'plan.guard.incoerencia_de_intensidade'
+			);
+		}
 		for (const s of plan.weekly_sessions) {
 			for (const ex of [...s.warmup, ...s.main, ...s.cooldown]) {
 				ex.source_refs = ex.source_refs.map(sanitizeRef);
