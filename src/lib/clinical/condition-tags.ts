@@ -46,6 +46,13 @@ export function deriveTagsFromDiagnosisLabels(labels: string[]): string[] {
 			else if (/\bleve\b|grau\s*(1|i)\b|est[aá]gio\s*(1|i)\b/.test(label)) tags.add('dpoc_leve');
 			else tags.add('dpoc_moderada');
 		}
+		// \bhiv\b e \baids\b com borda: senão "HIVES" ou um nome próprio com
+		// "aids" dentro marcariam o aluno como soropositivo. "sida" fica de
+		// fora de propósito: é palavra comum demais em português (sofrida,
+		// comprimida, guarida) e o ganho não paga o falso positivo num dado
+		// desta sensibilidade. TARV e antirretroviral vêm do campo de
+		// medicamentos, que o generator anexa aos labels.
+		if (/\bhiv\b|\baids\b|\btarv\b|antirretroviral|soropositiv/.test(label)) tags.add('hiv');
 		if (/avc|acidente vascular/.test(label)) tags.add('pos_avc');
 		if (/parkinson/.test(label)) tags.add('parkinson_leve');
 		if (/esclerose m/.test(label)) tags.add('esclerose_multipla');
