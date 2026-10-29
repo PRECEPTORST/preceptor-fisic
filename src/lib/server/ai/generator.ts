@@ -35,6 +35,7 @@ import {
 	type ExerciseCatalogItem
 } from '$lib/server/db/schema';
 import { env } from '$env/dynamic/private';
+import { prescricaoAerobia } from '$lib/clinical/aerobico';
 import { logger } from '$lib/server/logger';
 import {
 	assemblePlan,
@@ -722,11 +723,70 @@ function buildSplitTask(ctx: StudentContext): string {
 }
 
 /**
+ * A prescrição aeróbia CALCULADA, entregue pronta ao modelo.
+ *
+ * Antes, a coluna "Intensidade" da tabela aeróbia era texto livre e o modelo
+ * inventava os bpm, sem fórmula nenhuma por trás e sem olhar a condição. Agora
+ * a conta sai de `prescricaoAerobia` (FCmáx por idade + Karvonen + protocolo
+ * por condição, tudo do guia da Anna) e o modelo recebe o número pronto, com
+ * ordem de copiar literalmente.
+ *
+ * Quando a conta NÃO pode ser feita (betabloqueador, falta idade ou falta FC
+ * de repouso), o bloco diz explicitamente para não escrever bpm nenhum. Zona
+ * de FC inventada é pior que zona nenhuma, porque parece precisa.
+ */
+function buildAerobicoCalculado(ctx: StudentContext): string[] {
+	const idade = ctx.student.birthDate
+		? Math.floor(
+				(Date.now() - new Date(ctx.student.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)
+			)
+		: null;
+
+	const p = prescricaoAerobia({
+		idade,
+		fcRepouso: ctx.assessment?.restingHr ?? null,
+		conditionTags: ctx.conditionTags,
+		usaBetabloqueador: usaBetabloqueador(ctx.health?.medications)
+	});
+
+	const linhas = [
+		'### PRESCRIÇÃO AERÓBIA JÁ CALCULADA — COPIE ESTES VALORES',
+		`Calculado pelo sistema a partir de ${p.fonte}. NÃO recalcular, NÃO arredondar, NÃO trocar os números.`,
+		`- Protocolo aplicado: ${p.condicao}`,
+		`- Frequência: ${p.frequencia}`,
+		`- Intensidade: ${p.intensidade}`,
+		`- Tempo: ${p.tempo}`,
+		`- Tipo: ${p.tipo}`
+	];
+	if (p.volumeSemanal) linhas.push(`- Volume semanal: ${p.volumeSemanal}`);
+	if (p.fcMax) linhas.push(`- FCmáx estimada: ${p.fcMax} bpm (208 − 0,7 × ${idade})`);
+	for (const o of p.observacoes) linhas.push(`- ATENÇÃO: ${o}`);
+
+	if (p.bpm) {
+		linhas.push(
+			`Em \`aerobic_prescriptions[].intensity\`, use EXATAMENTE a faixa ${p.bpm.min}-${p.bpm.max} bpm.`
+		);
+	} else {
+		const motivo = {
+			betabloqueador: 'o aluno usa betabloqueador e a FC não reflete o esforço',
+			sem_idade: 'falta data de nascimento para estimar a FCmáx',
+			sem_fc_repouso: 'falta FC de repouso na avaliação física',
+			metodo_nao_usa_fc: 'este protocolo não prescreve por frequência cardíaca'
+		}[p.semBpm ?? 'metodo_nao_usa_fc'];
+		linhas.push(
+			`PROIBIDO escrever bpm, %FCmáx, %FCR ou Karvonen em \`aerobic_prescriptions[].intensity\` e em \`load_guidance\`: ${motivo}. Use PSE ou teste da fala.`
+		);
+	}
+	linhas.push('');
+	return linhas;
+}
+
+/**
  * FASE 1b — metadados do programa. Roda em PARALELO com as sessões: o perfil
  * clínico completo (diagnósticos, limitações, risco CV, RAG) já está no prompt
  * base que as sessões também recebem, então elas não precisam esperar por isto.
  */
-function buildMetadataTask(focos: string[]): string {
+function buildMetadataTask(focos: string[], ctx: StudentContext): string {
 	return [
 		'## TAREFA — PROGRAMA (SEM EXERCÍCIOS)',
 		'A divisão semanal já foi definida (abaixo) e os exercícios de cada dia estão sendo prescritos em outra chamada. Aqui você descreve o PROGRAMA.',
@@ -734,6 +794,7 @@ function buildMetadataTask(focos: string[]): string {
 		'### DIVISÃO JÁ DEFINIDA',
 		...focos.map((f, i) => `- Sessão ${i + 1}: ${f}`),
 		'',
+		...buildAerobicoCalculado(ctx),
 		'Preencha `summary`, `objective`, `program_weeks`, `progression_strategy`, `aerobic_prescriptions`, `monitoring_parameters`, `assessment_protocols` e `restrictions`, com as citações (`source_refs`) exigidas pelas REGRAS DA TAREFA. Restrições e monitoramento valem pro programa todo.',
 		'NÃO gere exercícios nem sessões.'
 	].join('\n');
@@ -1152,7 +1213,7 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					label: 'metadata',
 					schema: programMetadataSchema,
 					schemaName: 'ProgramMetadata',
-					task: buildMetadataTask(split.session_focus),
+					task: buildMetadataTask(split.session_focus, ctx),
 					maxOutputTokens: 6_000,
 					model
 				});
