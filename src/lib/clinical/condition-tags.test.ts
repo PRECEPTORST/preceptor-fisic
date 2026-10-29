@@ -166,3 +166,81 @@ describe('deriveTagsFromDiagnosisLabels — HIV', () => {
 		expect(tags).toContain('dislipidemia');
 	});
 });
+
+describe('deriveTagsFromDiagnosisLabels — gravidade e estágio que se perdiam', () => {
+	// Seis tags da taxonomia nunca eram atribuídas, então regra escrita pra
+	// elas jamais dispararia. E duas classificações estavam ERRADAS em
+	// direções opostas.
+
+	it('sobrevivente em remissão NÃO é câncer em tratamento', () => {
+		// O erro mais caro: a ONC-001 limita a PSE em 6, o que travaria um
+		// sobrevivente saudável na intensidade leve para sempre.
+		const t = deriveTagsFromDiagnosisLabels(['sobrevivente de câncer, em remissão']);
+		expect(t).toContain('pos_cancer');
+		expect(t).not.toContain('cancer_em_tratamento');
+	});
+
+	it('câncer em tratamento continua sendo tratamento', () => {
+		const t = deriveTagsFromDiagnosisLabels(['câncer de mama em quimioterapia']);
+		expect(t).toContain('cancer_em_tratamento');
+		expect(t).not.toContain('pos_cancer');
+	});
+
+	it('LCA sem cirurgia NÃO é pós-cirúrgico', () => {
+		// Sem data de cirurgia, lca_pos_cirurgico joga o aluno na fase 0-6
+		// meses: regra VERMELHA proibindo salto em quem nunca operou.
+		const t = deriveTagsFromDiagnosisLabels(['ruptura de LCA sem cirurgia']);
+		expect(t).toContain('lca_tratamento_conservador');
+		expect(t).not.toContain('lca_pos_cirurgico');
+	});
+
+	it('reconstrução de LCA continua pós-cirúrgica', () => {
+		expect(deriveTagsFromDiagnosisLabels(['reconstrução de LCA'])).toContain('lca_pos_cirurgico');
+	});
+
+	it.each([
+		['obesidade grau II', 'obesidade_grau_2'],
+		['obesidade classe 2', 'obesidade_grau_2'],
+		['obesidade grau III', 'obesidade_grau_3'],
+		['obesidade mórbida', 'obesidade_grau_3'],
+		['obesidade', 'obesidade_grau_1']
+	])('"%s" → %s', (label, esperado) => {
+		expect(deriveTagsFromDiagnosisLabels([label])).toContain(esperado);
+	});
+
+	it('os três graus de obesidade são mutuamente exclusivos', () => {
+		for (const l of ['obesidade grau II', 'obesidade grau III', 'obesidade']) {
+			const graus = deriveTagsFromDiagnosisLabels([l]).filter((t) => t.startsWith('obesidade_'));
+			expect(graus, `"${l}" gerou ${graus.join(' + ')}`).toHaveLength(1);
+		}
+	});
+
+	it('Parkinson moderado não vira leve', () => {
+		const t = deriveTagsFromDiagnosisLabels(['Parkinson moderado']);
+		expect(t).toContain('parkinson_moderada');
+		expect(t).not.toContain('parkinson_leve');
+	});
+
+	it('diabetes descompensado ACUMULA com o tipo', () => {
+		const t = deriveTagsFromDiagnosisLabels(['diabetes tipo 2 descompensado']);
+		expect(t).toContain('diabetes_tipo_2');
+		expect(t).toContain('diabetes_descompensado');
+	});
+
+	it.each([
+		['fibrilação atrial', 'fibrilacao_atrial'],
+		['deficiência física', 'pcd'],
+		['amputação transtibial', 'pcd'],
+		['tendinopatia patelar', 'tendinopatia_patelar'],
+		['cirrose descompensada', 'doenca_hepatica_descompensada'],
+		['esteatose hepática', 'doenca_hepatica_compensada']
+	])('"%s" → %s', (label, esperado) => {
+		expect(deriveTagsFromDiagnosisLabels([label])).toContain(esperado);
+	});
+
+	it('hepática descompensada exclui a compensada', () => {
+		const t = deriveTagsFromDiagnosisLabels(['cirrose descompensada com ascite']);
+		expect(t).toContain('doenca_hepatica_descompensada');
+		expect(t).not.toContain('doenca_hepatica_compensada');
+	});
+});
