@@ -57,6 +57,7 @@ const perfilSchema = z.object({
 	diagnoses: z.string().max(4000).default(''),
 	medications: z.string().max(4000).default(''),
 	limitations: z.string().max(4000).default(''),
+	surgeries: z.string().max(4000).default(''),
 	goals: z.array(z.string().max(60)).max(20).default([]),
 	weeklySessions: z.number().int().min(1, 'frequência semanal inválida (1 a 7)').max(7, 'frequência semanal inválida (1 a 7)'),
 	minutesPerSession: z.number().int().min(15, 'minutos por sessão inválidos (15 a 180)').max(180, 'minutos por sessão inválidos (15 a 180)'),
@@ -105,6 +106,34 @@ function parseList(s: string): string[] {
 		.split(/[,\n;]+/)
 		.map((x) => x.trim())
 		.filter(Boolean);
+}
+
+/**
+ * Cirurgias no formato do campo de texto: "procedimento em MM/AAAA", itens
+ * separados por vírgula. Ex.: "reconstrução de LCA em 03/2026, menisco 03/2026".
+ *
+ * A DATA importa de verdade: é ela que define a fase da reabilitação nas regras
+ * clínicas (`months_since_surgery`). Item sem data reconhecível é gravado assim
+ * mesmo, e o aluno fica na fase mais restritiva. É de propósito: chutar uma data
+ * colocaria o aluno numa fase mais permissiva do que a realidade.
+ *
+ * Aceita MM/AAAA, MM-AAAA e AAAA-MM-DD. Guarda sempre em AAAA-MM-DD, dia 1
+ * quando só veio o mês, que é o formato que o validador consegue ler.
+ */
+const DATA_CIRURGIA = /\s*(?:\bem\s+)?(?:\(\s*)?(?:(\d{4})-(\d{2})-(\d{2})|(\d{1,2})[/-](\d{4}))(?:\s*\))?\s*$/i;
+
+export function parseCirurgias(s: string): { procedure: string; date?: string }[] {
+	return parseList(s).flatMap((item) => {
+		const m = item.match(DATA_CIRURGIA);
+		if (!m) return [{ procedure: item }];
+		const procedure = item.slice(0, m.index).trim().replace(/[,;]$/, '');
+		if (!procedure) return [];
+		const [, ano, mes, dia, mesCurto, anoCurto] = m;
+		const date = ano ? `${ano}-${mes}-${dia}` : `${anoCurto}-${String(Number(mesCurto)).padStart(2, '0')}-01`;
+		// Mês fora de 1-12 é digitação errada: grava sem data em vez de inventar.
+		const mm = Number(date.slice(5, 7));
+		return [mm >= 1 && mm <= 12 ? { procedure, date } : { procedure }];
+	});
 }
 
 /** Igual ao editar do SvelteKit: preserva os campos ricos do jsonb que o form não edita. */
@@ -263,6 +292,7 @@ export const alunos = new Hono<{ Variables: Vars }>()
 				diagnoses: parseList(input.diagnoses).map((label) => ({ label })),
 				medications: parseList(input.medications).map((name) => ({ name })),
 				injuries: parseList(input.limitations).map((region) => ({ region })),
+				surgeries: parseCirurgias(input.surgeries),
 				cardiovascularRisk: input.cardiovascularRisk,
 				experienceLevel: input.experienceLevel,
 				prescribedDifficulty: input.prescribedDifficulty,
@@ -343,6 +373,7 @@ export const alunos = new Hono<{ Variables: Vars }>()
 				diagnoses: mergeByKey(parseList(input.diagnoses).map((label) => ({ label })), hp?.diagnoses, 'label'),
 				medications: mergeByKey(parseList(input.medications).map((name) => ({ name })), hp?.medications, 'name'),
 				injuries: mergeByKey(parseList(input.limitations).map((region) => ({ region })), hp?.injuries, 'region'),
+				surgeries: mergeByKey(parseCirurgias(input.surgeries), hp?.surgeries, 'procedure'),
 				cardiovascularRisk: input.cardiovascularRisk,
 				experienceLevel: input.experienceLevel,
 				prescribedDifficulty: input.prescribedDifficulty,

@@ -815,6 +815,10 @@ export type CreateStudentInput = {
 	/** Limitações físicas / lesões — regiões com restrição de amplitude
 	 *  ou dor. Persistido em healthProfile.injuries. */
 	injuries?: { region: string; notes?: string }[];
+	/** Cirurgias com data. A data define a FASE da reabilitação nas regras
+	 *  clínicas (ver `months_since_surgery` no RuleDSL): sem ela, o aluno fica
+	 *  na fase mais restritiva. Persistido em healthProfile.surgeries. */
+	surgeries?: { procedure: string; date?: string; notes?: string }[];
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
 	prescribedDifficulty?: 'pequena' | 'media' | 'alta';
@@ -854,6 +858,7 @@ export async function createStudentTx(input: CreateStudentInput): Promise<string
 			diagnoses: input.diagnoses,
 			medications: input.medications,
 			injuries: input.injuries ?? [],
+			surgeries: input.surgeries ?? [],
 			cardiovascularRisk: input.cardiovascularRisk
 		});
 
@@ -993,6 +998,7 @@ export type UpdateStudentInput = {
 	diagnoses: { label: string; severity?: 'leve' | 'moderada' | 'grave' }[];
 	medications: { name: string; dose?: string; frequency?: string }[];
 	injuries?: { region: string; notes?: string }[];
+	surgeries?: { procedure: string; date?: string; notes?: string }[];
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
 	prescribedDifficulty?: 'pequena' | 'media' | 'alta';
@@ -1042,6 +1048,7 @@ export async function updateStudentTx(input: UpdateStudentInput): Promise<void> 
 					diagnoses: input.diagnoses,
 					medications: input.medications,
 					injuries: input.injuries ?? [],
+					surgeries: input.surgeries ?? [],
 					cardiovascularRisk: input.cardiovascularRisk,
 					updatedAt: new Date()
 				})
@@ -1052,6 +1059,7 @@ export async function updateStudentTx(input: UpdateStudentInput): Promise<void> 
 				diagnoses: input.diagnoses,
 				medications: input.medications,
 				injuries: input.injuries ?? [],
+				surgeries: input.surgeries ?? [],
 				cardiovascularRisk: input.cardiovascularRisk
 			});
 		}
@@ -1151,6 +1159,7 @@ export type CompleteStudentSelfFillInput = {
 	diagnoses: { label: string }[];
 	medications: { name: string }[];
 	injuries?: { region: string; notes?: string }[];
+	surgeries?: { procedure: string; date?: string; notes?: string }[];
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
 	prescribedDifficulty: 'pequena' | 'media' | 'alta';
@@ -1235,6 +1244,7 @@ export async function completeStudentSelfFillTx(
 				diagnoses: input.diagnoses,
 				medications: input.medications,
 				injuries: input.injuries ?? [],
+				surgeries: input.surgeries ?? [],
 				cardiovascularRisk: input.cardiovascularRisk
 			});
 		}
@@ -2332,10 +2342,7 @@ export async function countActiveStudents(professionalId: string): Promise<numbe
  * Gerações de plano feitas no ciclo atual da assinatura. Conta ai_runs
  * kind='plan_generation', que é o registro do que teve custo de IA de fato.
  */
-export async function countGenerationsSince(
-	professionalId: string,
-	since: Date
-): Promise<number> {
+export async function countGenerationsSince(professionalId: string, since: Date): Promise<number> {
 	const result = await db.execute<{ count: number }>(sql`
 		SELECT COUNT(*)::int AS count
 		FROM ai_runs
