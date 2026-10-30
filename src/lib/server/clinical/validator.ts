@@ -34,6 +34,11 @@ export type StudentCtx = {
 	medications: string[];
 	/** Cirurgias do aluno com quantos meses fazem. Ver `months_since_surgery`. */
 	surgeries: Array<{ procedure: string; monthsAgo: number }>;
+	/**
+	 * `training_preferences.experience_level`. Ausente conta como 'iniciante'
+	 * (default da coluna). Ver `experience_level_any`.
+	 */
+	experienceLevel?: 'iniciante' | 'intermediario' | 'avancado' | null;
 };
 
 export type ClinicalRuleRow = {
@@ -88,6 +93,12 @@ export function appliesTo(rule: ClinicalRuleRow, ctx: StudentCtx): boolean {
 			return ctx.medications.some((m) => re.test(m));
 		});
 		if (!usa) return false;
+	}
+
+	// experience_level_any → aluno é de um dos níveis listados. Sem nível
+	// registrado trata como 'iniciante', o default da coluna no banco.
+	if (w.experience_level_any && w.experience_level_any.length > 0) {
+		if (!w.experience_level_any.includes(ctx.experienceLevel ?? 'iniciante')) return false;
 	}
 
 	// Fase pós-operatória. Sem data registrada, a regra vale só se NÃO exigir
@@ -183,6 +194,19 @@ function allExercises(plan: TrainingPlanOutput): { ex: Exercise; sessionLabel: s
 }
 
 /**
+ * Em quantas sessões da semana aparece pelo menos um exercício que casa com os
+ * padrões. Exportada pra teste: `require.exercise_pattern_sessions` compara
+ * este número contra `min_sessions_per_week`.
+ */
+export function sessoesComPadrao(plan: TrainingPlanOutput, patterns: string[]): number {
+	return (plan.weekly_sessions ?? []).filter((s) =>
+		[...(s.warmup ?? []), ...(s.main ?? []), ...(s.cooldown ?? [])].some((ex) =>
+			matchesPatterns(ex, patterns)
+		)
+	).length;
+}
+
+/**
  * Strip de acentos. Em JS regex, `\b` usa definição ASCII de `\w` mesmo
  * com flag `u`. Então "pivô" + " " não é word boundary porque `ô` não
  * é \w. Normalizando NFD + removendo combining marks, "pivô" vira
@@ -221,7 +245,8 @@ export type Violation = {
 		| 'forbid_volume'
 		| 'forbid_hr_prescription'
 		| 'require_monitoring'
-		| 'require_clearance';
+		| 'require_clearance'
+		| 'require_exercise_pattern';
 	details?: string;
 };
 
@@ -372,6 +397,24 @@ export async function validatePlan(
 			}
 		}
 
+		// 4b) require.exercise_pattern_sessions
+		if (dsl.require?.exercise_pattern_sessions) {
+			const { patterns, min_sessions_per_week, label } = dsl.require.exercise_pattern_sessions;
+			const sessoes = plan.weekly_sessions ?? [];
+			const comPadrao = sessoesComPadrao(plan, patterns);
+			if (comPadrao < min_sessions_per_week) {
+				violations.push({
+					ruleCode: rule.code,
+					ruleTitle: rule.title,
+					severity: rule.severity,
+					description: rule.description,
+					affectedExercises: [],
+					violationType: 'require_exercise_pattern',
+					details: `${label} em ${comPadrao} de ${sessoes.length} sessão(ões) — mínimo ${min_sessions_per_week} por semana`
+				});
+			}
+		}
+
 		// 5) require.medical_clearance
 		if (dsl.require?.medical_clearance) {
 			// Não temos um flag "medical_clearance_obtained" no DB ainda — sempre flagga
@@ -413,7 +456,8 @@ export function violationToRestriction(v: Violation): Restriction {
 		forbid_volume: 'Volume acima do permitido',
 		forbid_hr_prescription: 'Intensidade prescrita por frequência cardíaca',
 		require_monitoring: 'Monitoramento obrigatório ausente',
-		require_clearance: 'Liberação médica obrigatória'
+		require_clearance: 'Liberação médica obrigatória',
+		require_exercise_pattern: 'Exercício obrigatório ausente'
 	};
 	return {
 		level: v.severity,
@@ -461,11 +505,13 @@ export function surgeriesWithAge(
 export function deriveStudentCtxFromHealth(
 	conditionTags: string[],
 	age: number | null,
-	health: HealthProfile | null
+	health: HealthProfile | null,
+	experienceLevel?: 'iniciante' | 'intermediario' | 'avancado' | null
 ): StudentCtx {
 	return {
 		conditionTags,
 		age,
+		experienceLevel: experienceLevel ?? null,
 		cvRisk: (health?.cardiovascularRisk ?? 'baixo') as CvRisk,
 		medications: (health?.medications ?? []).map((m) => m?.name).filter((n): n is string => !!n),
 		surgeries: surgeriesWithAge(health)
