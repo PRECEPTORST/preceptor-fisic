@@ -628,6 +628,24 @@ function buildUserPromptBase(ctx: StudentContext, ragContext: string, notes?: st
 	lines.push('## TAGS DE CONDIÇÃO (canônicas, derivadas dos diagnósticos)');
 	lines.push(`- ${ctx.conditionTags.join(', ')}`);
 	lines.push('');
+	// A IDOSO-001 exige 2 sessões semanais de potência em idoso frágil ou com
+	// sarcopenia. Sem este aviso o modelo prescreve força convencional, a regra
+	// aponta a falta e o doutor recebe uma restrição amarela em todo plano
+	// desse público. Avisar antes é o que faz a regra virar prescrição em vez
+	// de só reclamação.
+	if (ctx.conditionTags.some((t) => t === 'idoso_fragil' || t === 'sarcopenia')) {
+		lines.push('## TREINO DE POTÊNCIA OBRIGATÓRIO (idoso frágil / sarcopenia)');
+		lines.push(
+			'- Pelo menos 2 das sessões da semana devem ter exercício de POTÊNCIA: fase concêntrica rápida e intencional, descida controlada em 2-3s, carga moderada (40-60% 1RM), 6-8 repetições, interrompendo a série quando a velocidade cai.'
+		);
+		lines.push(
+			'- Escreva "de potência" ou "concêntrica rápida" no nome do exercício (ex.: "Leg press de potência", "Levantar da cadeira com potência"), senão a prescrição não fica rastreável na ficha.'
+		);
+		lines.push(
+			'- Não usar salto nem pliometria pra isso: em quem já tem risco de queda, o ganho é o mesmo e o risco não.'
+		);
+		lines.push('');
+	}
 	lines.push('## PREFERÊNCIAS DE TREINO');
 	if (p) {
 		lines.push(`- Experiência: ${p.experienceLevel}`);
@@ -1529,7 +1547,12 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					(Date.now() - new Date(ctx.student.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)
 				)
 			: null;
-		const studentCtx = deriveStudentCtxFromHealth(ctx.conditionTags, age, ctx.health);
+		const studentCtx = deriveStudentCtxFromHealth(
+			ctx.conditionTags,
+			age,
+			ctx.health,
+			ctx.preferences?.experienceLevel ?? null
+		);
 		const violations = await validatePlan(plan, studentCtx);
 		const ruleRestrictions: Restriction[] = violations.map(violationToRestriction);
 
