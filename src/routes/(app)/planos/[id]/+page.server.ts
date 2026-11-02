@@ -1,7 +1,11 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 import { audit, clientFingerprint } from '$lib/server/audit';
-import { deriveTagsFromDiagnosisLabels } from '$lib/clinical/condition-tags';
+import {
+	deriveTagsFromDiagnosisLabels,
+	tagFragilidade,
+	idadeEmAnos
+} from '$lib/clinical/condition-tags';
 import {
 	getPlanDetail,
 	getProfessionalByAuthId,
@@ -56,10 +60,16 @@ async function revalidateAndPersist(
 		.limit(1);
 
 	const diagnosisLabels = ((hp?.diagnoses ?? []) as { label: string }[]).map((d) => d.label);
-	const conditionTags = deriveTagsFromDiagnosisLabels(diagnosisLabels);
-	const age = s.birthDate
-		? Math.floor((Date.now() - new Date(s.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-		: null;
+	const age = idadeEmAnos(s.birthDate);
+	// Mesma derivação da geração: fragilidade vem dos critérios de Fried, não do
+	// texto do diagnóstico.
+	const fragilidade = tagFragilidade(hp?.fried, age);
+	const conditionTags = [
+		...new Set([
+			...deriveTagsFromDiagnosisLabels(diagnosisLabels),
+			...(fragilidade ? [fragilidade] : [])
+		])
+	];
 	const ctx = deriveStudentCtxFromHealth(
 		conditionTags.length > 0 ? conditionTags : ['populacao_geral'],
 		age,
@@ -405,8 +415,7 @@ export const actions: Actions = {
 
 		if (!['warmup', 'main', 'cooldown'].includes(block))
 			return fail(400, { error: 'bloco inválido' });
-		if (!['up', 'down'].includes(direction))
-			return fail(400, { error: 'direção inválida' });
+		if (!['up', 'down'].includes(direction)) return fail(400, { error: 'direção inválida' });
 		if (!Number.isInteger(sessionIdx) || !Number.isInteger(exerciseIdx))
 			return fail(400, { error: 'índice inválido' });
 
@@ -419,8 +428,7 @@ export const actions: Actions = {
 		const alvo = direction === 'up' ? exerciseIdx - 1 : exerciseIdx + 1;
 		// Fora do bloco: primeiro subindo ou último descendo. A UI já esconde a
 		// seta nesses casos; aqui é a rede de segurança contra request forjada.
-		if (alvo < 0 || alvo >= blockArr.length)
-			return fail(400, { error: 'movimento fora do bloco' });
+		if (alvo < 0 || alvo >= blockArr.length) return fail(400, { error: 'movimento fora do bloco' });
 
 		[blockArr[exerciseIdx], blockArr[alvo]] = [blockArr[alvo]!, blockArr[exerciseIdx]!];
 
@@ -541,7 +549,9 @@ export const actions: Actions = {
 
 		const res = await db
 			.delete(trainingPlans)
-			.where(and(eq(trainingPlans.id, params.id!), eq(trainingPlans.professionalId, professional.id)))
+			.where(
+				and(eq(trainingPlans.id, params.id!), eq(trainingPlans.professionalId, professional.id))
+			)
 			.returning({ id: trainingPlans.id });
 		if (res.length === 0) return fail(400, { error: 'não foi possível excluir o plano' });
 

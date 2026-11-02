@@ -284,6 +284,33 @@ export type ParqResult = {
 };
 export type Contraindication = { exercise_pattern: string; reason: string; source?: string };
 
+/**
+ * Fenótipo de fragilidade de Fried. Cinco critérios, cada um presente ou não:
+ * perda de peso não intencional, fraqueza muscular, exaustão, lentidão da
+ * marcha e baixo nível de atividade física.
+ *
+ * A classificação sai da CONTAGEM: 0 robusto, 1 a 2 pré-frágil, 3 a 5 frágil
+ * (Fried et al., 2001; Álvarez-Bustos et al., 2026, que recomenda os critérios
+ * de Fried com pontos de corte adaptados à população avaliada).
+ *
+ * Existe porque antes a fragilidade vinha do TEXTO do diagnóstico: o doutor
+ * escrevia "idoso frágil" e o sistema acreditava. Quem não escrevia nada não
+ * tinha classificação nenhuma, e `idoso_robusto` existia na taxonomia sem
+ * nunca ser preenchido. Marcar os cinco é mais rápido do que escrever, e vira
+ * classificação reprodutível em vez de adjetivo.
+ *
+ * `assessed_at` é a data da avaliação: fragilidade muda com o tempo, e saber
+ * que a marcação é de dois anos atrás vale mais do que supor que é de hoje.
+ */
+export type FriedCriteria = {
+	perda_peso: boolean;
+	fraqueza: boolean;
+	exaustao: boolean;
+	lentidao_marcha: boolean;
+	baixa_atividade: boolean;
+	assessed_at?: string;
+};
+
 export const healthProfiles = pgTable(
 	'health_profiles',
 	{
@@ -297,6 +324,8 @@ export const healthProfiles = pgTable(
 		medications: jsonb('medications').$type<Medication[]>().default([]).notNull(),
 		injuries: jsonb('injuries').$type<Injury[]>().default([]).notNull(),
 		parqResult: jsonb('parq_result').$type<ParqResult | null>(),
+		/** Ver `FriedCriteria`. Nulo quando ninguém avaliou. */
+		fried: jsonb('fried').$type<FriedCriteria | null>(),
 		cardiovascularRisk: riskEnum('cardiovascular_risk').default('baixo').notNull(),
 		contraindications: jsonb('contraindications').$type<Contraindication[]>().default([]).notNull(),
 		conditionTags: jsonb('condition_tags').$type<string[]>().default([]).notNull(),

@@ -60,7 +60,11 @@ import {
 	type SessionOutline
 } from '$lib/schemas/training-plan';
 import { retrieveRelevantChunks, formatContextForPrompt, type RetrievedChunk } from './rag';
-import { deriveTagsFromDiagnosisLabels } from '$lib/clinical/condition-tags';
+import {
+	deriveTagsFromDiagnosisLabels,
+	tagFragilidade,
+	idadeEmAnos
+} from '$lib/clinical/condition-tags';
 import { SYSTEM_PROMPT_PT_BR, SYSTEM_PROMPT_VERSION } from './system-prompt';
 import {
 	validatePlan,
@@ -366,10 +370,16 @@ function formatCatalogForPrompt(items: CatalogPromptItem[]): string {
  * regexes pra deriveTagsFromDiagnosisLabels. Fonte única: qualquer ajuste de
  * derivação vai em condition-tags.ts (revalidação de planos usa o mesmo).
  */
-function deriveConditionTags(health: HealthProfile | null): string[] {
-	if (!health || (health.diagnoses ?? []).length === 0) return ['populacao_geral'];
+function deriveConditionTags(health: HealthProfile | null, idade?: number | null): string[] {
+	// Fragilidade é avaliação própria e não depende de haver diagnóstico: idoso
+	// avaliado pelos critérios de Fried entra classificado mesmo sem nenhuma
+	// doença registrada, que é justamente o caso do idoso robusto.
+	const fried = tagFragilidade(health?.fried, idade);
+	if (!health || (health.diagnoses ?? []).length === 0)
+		return fried ? [fried] : ['populacao_geral'];
 
 	const tags = new Set<string>();
+	if (fried) tags.add(fried);
 	if (Array.isArray(health.conditionTags)) {
 		for (const t of health.conditionTags) tags.add(t);
 	}
@@ -524,7 +534,7 @@ async function loadStudentContext(
 		health: health ?? null,
 		preferences: preferences ?? null,
 		assessment: assessment ?? null,
-		conditionTags: deriveConditionTags(health ?? null),
+		conditionTags: deriveConditionTags(health ?? null, idadeEmAnos(student.birthDate)),
 		catalog
 	};
 }

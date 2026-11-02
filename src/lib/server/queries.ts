@@ -34,7 +34,8 @@ import {
 	type Message,
 	type Appointment,
 	type Lead,
-	type NewLead
+	type NewLead,
+	type FriedCriteria
 } from './db/schema';
 
 /* ────────── PROFESSIONAL ────────── */
@@ -819,6 +820,10 @@ export type CreateStudentInput = {
 	 *  clínicas (ver `months_since_surgery` no RuleDSL): sem ela, o aluno fica
 	 *  na fase mais restritiva. Persistido em healthProfile.surgeries. */
 	surgeries?: { procedure: string; date?: string; notes?: string }[];
+	/** Critérios de Fried marcados pelo doutor. A classificação (robusto,
+	 *  pré-frágil, frágil) sai da contagem deles, e não do texto do
+	 *  diagnóstico. Persistido em healthProfile.fried. */
+	fried?: FriedCriteria | null;
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
 	prescribedDifficulty?: 'pequena' | 'media' | 'alta';
@@ -859,6 +864,7 @@ export async function createStudentTx(input: CreateStudentInput): Promise<string
 			medications: input.medications,
 			injuries: input.injuries ?? [],
 			surgeries: input.surgeries ?? [],
+			fried: input.fried ?? null,
 			cardiovascularRisk: input.cardiovascularRisk
 		});
 
@@ -999,6 +1005,10 @@ export type UpdateStudentInput = {
 	medications: { name: string; dose?: string; frequency?: string }[];
 	injuries?: { region: string; notes?: string }[];
 	surgeries?: { procedure: string; date?: string; notes?: string }[];
+	/** Critérios de Fried marcados pelo doutor. A classificação (robusto,
+	 *  pré-frágil, frágil) sai da contagem deles, e não do texto do
+	 *  diagnóstico. Persistido em healthProfile.fried. */
+	fried?: FriedCriteria | null;
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
 	prescribedDifficulty?: 'pequena' | 'media' | 'alta';
@@ -1049,6 +1059,7 @@ export async function updateStudentTx(input: UpdateStudentInput): Promise<void> 
 					medications: input.medications,
 					injuries: input.injuries ?? [],
 					surgeries: input.surgeries ?? [],
+					fried: input.fried ?? null,
 					cardiovascularRisk: input.cardiovascularRisk,
 					updatedAt: new Date()
 				})
@@ -1060,6 +1071,7 @@ export async function updateStudentTx(input: UpdateStudentInput): Promise<void> 
 				medications: input.medications,
 				injuries: input.injuries ?? [],
 				surgeries: input.surgeries ?? [],
+				fried: input.fried ?? null,
 				cardiovascularRisk: input.cardiovascularRisk
 			});
 		}
@@ -1160,6 +1172,10 @@ export type CompleteStudentSelfFillInput = {
 	medications: { name: string }[];
 	injuries?: { region: string; notes?: string }[];
 	surgeries?: { procedure: string; date?: string; notes?: string }[];
+	/** Critérios de Fried marcados pelo doutor. A classificação (robusto,
+	 *  pré-frágil, frágil) sai da contagem deles, e não do texto do
+	 *  diagnóstico. Persistido em healthProfile.fried. */
+	fried?: FriedCriteria | null;
 	cardiovascularRisk: 'baixo' | 'moderado' | 'alto' | 'muito_alto';
 	experienceLevel: 'iniciante' | 'intermediario' | 'avancado';
 	prescribedDifficulty: 'pequena' | 'media' | 'alta';
@@ -1203,7 +1219,8 @@ export async function completeStudentSelfFillTx(
 				id: healthProfiles.id,
 				diagnoses: healthProfiles.diagnoses,
 				medications: healthProfiles.medications,
-				injuries: healthProfiles.injuries
+				injuries: healthProfiles.injuries,
+				fried: healthProfiles.fried
 			})
 			.from(healthProfiles)
 			.where(eq(healthProfiles.studentId, input.studentId))
@@ -1234,6 +1251,10 @@ export async function completeStudentSelfFillTx(
 					diagnoses: mergeByKey(input.diagnoses, hp.diagnoses, 'label'),
 					medications: mergeByKey(input.medications, hp.medications, 'name'),
 					injuries: mergeByKey(input.injuries ?? [], hp.injuries, 'region'),
+					// Sem avaliação nova, mantém a que já estava: apagar a classificação
+					// de fragilidade por omissão do formulário seria pior do que ter
+					// uma avaliação velha, que pelo menos tem data.
+					fried: input.fried ?? hp.fried ?? null,
 					cardiovascularRisk: input.cardiovascularRisk,
 					updatedAt: new Date()
 				})
@@ -1245,6 +1266,7 @@ export async function completeStudentSelfFillTx(
 				medications: input.medications,
 				injuries: input.injuries ?? [],
 				surgeries: input.surgeries ?? [],
+				fried: input.fried ?? null,
 				cardiovascularRisk: input.cardiovascularRisk
 			});
 		}

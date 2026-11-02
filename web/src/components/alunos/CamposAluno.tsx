@@ -16,6 +16,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { CRITERIOS_FRIED, classificaFried, IDADE_MINIMA_FRIED } from "$lib/clinical/condition-tags";
 import { CalculadoraRiscoSbc } from "./CalculadoraRiscoSbc";
 
 type Set = (p: Partial<FormAluno>) => void;
@@ -79,6 +81,70 @@ function Area({ k, label, f, set, dica, ph }: Props & { k: "diagnoses" | "medica
   );
 }
 
+/**
+ * Critérios de Fried. Aparece só a partir de 60 anos, que é a idade em que o
+ * fenótipo de fragilidade se aplica: marcar "lentidão da marcha" num aluno de
+ * 30 significa outra coisa.
+ *
+ * A classificação aparece enquanto o doutor marca, com a mesma função que o
+ * servidor usa pra derivar a tag, então o que ele vê na tela é o que vai valer
+ * na regra clínica.
+ */
+function Fried({ f, set }: Props) {
+  const anos = idade(f.birthDate);
+  if (anos == null || anos < IDADE_MINIMA_FRIED) return null;
+  const c = classificaFried(f.friedAvaliado ? f.fried : null);
+  const marca = (chave: string, v: boolean) =>
+    set({ fried: { ...f.fried, [chave]: v }, friedAvaliado: true });
+  return (
+    <Campo
+      id="fried"
+      label="Fragilidade (critérios de Fried)"
+      dica="Marque o que o aluno apresenta. 0 robusto, 1 a 2 pré-frágil, 3 a 5 frágil."
+      span
+    >
+      <div className="space-y-2">
+        {CRITERIOS_FRIED.map((cr) => (
+          <label key={cr.chave} className="flex items-center gap-2 text-sm">
+            <Checkbox
+              id={`fried-${cr.chave}`}
+              checked={f.fried[cr.chave] === true}
+              onCheckedChange={(v) => marca(cr.chave, v === true)}
+            />
+            {cr.label}
+          </label>
+        ))}
+        <div className="flex items-center gap-3 pt-1 text-sm">
+          {c ? (
+            <span className="font-medium">
+              {c.rotulo} · {c.presentes} de 5
+            </span>
+          ) : (
+            <span className="text-muted-foreground">Ainda não avaliado</span>
+          )}
+          {f.friedAvaliado ? (
+            <button
+              type="button"
+              className="text-muted-foreground underline underline-offset-2"
+              onClick={() => set({ fried: {}, friedAvaliado: false })}
+            >
+              limpar avaliação
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="text-muted-foreground underline underline-offset-2"
+              onClick={() => set({ friedAvaliado: true })}
+            >
+              avaliei, nenhum critério presente
+            </button>
+          )}
+        </div>
+      </div>
+    </Campo>
+  );
+}
+
 /** Perfil clínico. Risco CV: calculadora SBC no cadastro, escolha direta na edição. */
 export function CamposClinicos({ risco, ...p }: Props & { risco: "calculadora" | "lista" }) {
   const { set } = p;
@@ -89,6 +155,7 @@ export function CamposClinicos({ risco, ...p }: Props & { risco: "calculadora" |
       <Area {...p} k="medications" label="Medicações em uso" ph="losartana 50 mg/dia, metformina 850 mg" />
       <Area {...p} k="limitations" label="Limitações físicas ou lesões" dica="Articulações, regiões com dor, restrições de amplitude." ph="dor lombar ao agachar, ombro direito limitado acima de 90°" />
       <Area {...p} k="surgeries" label="Cirurgias" dica="Escreva a data: é ela que define a fase da reabilitação. Sem data, o aluno é tratado na fase mais restritiva." ph="reconstrução de LCA em 03/2026" />
+      <Fried {...p} />
       {risco === "calculadora" ? (
         <div className="sm:col-span-2">
           <CalculadoraRiscoSbc idade={idade(p.f.birthDate)} sexo={p.f.sex} onNivel={onNivel} />
