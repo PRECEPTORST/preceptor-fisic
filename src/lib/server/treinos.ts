@@ -109,10 +109,19 @@ export async function revalidateAndPersist(
 			...(fragilidade ? [fragilidade] : [])
 		])
 	];
+	// Nível de experiência: a VOL-001 só vale pra iniciante, então a
+	// revalidação precisa dele igual a geração.
+	const [prefs] = await db
+		.select({ experienceLevel: trainingPreferences.experienceLevel })
+		.from(trainingPreferences)
+		.where(eq(trainingPreferences.studentId, studentId))
+		.limit(1);
+
 	const ctx = deriveStudentCtxFromHealth(
 		conditionTags.length > 0 ? conditionTags : ['populacao_geral'],
 		age,
-		hp ?? null
+		hp ?? null,
+		prefs?.experienceLevel ?? null
 	);
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any

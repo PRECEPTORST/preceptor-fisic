@@ -44,6 +44,20 @@ export function deriveTagsFromDiagnosisLabels(labels: string[]): string[] {
 		}
 		if (/cardiopat|coronar|iam|infarto|dac/.test(label)) tags.add('cardiopatia_isquemica');
 		if (/insufici[eê]ncia card|icc/.test(label)) tags.add('ic_compensada');
+		// Transplante cardíaco antes da reabilitação de internado: quem transplantou
+		// E está internado tem as duas tags, e a de internado é a mais restritiva,
+		// então as duas regras valem juntas, que é o comportamento certo.
+		if (/transplante\s*(?:card[ií]ac|de\s*cora[çc][ãa]o)|cora[çc][ãa]o\s*transplantad/.test(label))
+			tags.add('pos_transplante_cardiaco');
+		// Fase 1 da reabilitação cardíaca é a que acontece com o aluno internado.
+		// É a única condição do sistema em que treino de força está fora: o ACSM
+		// não recomenda força no ambiente hospitalar.
+		if (
+			/\binternad|\bhospitalizad|fase\s*(?:1|i)\s*(?:da\s*)?reabilita[çc][ãa]o|reabilita[çc][ãa]o\s*card[ií]aca\s*(?:fase\s*(?:1|i)|intra[\s-]?hospitalar|hospitalar)/.test(
+				label
+			)
+		)
+			tags.add('reabilitacao_cardiaca_internado');
 		// Severidade importa: a regra DPOC-002 (sem alta intensidade) só vale pro
 		// grave, e antes NINGUÉM recebia `dpoc_grave` — qualquer label pulmonar
 		// virava moderada, então a regra nunca disparava pra ninguém.

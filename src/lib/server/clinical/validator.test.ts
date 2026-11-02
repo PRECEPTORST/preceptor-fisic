@@ -14,6 +14,7 @@ import {
 	prescribedByHr,
 	surgeriesWithAge,
 	violationToRestriction,
+	sessoesComPadrao,
 	type ClinicalRuleRow,
 	type StudentCtx,
 	type Violation
@@ -293,5 +294,112 @@ describe('appliesTo — medications_any', () => {
 		};
 		expect(() => appliesTo(quebrada, comRemedio('atenolol'))).not.toThrow();
 		expect(appliesTo(quebrada, comRemedio('atenolol'))).toBe(false);
+	});
+});
+
+describe('appliesTo — nível de experiência (experience_level_any)', () => {
+	// A VOL-001 tinha "pra iniciante" no título e `when: { age_lte: 200 }` no
+	// código, que é "todo mundo". O teto de 90 min por sessão caía em aluno
+	// avançado e a restrição aparecia no plano de quem treina há dez anos.
+	const vol001: ClinicalRuleRow = {
+		code: 'VOL-001',
+		title: 'Volume excessivo — máx. 90 min/sessão pra iniciante',
+		description: '',
+		severity: 'yellow',
+		conditionTags: [],
+		ruleDsl: {
+			when: { experience_level_any: ['iniciante'] },
+			forbid: { volume_above: { metric: 'minutes_per_session', value: 90 } }
+		}
+	};
+
+	const aluno = (experienceLevel: StudentCtx['experienceLevel']): StudentCtx => ({
+		conditionTags: ['populacao_geral'],
+		medications: [],
+		age: 35,
+		cvRisk: 'baixo',
+		surgeries: [],
+		experienceLevel
+	});
+
+	it('vale pra iniciante', () => {
+		expect(appliesTo(vol001, aluno('iniciante'))).toBe(true);
+	});
+
+	it('não vale pra intermediário nem avançado — era o bug', () => {
+		expect(appliesTo(vol001, aluno('intermediario'))).toBe(false);
+		expect(appliesTo(vol001, aluno('avancado'))).toBe(false);
+	});
+
+	it('sem nível registrado conta como iniciante', () => {
+		expect(appliesTo(vol001, aluno(null))).toBe(true);
+		expect(appliesTo(vol001, aluno(undefined))).toBe(true);
+	});
+});
+
+describe('sessoesComPadrao — require.exercise_pattern_sessions', () => {
+	// A IDOSO-001 dizia "exigir treino de potência 2x/sem" no título e na
+	// descrição, e o rule_dsl só proibia volume acima de 5 sessões semanais.
+	// A regra nunca checou potência: idoso frágil recebia plano sem nada de
+	// potência e nada era sinalizado.
+	const PADROES = [
+		'pot[eê]ncia',
+		'explosiv',
+		'arremesso',
+		'medicine\s*ball',
+		'(?:fase\s+)?conc[eê]ntrica\s+r[aá]pida',
+		'velocidade\s+conc[eê]ntrica'
+	];
+
+	const ex = (name: string) => ({
+		name,
+		muscle_groups: [],
+		sets: 3,
+		reps: '8',
+		load_guidance: 'PSE 6',
+		execution_notes: 'controlado'
+	});
+
+	const plano = (sessoes: string[][]) =>
+		({
+			weekly_sessions: sessoes.map((nomes, i) => ({
+				label: `Treino ${i + 1}`,
+				warmup: [ex('Mobilidade de tornozelo')],
+				main: nomes.map(ex),
+				cooldown: []
+			}))
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		}) as any as TrainingPlanOutput;
+
+	it('conta a sessão onde o exercício de potência aparece', () => {
+		const p = plano([
+			['Agachamento de potência na cadeira', 'Remada baixa'],
+			['Leg press', 'Puxada'],
+			['Arremesso de medicine ball contra a parede', 'Supino inclinado']
+		]);
+		expect(sessoesComPadrao(p, PADROES)).toBe(2);
+	});
+
+	it('plano de força sem nada de potência conta zero — era o caso que passava batido', () => {
+		const p = plano([
+			['Leg press', 'Remada baixa'],
+			['Cadeira extensora', 'Puxada alta']
+		]);
+		expect(sessoesComPadrao(p, PADROES)).toBe(0);
+	});
+
+	it('acento no nome não atrapalha', () => {
+		expect(sessoesComPadrao(plano([['Levantar da cadeira com potência']]), PADROES)).toBe(1);
+		expect(sessoesComPadrao(plano([['Levantar da cadeira com potencia']]), PADROES)).toBe(1);
+	});
+
+	it('conta sessões, não exercícios: dois exercícios de potência na mesma sessão valem 1', () => {
+		const p = plano([['Agachamento explosivo', 'Arremesso de medicine ball', 'Remada']]);
+		expect(sessoesComPadrao(p, PADROES)).toBe(1);
+	});
+
+	it('pliometria e salto não contam como potência pra idoso frágil', () => {
+		const p = plano([['Salto vertical', 'Pliometria em caixa']]);
+		expect(sessoesComPadrao(p, PADROES)).toBe(0);
 	});
 });

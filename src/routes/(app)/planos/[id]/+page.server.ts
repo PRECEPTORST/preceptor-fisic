@@ -17,7 +17,13 @@ import {
 } from '$lib/server/queries';
 import { toIntInRange } from '$lib/server/validation';
 import { db } from '$lib/server/db';
-import { trainingPlans, students, healthProfiles, type Restriction } from '$lib/server/db/schema';
+import {
+	trainingPlans,
+	students,
+	healthProfiles,
+	trainingPreferences,
+	type Restriction
+} from '$lib/server/db/schema';
 import {
 	validatePlan,
 	violationToRestriction,
@@ -70,10 +76,19 @@ async function revalidateAndPersist(
 			...(fragilidade ? [fragilidade] : [])
 		])
 	];
+	// Nível de experiência: a VOL-001 só vale pra iniciante, então a
+	// revalidação precisa dele igual a geração.
+	const [prefs] = await db
+		.select({ experienceLevel: trainingPreferences.experienceLevel })
+		.from(trainingPreferences)
+		.where(eq(trainingPreferences.studentId, studentId))
+		.limit(1);
+
 	const ctx = deriveStudentCtxFromHealth(
 		conditionTags.length > 0 ? conditionTags : ['populacao_geral'],
 		age,
-		hp ?? null
+		hp ?? null,
+		prefs?.experienceLevel ?? null
 	);
 
 	const violations = await validatePlan(planData as any, ctx);
