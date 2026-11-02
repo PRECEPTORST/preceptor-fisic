@@ -657,6 +657,25 @@ function buildUserPromptBase(ctx: StudentContext, ragContext: string, notes?: st
 		);
 		lines.push('');
 	}
+	// Criança e adolescente têm tag na taxonomia e nenhuma regra clínica, e vai
+	// continuar assim: a fonte que temos (CREF4/SP, Coleção Exercício Físico e
+	// Saúde v.3) traz recomendação de QUANTO prescrever, não contraindicação.
+	// Mínimo de volume não cabe no RuleDSL, que bloqueia excesso, então o lugar
+	// disto é aqui no prompt. Inventar uma regra só pra preencher a lacuna é o
+	// contrário do que a gente vem fazendo.
+	if (ctx.conditionTags.some((t) => t === 'crianca' || t === 'adolescente')) {
+		lines.push('## VOLUME MÍNIMO (criança e adolescente)');
+		lines.push(
+			'- Pelo menos 300 min de atividade física por semana, 60 min por dia em pelo menos 5 dias, em intensidade moderada a vigorosa. Acima de 60 min/dia há benefício adicional em função muscular, cardiorrespiratória e óssea.'
+		);
+		lines.push(
+			'- Incluir atividades com peso para força e resistência muscular de 2 a 3 vezes por semana, e atividades aeróbias que melhorem a aptidão cardiorrespiratória e a saúde óssea.'
+		);
+		lines.push(
+			'- Fonte: Prescrição de Exercícios e Atividade Física para Crianças e Adolescentes (CREF4/SP).'
+		);
+		lines.push('');
+	}
 	// Cuidados do dia. O modelo escreve com as palavras dele, e o
 	// `garanteCuidadosDoDia` no pós-processamento cobre o que ele deixar de
 	// fora. Pedir aqui também evita que o plano fique com dois blocos dizendo a
