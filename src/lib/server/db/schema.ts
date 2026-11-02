@@ -652,6 +652,19 @@ export type RuleDSL = {
 		 * aparece tanto em cardiopata quanto em hipertenso.
 		 */
 		medications_any?: string[];
+		/**
+		 * Nível de experiência do aluno (`training_preferences.experience_level`).
+		 * Basta UM casar.
+		 *
+		 * Existe porque a VOL-001 tinha "pra iniciante" no título e
+		 * `when: { age_lte: 200 }` no código, que é um jeito de dizer "todo
+		 * mundo". O teto de 90 min por sessão caía em aluno avançado também, e
+		 * a restrição aparecia no plano de quem treina há dez anos.
+		 *
+		 * Aluno sem preferências registradas conta como `iniciante`: é o
+		 * default da coluna no banco e o lado conservador.
+		 */
+		experience_level_any?: Array<'iniciante' | 'intermediario' | 'avancado'>;
 	};
 	forbid?: {
 		exercise_patterns?: string[];
@@ -668,7 +681,27 @@ export type RuleDSL = {
 		 */
 		intensity_prescribed_by_hr?: boolean;
 	};
-	require?: { monitoring?: string[]; medical_clearance?: boolean };
+	require?: {
+		monitoring?: string[];
+		medical_clearance?: boolean;
+		/**
+		 * Exige que um TIPO de exercício apareça em pelo menos N sessões da
+		 * semana. `patterns` são regexes (case-insensitive, sem acento) contra
+		 * nome + grupos musculares, igual `forbid.exercise_patterns`.
+		 *
+		 * Existe porque a IDOSO-001 dizia no título e na descrição "exigir
+		 * treino de potência 2x/sem" e o rule_dsl, na prática, só proibia
+		 * volume acima de 5 sessões semanais. A regra nunca checou potência:
+		 * idoso frágil recebia plano sem nada de potência e nada era sinalizado.
+		 *
+		 * `label` é o nome que aparece no texto da violation.
+		 */
+		exercise_pattern_sessions?: {
+			patterns: string[];
+			min_sessions_per_week: number;
+			label: string;
+		};
+	};
 	suggest_replacement?: Record<string, string[]>;
 };
 

@@ -98,10 +98,19 @@ export async function revalidateAndPersist(
 	const age = s.birthDate
 		? Math.floor((Date.now() - new Date(s.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
 		: null;
+	// Nível de experiência: a VOL-001 só vale pra iniciante, então a
+	// revalidação precisa dele igual a geração.
+	const [prefs] = await db
+		.select({ experienceLevel: trainingPreferences.experienceLevel })
+		.from(trainingPreferences)
+		.where(eq(trainingPreferences.studentId, studentId))
+		.limit(1);
+
 	const ctx = deriveStudentCtxFromHealth(
 		conditionTags.length > 0 ? conditionTags : ['populacao_geral'],
 		age,
-		hp ?? null
+		hp ?? null,
+		prefs?.experienceLevel ?? null
 	);
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -112,7 +121,11 @@ export async function revalidateAndPersist(
 
 	await db
 		.update(trainingPlans)
-		.set({ restrictions: merged, planData: { ...planData, restrictions: merged }, updatedAt: new Date() })
+		.set({
+			restrictions: merged,
+			planData: { ...planData, restrictions: merged },
+			updatedAt: new Date()
+		})
 		.where(eq(trainingPlans.id, planId));
 
 	return {
@@ -185,7 +198,11 @@ export async function editarExercicio(
 	if (reps) ex.reps = reps;
 	if (e.sets != null) ex.sets = toIntInRange(e.sets, { min: 1, max: 20, fallback: ex.sets ?? 3 });
 	if (e.rest_seconds != null)
-		ex.rest_seconds = toIntInRange(e.rest_seconds, { min: 0, max: 900, fallback: ex.rest_seconds ?? 60 });
+		ex.rest_seconds = toIntInRange(e.rest_seconds, {
+			min: 0,
+			max: 900,
+			fallback: ex.rest_seconds ?? 60
+		});
 	// String vazia limpa o campo.
 	ex.load_guidance = e.load_guidance?.trim() || undefined;
 	ex.intensity = e.intensity?.trim() || undefined;
@@ -204,7 +221,9 @@ function identidadeDoCatalogo(cat: NonNullable<Awaited<ReturnType<typeof getCata
 	return {
 		name: cat.name,
 		catalog_id: /^\d{4,5}$/.test(cat.externalId) ? cat.externalId : undefined,
-		muscle_groups: Array.from(new Set([cat.targetMuscle, ...(cat.secondaryMuscles ?? [])].filter(Boolean)))
+		muscle_groups: Array.from(
+			new Set([cat.targetMuscle, ...(cat.secondaryMuscles ?? [])].filter(Boolean))
+		)
 	};
 }
 
@@ -252,7 +271,13 @@ export async function adicionarExercicio(
 	const session = planData.weekly_sessions?.[p.sessionIdx];
 	if (!session) return falha(404, 'Sessão não encontrada.');
 	const lista = (session[p.block] ??= []);
-	lista.push({ ...identidadeDoCatalogo(cat), sets: 3, reps: '8-12', rest_seconds: 60, source_refs: [] });
+	lista.push({
+		...identidadeDoCatalogo(cat),
+		sets: 3,
+		reps: '8-12',
+		rest_seconds: 60,
+		source_refs: []
+	});
 	return {
 		ok: true,
 		newName: cat.name,
@@ -410,7 +435,10 @@ export async function iniciarGeracao(
 	const notes = input.notes?.trim();
 	// Sem truncamento silencioso: o fim das notas costuma ter a restrição.
 	if (notes && notes.length > 2000)
-		return falha(400, 'Observações muito longas (máximo 2000 caracteres). Resuma o texto antes de gerar.');
+		return falha(
+			400,
+			'Observações muito longas (máximo 2000 caracteres). Resuma o texto antes de gerar.'
+		);
 
 	const equipment = input.equipment.filter((v) => EQUIPMENT_VALUES.includes(v));
 	if (detail.preferences) {
