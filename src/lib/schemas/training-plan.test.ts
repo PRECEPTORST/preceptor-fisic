@@ -7,8 +7,9 @@
  * Pra rodar: `npm test`
  */
 import { describe, it, expect } from 'vitest';
+// `assemblePlan` vive em server/ai/plan-assembly, não no módulo de schema.
+import { assemblePlan } from '../server/ai/plan-assembly';
 import {
-	assemblePlan,
 	programMetadataSchema,
 	sessionExercisesSchema,
 	trainingPlanSchema,
