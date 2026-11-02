@@ -59,6 +59,8 @@ export default function TreinoImprimir() {
   );
 }
 
+type Cuidado = { parameter?: string; frequency?: string; alert_threshold?: string };
+
 function Folhas({ d }: { d: ImpressaoResposta }) {
   // O título vira o nome sugerido do PDF.
   useEffect(() => {
@@ -71,6 +73,12 @@ function Folhas({ d }: { d: ImpressaoResposta }) {
   const pd = d.plan.planData;
   const sessoes = pd.weekly_sessions ?? [];
   const aerobios = pd.aerobic_prescriptions ?? [];
+  // Cuidados do dia. O Jonas pediu que os critérios de adiar ou interromper a
+  // sessão chegassem a quem aplica o treino, e quem aplica recebe esta folha.
+  // Sem gatilho escrito, o parâmetro vira só um nome de medida.
+  const cuidados = ((pd.monitoring_parameters ?? []) as Cuidado[]).filter(
+    (m) => m?.parameter && m?.alert_threshold,
+  );
   const anos = idade(d.student?.birthDate);
   const inicio = new Date(d.plan.publishedAt ?? d.plan.createdAt);
   const semanas = pd.program_weeks ?? null;
@@ -175,6 +183,20 @@ function Folhas({ d }: { d: ImpressaoResposta }) {
                 : `Início em ${dataBR(inicio)} · término a definir pelo profissional`}
             </p>
           </Capa>
+          {cuidados.length > 0 && (
+            <Capa rotulo="Cuidados antes e durante a sessão">
+              <ul className="space-y-1.5">
+                {cuidados.map((c, i) => (
+                  <li key={i} className="text-[10.5px] leading-snug">
+                    <span className="font-semibold">{c.parameter}</span>
+                    {c.frequency ? <span className="text-black/60"> · {c.frequency}</span> : null}
+                    <br />
+                    {c.alert_threshold}
+                  </li>
+                ))}
+              </ul>
+            </Capa>
+          )}
           {assinatura}
         </article>
 

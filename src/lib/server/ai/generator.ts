@@ -46,6 +46,7 @@ import {
 	sessionsPreview,
 	suggestedDaysFor
 } from './plan-assembly';
+import { garanteCuidadosDoDia, cuidadosDoDia } from '$lib/clinical/cuidados-do-dia';
 import { unwrapParametersEnvelope } from './structured';
 import { envMs, remainingGenBudgetMs, type GenBudget } from './budget';
 import {
@@ -654,6 +655,21 @@ function buildUserPromptBase(ctx: StudentContext, ragContext: string, notes?: st
 		lines.push(
 			'- Não usar salto nem pliometria pra isso: em quem já tem risco de queda, o ganho é o mesmo e o risco não.'
 		);
+		lines.push('');
+	}
+	// Cuidados do dia. O modelo escreve com as palavras dele, e o
+	// `garanteCuidadosDoDia` no pós-processamento cobre o que ele deixar de
+	// fora. Pedir aqui também evita que o plano fique com dois blocos dizendo a
+	// mesma coisa em lugares diferentes.
+	const cuidados = cuidadosDoDia(ctx.conditionTags);
+	if (cuidados.length > 0) {
+		lines.push('## CUIDADOS DO DIA (o que faz ADIAR ou INTERROMPER a sessão)');
+		lines.push(
+			'- Estes critérios são de COMO O ALUNO ESTÁ NO DIA, não da condição crônica dele. Quem decide na hora é o profissional que aplica o treino, então eles precisam estar escritos no plano, em monitoring_parameters, com o gatilho no alert_threshold.'
+		);
+		for (const c of cuidados) {
+			lines.push(`- ${c.parameter} (${c.frequency}): ${c.alert_threshold} [${c.fonte}]`);
+		}
 		lines.push('');
 	}
 	lines.push('## PREFERÊNCIAS DE TREINO');
@@ -1451,6 +1467,18 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 		// do modelo e não passa por lá — sem isto, era justamente no fallback que
 		// voltava sessão sem aquecimento.
 		for (const s of plan.weekly_sessions) s.warmup = ensureWarmup(s.warmup);
+
+		// Cuidados do dia: o que faz adiar ou interromper a sessão. O Jonas pediu
+		// que isso saísse como informação de cuidado no plano, sem campo novo e
+		// sem o sistema perguntar nada ao aluno, porque quem aplica decide na
+		// hora. O prompt pede e isto garante: critério de suspensão que some
+		// porque o modelo resumiu é falha silenciosa, e é o personal que paga.
+		// Vem DEPOIS do sanitizeRef de propósito: a fonte aqui é escrita por nós
+		// e não precisa (nem deve) passar pelo saneamento de referência do modelo.
+		plan.monitoring_parameters = garanteCuidadosDoDia(
+			plan.monitoring_parameters,
+			ctx.conditionTags
+		);
 
 		// Coerência entre o que o programa DIZ e o que os exercícios trazem.
 		// Metadados e exercícios saem de chamadas diferentes, em paralelo, e
