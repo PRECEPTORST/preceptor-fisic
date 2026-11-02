@@ -1,7 +1,11 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 import { audit, clientFingerprint } from '$lib/server/audit';
-import { deriveTagsFromDiagnosisLabels } from '$lib/clinical/condition-tags';
+import {
+	deriveTagsFromDiagnosisLabels,
+	tagFragilidade,
+	idadeEmAnos
+} from '$lib/clinical/condition-tags';
 import {
 	getPlanDetail,
 	getProfessionalByAuthId,
@@ -62,10 +66,16 @@ async function revalidateAndPersist(
 		.limit(1);
 
 	const diagnosisLabels = ((hp?.diagnoses ?? []) as { label: string }[]).map((d) => d.label);
-	const conditionTags = deriveTagsFromDiagnosisLabels(diagnosisLabels);
-	const age = s.birthDate
-		? Math.floor((Date.now() - new Date(s.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-		: null;
+	const age = idadeEmAnos(s.birthDate);
+	// Mesma derivação da geração: fragilidade vem dos critérios de Fried, não do
+	// texto do diagnóstico.
+	const fragilidade = tagFragilidade(hp?.fried, age);
+	const conditionTags = [
+		...new Set([
+			...deriveTagsFromDiagnosisLabels(diagnosisLabels),
+			...(fragilidade ? [fragilidade] : [])
+		])
+	];
 	// Nível de experiência: a VOL-001 só vale pra iniciante, então a
 	// revalidação precisa dele igual a geração.
 	const [prefs] = await db
