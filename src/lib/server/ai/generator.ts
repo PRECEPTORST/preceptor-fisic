@@ -61,7 +61,11 @@ import {
 	type SessionOutline
 } from '$lib/schemas/training-plan';
 import { retrieveRelevantChunks, formatContextForPrompt, type RetrievedChunk } from './rag';
-import { deriveTagsFromDiagnosisLabels } from '$lib/clinical/condition-tags';
+import {
+	deriveTagsFromDiagnosisLabels,
+	tagFragilidade,
+	idadeEmAnos
+} from '$lib/clinical/condition-tags';
 import { SYSTEM_PROMPT_PT_BR, SYSTEM_PROMPT_VERSION } from './system-prompt';
 import {
 	validatePlan,
@@ -367,10 +371,16 @@ function formatCatalogForPrompt(items: CatalogPromptItem[]): string {
  * regexes pra deriveTagsFromDiagnosisLabels. Fonte única: qualquer ajuste de
  * derivação vai em condition-tags.ts (revalidação de planos usa o mesmo).
  */
-function deriveConditionTags(health: HealthProfile | null): string[] {
-	if (!health || (health.diagnoses ?? []).length === 0) return ['populacao_geral'];
+function deriveConditionTags(health: HealthProfile | null, idade?: number | null): string[] {
+	// Fragilidade é avaliação própria e não depende de haver diagnóstico: idoso
+	// avaliado pelos critérios de Fried entra classificado mesmo sem nenhuma
+	// doença registrada, que é justamente o caso do idoso robusto.
+	const fried = tagFragilidade(health?.fried, idade);
+	if (!health || (health.diagnoses ?? []).length === 0)
+		return fried ? [fried] : ['populacao_geral'];
 
 	const tags = new Set<string>();
+	if (fried) tags.add(fried);
 	if (Array.isArray(health.conditionTags)) {
 		for (const t of health.conditionTags) tags.add(t);
 	}
@@ -525,7 +535,7 @@ async function loadStudentContext(
 		health: health ?? null,
 		preferences: preferences ?? null,
 		assessment: assessment ?? null,
-		conditionTags: deriveConditionTags(health ?? null),
+		conditionTags: deriveConditionTags(health ?? null, idadeEmAnos(student.birthDate)),
 		catalog
 	};
 }
@@ -629,6 +639,24 @@ function buildUserPromptBase(ctx: StudentContext, ragContext: string, notes?: st
 	lines.push('## TAGS DE CONDIÇÃO (canônicas, derivadas dos diagnósticos)');
 	lines.push(`- ${ctx.conditionTags.join(', ')}`);
 	lines.push('');
+	// A IDOSO-001 exige 2 sessões semanais de potência em idoso frágil ou com
+	// sarcopenia. Sem este aviso o modelo prescreve força convencional, a regra
+	// aponta a falta e o doutor recebe uma restrição amarela em todo plano
+	// desse público. Avisar antes é o que faz a regra virar prescrição em vez
+	// de só reclamação.
+	if (ctx.conditionTags.some((t) => t === 'idoso_fragil' || t === 'sarcopenia')) {
+		lines.push('## TREINO DE POTÊNCIA OBRIGATÓRIO (idoso frágil / sarcopenia)');
+		lines.push(
+			'- Pelo menos 2 das sessões da semana devem ter exercício de POTÊNCIA: fase concêntrica rápida e intencional, descida controlada em 2-3s, carga moderada (40-60% 1RM), 6-8 repetições, interrompendo a série quando a velocidade cai.'
+		);
+		lines.push(
+			'- Escreva "de potência" ou "concêntrica rápida" no nome do exercício (ex.: "Leg press de potência", "Levantar da cadeira com potência"), senão a prescrição não fica rastreável na ficha.'
+		);
+		lines.push(
+			'- Não usar salto nem pliometria pra isso: em quem já tem risco de queda, o ganho é o mesmo e o risco não.'
+		);
+		lines.push('');
+	}
 	// Cuidados do dia. O modelo escreve com as palavras dele, e o
 	// `garanteCuidadosDoDia` no pós-processamento cobre o que ele deixar de
 	// fora. Pedir aqui também evita que o plano fique com dois blocos dizendo a
@@ -1557,7 +1585,12 @@ export async function generateTrainingPlan(opts: GenerateOptions): Promise<Gener
 					(Date.now() - new Date(ctx.student.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)
 				)
 			: null;
-		const studentCtx = deriveStudentCtxFromHealth(ctx.conditionTags, age, ctx.health);
+		const studentCtx = deriveStudentCtxFromHealth(
+			ctx.conditionTags,
+			age,
+			ctx.health,
+			ctx.preferences?.experienceLevel ?? null
+		);
 		const violations = await validatePlan(plan, studentCtx);
 		const ruleRestrictions: Restriction[] = violations.map(violationToRestriction);
 

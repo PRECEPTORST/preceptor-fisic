@@ -17,6 +17,7 @@ import {
 } from '$lib/server/queries';
 import { db } from '$lib/server/db';
 import { students, trainingPlans } from '$lib/server/db/schema';
+import { CRITERIOS_FRIED } from '$lib/clinical/condition-tags';
 import { limitsFor, studentLimitMessage } from '$lib/server/subscription';
 import { getOrganization, listMembers, podeAtribuirPara } from '$lib/server/organization';
 import { parseDateISO, parseDecimalBR } from '$lib/server/form-utils';
@@ -58,6 +59,11 @@ const perfilSchema = z.object({
 	medications: z.string().max(4000).default(''),
 	limitations: z.string().max(4000).default(''),
 	surgeries: z.string().max(4000).default(''),
+	// Critérios de Fried. `friedAvaliado` separa "avaliei e deu zero", que
+	// classifica o aluno como robusto, de "ninguém avaliou", que não classifica
+	// nada. Sem essa distinção, todo aluno nasceria robusto.
+	fried: z.record(z.string().max(40), z.boolean()).default({}),
+	friedAvaliado: z.boolean().default(false),
 	goals: z.array(z.string().max(60)).max(20).default([]),
 	weeklySessions: z.number().int().min(1, 'frequência semanal inválida (1 a 7)').max(7, 'frequência semanal inválida (1 a 7)'),
 	minutesPerSession: z.number().int().min(15, 'minutos por sessão inválidos (15 a 180)').max(180, 'minutos por sessão inválidos (15 a 180)'),
@@ -134,6 +140,25 @@ export function parseCirurgias(s: string): { procedure: string; date?: string }[
 		const mm = Number(date.slice(5, 7));
 		return [mm >= 1 && mm <= 12 ? { procedure, date } : { procedure }];
 	});
+}
+
+/**
+ * Monta o objeto de Fried que vai pro banco, ou null quando ninguém avaliou.
+ *
+ * Grava os cinco critérios sempre, inclusive os falsos: "não tem fraqueza" é
+ * informação, e um objeto só com o que foi marcado não distingue critério
+ * ausente de critério não perguntado. A data da avaliação vai junto porque
+ * fragilidade muda com o tempo.
+ */
+export function montaFried(
+	marcados: Record<string, boolean>,
+	avaliado: boolean
+): Record<string, boolean | string> | null {
+	if (!avaliado) return null;
+	const out: Record<string, boolean | string> = {};
+	for (const c of CRITERIOS_FRIED) out[c.chave] = marcados[c.chave] === true;
+	out.assessed_at = new Date().toISOString().slice(0, 10);
+	return out;
 }
 
 /** Igual ao editar do SvelteKit: preserva os campos ricos do jsonb que o form não edita. */
@@ -293,6 +318,7 @@ export const alunos = new Hono<{ Variables: Vars }>()
 				medications: parseList(input.medications).map((name) => ({ name })),
 				injuries: parseList(input.limitations).map((region) => ({ region })),
 				surgeries: parseCirurgias(input.surgeries),
+				fried: montaFried(input.fried, input.friedAvaliado) as never,
 				cardiovascularRisk: input.cardiovascularRisk,
 				experienceLevel: input.experienceLevel,
 				prescribedDifficulty: input.prescribedDifficulty,
@@ -374,6 +400,8 @@ export const alunos = new Hono<{ Variables: Vars }>()
 				medications: mergeByKey(parseList(input.medications).map((name) => ({ name })), hp?.medications, 'name'),
 				injuries: mergeByKey(parseList(input.limitations).map((region) => ({ region })), hp?.injuries, 'region'),
 				surgeries: mergeByKey(parseCirurgias(input.surgeries), hp?.surgeries, 'procedure'),
+				// Sem avaliação nova, mantém a que já estava.
+				fried: (montaFried(input.fried, input.friedAvaliado) ?? hp?.fried ?? null) as never,
 				cardiovascularRisk: input.cardiovascularRisk,
 				experienceLevel: input.experienceLevel,
 				prescribedDifficulty: input.prescribedDifficulty,

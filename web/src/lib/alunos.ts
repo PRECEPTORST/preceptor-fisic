@@ -209,6 +209,14 @@ export type FormAluno = {
   medications: string;
   limitations: string;
   surgeries: string;
+  /** Critérios de Fried marcados, por chave. Ver friedAvaliado. */
+  fried: Record<string, boolean>;
+  /**
+   * Se alguém já avaliou. Separado do objeto porque "nenhum critério marcado"
+   * e "ninguém avaliou" são coisas diferentes: o primeiro classifica o aluno
+   * como robusto, o segundo não classifica nada.
+   */
+  friedAvaliado: boolean;
   goals: string[];
   weeklySessions: string;
   minutesPerSession: string;
@@ -230,6 +238,8 @@ export const FORM_VAZIO: FormAluno = {
   medications: "",
   limitations: "",
   surgeries: "",
+  fried: {},
+  friedAvaliado: false,
   goals: [],
   weeklySessions: "3",
   minutesPerSession: "60",
@@ -259,13 +269,23 @@ const juntarCirurgias = (l: unknown) =>
         .join(", ")
     : "";
 
+/** Só as chaves marcadas como true, pro checkbox já abrir com o que foi avaliado. */
+const lerFried = (v: unknown): Record<string, boolean> => {
+  if (!v || typeof v !== "object") return {};
+  const out: Record<string, boolean> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (val === true) out[k] = true;
+  }
+  return out;
+};
+
 /**
  * Valores iniciais da edição. Só a chave de identidade vai para o texto: os
  * campos ricos (dose, severidade, notas) ficam no jsonb e o servidor preserva no merge.
  */
 export function formDoAluno(d: {
   student: { name: string; birthDate: string | null; sex: string; weightKg: number | null; heightCm: number | null; phone: string | null; email: string | null };
-  healthProfile: { cardiovascularRisk?: string | null; diagnoses?: unknown; medications?: unknown; injuries?: unknown; surgeries?: unknown } | null;
+  healthProfile: { cardiovascularRisk?: string | null; diagnoses?: unknown; medications?: unknown; injuries?: unknown; surgeries?: unknown; fried?: unknown } | null;
   preferences: { goals?: unknown; weeklySessions?: number | null; minutesPerSession?: number | null; experienceLevel?: string | null; prescribedDifficulty?: string | null; trainingSplit?: string | null } | null;
 }): FormAluno {
   const s = d.student;
@@ -284,6 +304,8 @@ export function formDoAluno(d: {
     medications: juntar(hp?.medications, "name"),
     limitations: juntar(hp?.injuries, "region"),
     surgeries: juntarCirurgias(hp?.surgeries),
+    fried: lerFried(hp?.fried),
+    friedAvaliado: hp?.fried != null,
     goals: Array.isArray(p?.goals) ? (p.goals as string[]) : [],
     weeklySessions: String(p?.weeklySessions ?? 3),
     minutesPerSession: String(p?.minutesPerSession ?? 60),

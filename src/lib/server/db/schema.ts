@@ -284,6 +284,33 @@ export type ParqResult = {
 };
 export type Contraindication = { exercise_pattern: string; reason: string; source?: string };
 
+/**
+ * Fenótipo de fragilidade de Fried. Cinco critérios, cada um presente ou não:
+ * perda de peso não intencional, fraqueza muscular, exaustão, lentidão da
+ * marcha e baixo nível de atividade física.
+ *
+ * A classificação sai da CONTAGEM: 0 robusto, 1 a 2 pré-frágil, 3 a 5 frágil
+ * (Fried et al., 2001; Álvarez-Bustos et al., 2026, que recomenda os critérios
+ * de Fried com pontos de corte adaptados à população avaliada).
+ *
+ * Existe porque antes a fragilidade vinha do TEXTO do diagnóstico: o doutor
+ * escrevia "idoso frágil" e o sistema acreditava. Quem não escrevia nada não
+ * tinha classificação nenhuma, e `idoso_robusto` existia na taxonomia sem
+ * nunca ser preenchido. Marcar os cinco é mais rápido do que escrever, e vira
+ * classificação reprodutível em vez de adjetivo.
+ *
+ * `assessed_at` é a data da avaliação: fragilidade muda com o tempo, e saber
+ * que a marcação é de dois anos atrás vale mais do que supor que é de hoje.
+ */
+export type FriedCriteria = {
+	perda_peso: boolean;
+	fraqueza: boolean;
+	exaustao: boolean;
+	lentidao_marcha: boolean;
+	baixa_atividade: boolean;
+	assessed_at?: string;
+};
+
 export const healthProfiles = pgTable(
 	'health_profiles',
 	{
@@ -297,6 +324,8 @@ export const healthProfiles = pgTable(
 		medications: jsonb('medications').$type<Medication[]>().default([]).notNull(),
 		injuries: jsonb('injuries').$type<Injury[]>().default([]).notNull(),
 		parqResult: jsonb('parq_result').$type<ParqResult | null>(),
+		/** Ver `FriedCriteria`. Nulo quando ninguém avaliou. */
+		fried: jsonb('fried').$type<FriedCriteria | null>(),
 		cardiovascularRisk: riskEnum('cardiovascular_risk').default('baixo').notNull(),
 		contraindications: jsonb('contraindications').$type<Contraindication[]>().default([]).notNull(),
 		conditionTags: jsonb('condition_tags').$type<string[]>().default([]).notNull(),
@@ -652,6 +681,19 @@ export type RuleDSL = {
 		 * aparece tanto em cardiopata quanto em hipertenso.
 		 */
 		medications_any?: string[];
+		/**
+		 * Nível de experiência do aluno (`training_preferences.experience_level`).
+		 * Basta UM casar.
+		 *
+		 * Existe porque a VOL-001 tinha "pra iniciante" no título e
+		 * `when: { age_lte: 200 }` no código, que é um jeito de dizer "todo
+		 * mundo". O teto de 90 min por sessão caía em aluno avançado também, e
+		 * a restrição aparecia no plano de quem treina há dez anos.
+		 *
+		 * Aluno sem preferências registradas conta como `iniciante`: é o
+		 * default da coluna no banco e o lado conservador.
+		 */
+		experience_level_any?: Array<'iniciante' | 'intermediario' | 'avancado'>;
 	};
 	forbid?: {
 		exercise_patterns?: string[];
@@ -668,7 +710,27 @@ export type RuleDSL = {
 		 */
 		intensity_prescribed_by_hr?: boolean;
 	};
-	require?: { monitoring?: string[]; medical_clearance?: boolean };
+	require?: {
+		monitoring?: string[];
+		medical_clearance?: boolean;
+		/**
+		 * Exige que um TIPO de exercício apareça em pelo menos N sessões da
+		 * semana. `patterns` são regexes (case-insensitive, sem acento) contra
+		 * nome + grupos musculares, igual `forbid.exercise_patterns`.
+		 *
+		 * Existe porque a IDOSO-001 dizia no título e na descrição "exigir
+		 * treino de potência 2x/sem" e o rule_dsl, na prática, só proibia
+		 * volume acima de 5 sessões semanais. A regra nunca checou potência:
+		 * idoso frágil recebia plano sem nada de potência e nada era sinalizado.
+		 *
+		 * `label` é o nome que aparece no texto da violation.
+		 */
+		exercise_pattern_sessions?: {
+			patterns: string[];
+			min_sessions_per_week: number;
+			label: string;
+		};
+	};
 	suggest_replacement?: Record<string, string[]>;
 };
 
