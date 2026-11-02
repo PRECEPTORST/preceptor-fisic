@@ -74,7 +74,7 @@ export function GeracaoAoVivo({
 function Parcial({ p }: { p: PlanData }) {
   const sessoes = (p.weekly_sessions ?? []).filter((s) => s.label);
   const restricoes = (p.restrictions ?? []).filter((r) => r.title);
-  const monit = ((p.monitoring_parameters ?? []) as { parameter?: string; frequency?: string }[]).filter((m) => m.parameter);
+  const monit = ((p.monitoring_parameters ?? []) as { parameter?: string; frequency?: string; alert_threshold?: string }[]).filter((m) => m.parameter);
   return (
     <div className="mt-6 space-y-4">
       {p.summary && (
@@ -134,9 +134,14 @@ function Parcial({ p }: { p: PlanData }) {
         <Bloco titulo={`Monitoramento · ${monit.length}`}>
           <ul className="space-y-1">
             {monit.map((m, i) => (
-              <li key={i} className="flex justify-between gap-3 text-body">
-                <span className="text-ink">{m.parameter}</span>
-                {m.frequency && <span className="text-caption text-ink-mute">{m.frequency}</span>}
+              <li key={i} className="text-body">
+                <div className="flex justify-between gap-3">
+                  <span className="text-ink">{m.parameter}</span>
+                  {m.frequency && <span className="text-caption text-ink-mute">{m.frequency}</span>}
+                </div>
+                {/* O gatilho é a informação que faz o personal parar a sessão.
+                    Sem ele na tela, o parâmetro vira só um nome de medida. */}
+                {m.alert_threshold && <p className="text-caption text-ink-soft">{m.alert_threshold}</p>}
               </li>
             ))}
           </ul>
