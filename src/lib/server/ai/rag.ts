@@ -67,13 +67,81 @@ export type RetrievalQuery = {
 const EMBED_MODEL = env.AI_MODEL_EMBEDDING ?? 'gemini-embedding-001';
 const EMBED_DIMS = 768;
 
+/**
+ * Tradução das tags pro inglês, pra busca.
+ *
+ * Metade da base é documento em inglês (ACOG, GOLD, OARSI, WHO, Fried) e a
+ * query era 100% em português. Medindo: "Critérios de Fried para identificar
+ * fragilidade no idoso" não trazia o Fried et al. (2001) em nenhuma das 3
+ * primeiras posições, e a mesma pergunta em inglês trazia nas duas primeiras,
+ * a 0.215 de distância. O documento estava lá, alcançável, e a query em
+ * português não chegava nele.
+ *
+ * Em vez de traduzir a pergunta com uma chamada de modelo (mais latência e
+ * mais custo em todo plano gerado), a query carrega os dois idiomas: as tags
+ * são vocabulário fechado, então um glossário resolve. Tag sem tradução aqui
+ * simplesmente não contribui com termo em inglês, não quebra nada.
+ */
+const TAG_EN: Record<string, string> = {
+	adolescente: 'adolescent',
+	cancer_em_tratamento: 'cancer during treatment',
+	cardiopatia_isquemica: 'ischemic heart disease',
+	crianca: 'child',
+	diabetes_descompensado: 'uncontrolled diabetes',
+	diabetes_tipo_1: 'type 1 diabetes',
+	diabetes_tipo_2: 'type 2 diabetes',
+	dislipidemia: 'dyslipidemia',
+	doenca_hepatica_compensada: 'compensated liver disease',
+	doenca_hepatica_descompensada: 'decompensated liver disease',
+	dor_lombar_cronica: 'chronic low back pain',
+	dpoc_grave: 'severe COPD',
+	dpoc_leve: 'mild COPD',
+	dpoc_moderada: 'moderate COPD',
+	esclerose_multipla: 'multiple sclerosis',
+	fibrilacao_atrial: 'atrial fibrillation',
+	gestante_primeiro_trimestre: 'pregnancy first trimester',
+	gestante_segundo_trimestre: 'pregnancy second trimester',
+	gestante_terceiro_trimestre: 'pregnancy third trimester',
+	hipertensao_estagio_1: 'stage 1 hypertension',
+	hipertensao_estagio_2: 'stage 2 hypertension',
+	hipertensao_nao_controlada: 'uncontrolled hypertension',
+	hiv: 'HIV, people living with HIV',
+	ic_compensada: 'compensated heart failure',
+	ic_descompensada: 'decompensated heart failure',
+	idoso_fragil: 'frail older adult, frailty',
+	idoso_robusto: 'robust non-frail older adult',
+	lca_pos_cirurgico: 'ACL reconstruction, post-surgical',
+	lca_tratamento_conservador: 'ACL tear, non-operative management',
+	obesidade_grau_1: 'class I obesity',
+	obesidade_grau_2: 'class II obesity',
+	obesidade_grau_3: 'class III obesity, severe obesity',
+	osteoartrite_joelho: 'knee osteoarthritis',
+	osteoartrite_quadril: 'hip osteoarthritis',
+	parkinson_leve: 'mild Parkinson disease',
+	parkinson_moderada: 'moderate Parkinson disease',
+	pcd: 'person with disability',
+	populacao_geral: 'healthy adults',
+	pos_avc: 'stroke survivor',
+	pos_cancer: 'cancer survivor',
+	sarcopenia: 'sarcopenia',
+	tendinopatia_patelar: 'patellar tendinopathy'
+};
+
 function buildQueryText(q: RetrievalQuery): string {
 	const parts: string[] = [];
 	if (q.conditionTags.length) parts.push(`Condições clínicas: ${q.conditionTags.join(', ')}.`);
+	const en = q.conditionTags.map((t) => TAG_EN[t]).filter(Boolean);
+	if (en.length) parts.push(`Clinical conditions: ${en.join(', ')}.`);
 	if (q.goals.length) parts.push(`Objetivos do aluno: ${q.goals.join(', ')}.`);
 	if (q.freeText) parts.push(q.freeText);
 	parts.push(
 		'Quero recomendações de prescrição de exercício (intensidade, frequência, contraindicações, monitoramento) baseadas em diretrizes — preferindo ACSM, depois ESSA/ADA/OMS, e por último AHA — e estudos peer-reviewed.'
+	);
+	// Mesma frase em inglês, pelo mesmo motivo do glossário acima: sem isto, o
+	// trecho em inglês que responde a pergunta fica atrás de um trecho em
+	// português que responde pior.
+	parts.push(
+		'Exercise prescription recommendations: intensity, frequency, contraindications, monitoring, FITT.'
 	);
 	return parts.join(' ');
 }
@@ -119,12 +187,33 @@ type ChunkRow = {
 	category: string;
 };
 
+/**
+ * Quantas listas do índice ivfflat são varridas em cada busca.
+ *
+ * O default do Postgres é 1, e era com 1 que a produção estava rodando: o
+ * índice foi criado sem `lists`, ou seja, 100 listas, então a busca enxergava
+ * cerca de 1% da base e o resto era invisível. Medindo com a query que o
+ * gerador monta pra um aluno com DPOC grave, a busca voltava ZERO chunk, com
+ * 2.463 chunks na tabela e a ESSA e o ACSM falando de DPOC lá dentro. Não é
+ * ranking ruim, é trecho que nunca chega a ser comparado.
+ *
+ * 10 em 100 listas é o ponto onde a recuperação volta a ser estável nesta
+ * base, sem o custo de varrer tudo.
+ *
+ * Vai dentro de uma transação de propósito: `set local` só vale dentro de
+ * transação, e o app fala com o banco pelo pooler, onde um `set` solto pode
+ * cair em outra conexão que não é a da busca.
+ */
+const IVFFLAT_PROBES = 10;
+
 async function vectorSearch(
 	embeddingLiteral: string,
 	tagFilter: SQL | null,
 	limit: number
 ): Promise<ChunkRow[]> {
-	return (await db.execute(sqlOp`
+	return (await db.transaction(async (tx) => {
+		await tx.execute(sqlOp`set local ivfflat.probes = ${sqlOp.raw(String(IVFFLAT_PROBES))}`);
+		return await tx.execute(sqlOp`
 		select
 			kc.id            as chunk_id,
 			kc.source_id     as source_id,
@@ -142,7 +231,8 @@ async function vectorSearch(
 			${tagFilter ? sqlOp`and ${tagFilter}` : sqlOp``}
 		order by kc.embedding <=> ${embeddingLiteral}::vector
 		limit ${limit}
-	`)) as unknown as ChunkRow[];
+	`);
+	})) as unknown as ChunkRow[];
 }
 
 function applyOrgBoost(rows: ChunkRow[]): RetrievedChunk[] {

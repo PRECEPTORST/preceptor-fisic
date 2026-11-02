@@ -19,6 +19,8 @@
  *   --url <u>        link ou DOI da fonte
  *   --dry-run        extrai e fatia sem gravar nada nem gastar embedding
  *   --reingest       refaz os chunks de uma fonte já ingerida (mesmo arquivo)
+ *   --resume         continua ingestão que caiu no meio, sem reembedar o que
+ *                    já entrou (documento grande + erro da API de embedding)
  *
  * Formatos: .docx (mammoth), .pdf (pdfjs, com número de página), .txt/.md.
  *
@@ -62,6 +64,7 @@ type Opts = {
 	tags: string[];
 	url: string | null;
 	dryRun: boolean;
+	resume: boolean;
 	reingest: boolean;
 };
 
@@ -130,7 +133,8 @@ function parseArgs(argv: string[]): { file: string; opts: Opts } {
 			tags: lista(get('tags')),
 			url: get('url') ?? null,
 			dryRun: has('dry-run'),
-			reingest: has('reingest')
+			reingest: has('reingest'),
+			resume: has('resume')
 		}
 	};
 }
@@ -310,17 +314,20 @@ const sql = postgres(process.env.DATABASE_URL_DIRECT ?? process.env.DATABASE_URL
 const [existente] = await sql<Array<{ id: string; title: string }>>`
 	SELECT id, title FROM knowledge_sources WHERE file_hash = ${fileHash}`;
 
-if (existente && !opts.reingest) {
+if (existente && !opts.reingest && !opts.resume) {
 	const [{ n }] = await sql<Array<{ n: number }>>`
 		SELECT count(*)::int n FROM knowledge_chunks WHERE source_id = ${existente.id}`;
 	console.log(`\nEsse arquivo já está na base como "${existente.title}" (${n} chunks).`);
-	console.log('Use --reingest pra refazer os chunks.');
+	console.log('Use --reingest pra refazer os chunks, ou --resume pra continuar de onde parou.');
 	await sql.end();
 	process.exit(0);
 }
 
 let sourceId: string;
-if (existente) {
+if (existente && opts.resume) {
+	sourceId = existente.id;
+	console.log(`\n--resume: continuando a fonte ${sourceId}`);
+} else if (existente) {
 	sourceId = existente.id;
 	const r = await sql`DELETE FROM knowledge_chunks WHERE source_id = ${sourceId}`;
 	console.log(`--reingest: ${r.count} chunks antigos apagados.`);
@@ -338,11 +345,26 @@ if (existente) {
 	console.log(`\nfonte criada: ${sourceId}`);
 }
 
+// Os que já estão lá. O ON CONFLICT abaixo já evitava duplicar, mas só DEPOIS
+// de gastar o embedding: num documento de 230 chunks que caiu no chunk 180,
+// isso é 180 chamadas pagas de novo.
+const jaGravados = new Set(
+	(
+		await sql<Array<{ content_hash: string }>>`
+			SELECT content_hash FROM knowledge_chunks WHERE source_id = ${sourceId}`
+	).map((r) => r.content_hash)
+);
+if (jaGravados.size > 0) console.log(`${jaGravados.size} chunks já na base, serão pulados.`);
+
 console.log(`embedando ${chunks.length} chunks (${EMBED_MODEL}, ${EMBED_DIMS}d)…`);
 
 let gravados = 0;
 let pulados = 0;
 for (const [i, c] of chunks.entries()) {
+	if (jaGravados.has(sha(c.text))) {
+		pulados++;
+		continue;
+	}
 	const embedding = await embedar(c.text);
 	const r = await sql`
 		INSERT INTO knowledge_chunks
