@@ -657,6 +657,23 @@ function buildUserPromptBase(ctx: StudentContext, ragContext: string, notes?: st
 		);
 		lines.push('');
 	}
+	// Mesma lógica do bloco de potência: a TEND-003 exige isometria de
+	// quadríceps em 2 sessões, e sem este aviso o modelo monta um treino de
+	// perna convencional e todo plano de tendinopatia nasce com restrição
+	// amarela que o doutor tem que ler e descartar.
+	if (ctx.conditionTags.includes('tendinopatia_patelar')) {
+		lines.push('## ISOMETRIA DE QUADRÍCEPS OBRIGATÓRIA (tendinopatia patelar)');
+		lines.push(
+			'- Pelo menos 2 sessões da semana precisam ter carga ISOMÉTRICA de quadríceps: 5 repetições de 45 s de sustentação, joelho entre 30° e 60°, progredindo até 70% da contração voluntária máxima conforme a dor permitir. Sem fasciculação muscular, que indica carga alta demais.'
+		);
+		lines.push(
+			'- Escreva "isometria" ou "isométrica" no nome do exercício (ex.: "Extensão de joelho isométrica", "Agachamento espanhol"), senão a prescrição não fica rastreável na ficha.'
+		);
+		lines.push(
+			'- A base do programa é isometria mais força pesada e lenta, de 15RM progredindo pra 6RM. Nada de salto, pliometria, sprint ou mudança de direção: isso é estágio 3 e depende de critério de dor e de força que o sistema não tem registrado.'
+		);
+		lines.push('');
+	}
 	// Cuidados do dia. O modelo escreve com as palavras dele, e o
 	// `garanteCuidadosDoDia` no pós-processamento cobre o que ele deixar de
 	// fora. Pedir aqui também evita que o plano fique com dois blocos dizendo a
