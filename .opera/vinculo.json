@@ -1,0 +1,11 @@
+{
+  "venture": "preceptor-fisic",
+  "processo": "prescricao-clinica",
+  "fases": [
+    "ensaiar"
+  ],
+  "branchProducao": "main",
+  "comandoDoPortao": "npm run check && npm run lint && npm test",
+  "modo": "medindo",
+  "cerebro": "matheuscastro12-eng/opera"
+}
