@@ -325,6 +325,12 @@ body {
 ::-webkit-scrollbar-thumb:hover {
 	background: var(--ink-line-2);
 }
+@supports not selector(::-webkit-scrollbar) {
+	:root {
+		scrollbar-width: thin;
+		scrollbar-color: var(--bg-4) var(--bg-0);
+	}
+}
 
 /* ─────────────────────────────────────────────
    Mobile responsive fallbacks — pega páginas
