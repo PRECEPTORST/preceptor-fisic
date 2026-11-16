@@ -117,6 +117,7 @@ function Conversa({ d }: { d: ConversaAluno }) {
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 submeter();

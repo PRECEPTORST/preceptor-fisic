@@ -210,6 +210,12 @@
   ::-webkit-scrollbar-track {
     background: transparent;
   }
+  @supports not selector(::-webkit-scrollbar) {
+    :root {
+      scrollbar-width: thin;
+      scrollbar-color: var(--c-border-strong) transparent;
+    }
+  }
 }
 
 @layer utilities {
@@ -267,6 +273,9 @@
   .cascata > *:nth-child(9) { animation-delay: 200ms; }
   .cascata > *:nth-child(10) { animation-delay: 225ms; }
   .cascata > *:nth-child(n + 11) { animation-delay: 250ms; }
+  @supports (animation-delay: calc(sibling-index() * 1ms)) {
+    .cascata > *:nth-child(n) { animation-delay: calc((min(sibling-index(), 11) - 1) * 25ms); }
+  }
 
   /* Card clicável: sobe 2px e a borda acende. */
   .card-vivo {
